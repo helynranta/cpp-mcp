@@ -289,23 +289,30 @@ TEST_F(VersioningTest, UnsupportedVersion) {
         // Give the callback a moment to finish and return before stopping
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
-        // Stop SSE client before detaching to avoid crashes during global teardown
+        // Stop SSE client to interrupt the blocking Get() call
         auto client = sse_client_ptr->load(std::memory_order_acquire);
         if (client) {
             client->stop();
         }
         
-        // Detach the thread - all state is heap-allocated via shared_ptr, so it's safe
-        // The thread will stop automatically once both messages are received
+        // Try to join the thread instead of detaching
         if (sse_thread.joinable()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            // Wait a bit for the thread to exit after stop()
+            auto start = std::chrono::steady_clock::now();
+            auto timeout = std::chrono::seconds(2);
+            while (sse_thread.joinable() && std::chrono::steady_clock::now() - start < timeout) {
+                try {
+                    sse_thread.join();
+                    break;
+                } catch (...) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                }
+            }
+            // Only detach if we couldn't join
             if (sse_thread.joinable()) {
                 sse_thread.detach();
             }
         }
-        
-        // Give detached thread time to fully stop before test ends
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
         // Clean up resources  
         http_client.reset();
@@ -462,23 +469,30 @@ TEST_F(PingTest, DirectPing) {
         // Give the callback a moment to finish and return before stopping
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
-        // Stop SSE client before detaching to avoid crashes during global teardown
+        // Stop SSE client to interrupt the blocking Get() call
         auto client = sse_client_ptr->load(std::memory_order_acquire);
         if (client) {
             client->stop();
         }
         
-        // Detach the thread - all state is heap-allocated via shared_ptr, so it's safe
-        // The thread will stop automatically once both messages are received
+        // Try to join the thread instead of detaching
         if (sse_thread.joinable()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            // Wait a bit for the thread to exit after stop()
+            auto start = std::chrono::steady_clock::now();
+            auto timeout = std::chrono::seconds(2);
+            while (sse_thread.joinable() && std::chrono::steady_clock::now() - start < timeout) {
+                try {
+                    sse_thread.join();
+                    break;
+                } catch (...) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                }
+            }
+            // Only detach if we couldn't join
             if (sse_thread.joinable()) {
                 sse_thread.detach();
             }
         }
-        
-        // Give detached thread time to fully stop before test ends
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
         // Clean up resources
         http_client.reset();
