@@ -3,7 +3,7 @@
  * @brief Implementation of the MCP SSE client
  * 
  * This file implements the client-side functionality for the Model Context Protocol using SSE.
- * Follows the 2024-11-05 basic protocol specification.
+ * Follows the 2025-03-26 basic protocol specification.
  */
 
 #include "mcp_sse_client.h"

@@ -1,6 +1,6 @@
 # MCP Protocol Framework
 
-[Model Context Protocol (MCP)](https://spec.modelcontextprotocol.io/specification/2024-11-05/architecture/) is an open protocol that provides a standardized way for AI models and agents to interact with various resources, tools, and services. This framework implements the core functionality of the MCP protocol, conforming to the 2024-11-05 basic protocol specification.
+[Model Context Protocol (MCP)](https://spec.modelcontextprotocol.io/specification/2025-03-26/architecture/) is an open protocol that provides a standardized way for AI models and agents to interact with various resources, tools, and services. This framework implements the core functionality of the MCP protocol, conforming to the 2025-03-26 basic protocol specification.
 
 ## Core Features
 
@@ -136,7 +136,7 @@ mcp::json hello_handler(const mcp::json& params, const std::string /* session_id
     // Server will catch exceptions and return error contents
     // For example, you can use `throw mcp::mcp_exception(mcp::error_code::invalid_params, "Invalid name");` to report an error
 
-    // Content should be a JSON array, see: https://modelcontextprotocol.io/specification/2024-11-05/server/tools#tool-result
+    // Content should be a JSON array, see: https://modelcontextprotocol.io/specification/2025-03-26/server/tools#tool-result
     return {
         {
             {"type", "text"},

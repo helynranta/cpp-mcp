@@ -1,6 +1,6 @@
 # Model Context Protocol Testcases
 
-Testcases collected from https://spec.modelcontextprotocol.io/specification/2024-11-05/basic/ and https://spec.modelcontextprotocol.io/specification/2024-11-05/server/.
+Testcases collected from https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/ and https://spec.modelcontextprotocol.io/specification/2025-03-26/server/.
 
 ## Basic Protocol Testcases
 
@@ -53,7 +53,7 @@ Testcases collected from https://spec.modelcontextprotocol.io/specification/2024
   "id": 1,
   "method": "initialize",
   "params": {
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-03-26",
     "capabilities": {
       "roots": {
         "listChanged": true
@@ -75,7 +75,7 @@ Testcases collected from https://spec.modelcontextprotocol.io/specification/2024
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-03-26",
     "capabilities": {
       "logging": {},
       "prompts": {
@@ -116,7 +116,7 @@ Testcases collected from https://spec.modelcontextprotocol.io/specification/2024
     "code": -32602,
     "message": "Unsupported protocol version",
     "data": {
-      "supported": ["2024-11-05"],
+      "supported": ["2025-03-26"],
       "requested": "1.0.0"
     }
   }
