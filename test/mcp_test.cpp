@@ -777,6 +777,144 @@ TEST_F(ToolMetadataTest, NoAnnotations) {
     EXPECT_FALSE(tool_json.contains("annotations"));
 }
 
+// Progress notification tests
+#include "mcp_progress.h"
+
+class ProgressNotificationTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Set up test environment
+    }
+
+    void TearDown() override {
+        // Clean up test environment
+    }
+};
+
+// Test progress notification creation
+TEST_F(ProgressNotificationTest, CreateProgressNotification) {
+    json token = "test-token-123";
+    progress_notification notif = progress_notification::create(token, 50.0, 100.0, "Processing...");
+    
+    EXPECT_EQ(notif.progress_token, token);
+    EXPECT_DOUBLE_EQ(notif.progress, 50.0);
+    ASSERT_TRUE(notif.total.has_value());
+    EXPECT_DOUBLE_EQ(notif.total.value(), 100.0);
+    ASSERT_TRUE(notif.message.has_value());
+    EXPECT_EQ(notif.message.value(), "Processing...");
+}
+
+// Test progress notification without total
+TEST_F(ProgressNotificationTest, ProgressWithoutTotal) {
+    json token = 42;
+    progress_notification notif = progress_notification::create(token, 25.5);
+    
+    EXPECT_EQ(notif.progress_token, token);
+    EXPECT_DOUBLE_EQ(notif.progress, 25.5);
+    EXPECT_FALSE(notif.total.has_value());
+    EXPECT_FALSE(notif.message.has_value());
+}
+
+// Test progress notification to JSON
+TEST_F(ProgressNotificationTest, ProgressToJson) {
+    json token = "operation-001";
+    progress_notification notif = progress_notification::create(token, 75.0, 100.0, "Almost done");
+    
+    json params = notif.to_params();
+    
+    EXPECT_EQ(params["progressToken"], token);
+    EXPECT_DOUBLE_EQ(params["progress"].get<double>(), 75.0);
+    EXPECT_DOUBLE_EQ(params["total"].get<double>(), 100.0);
+    EXPECT_EQ(params["message"].get<std::string>(), "Almost done");
+}
+
+// Test progress notification from JSON
+TEST_F(ProgressNotificationTest, ProgressFromJson) {
+    json params = {
+        {"progressToken", "test-456"},
+        {"progress", 33.3},
+        {"total", 99.9},
+        {"message", "Working..."}
+    };
+    
+    progress_notification notif = progress_notification::from_params(params);
+    
+    EXPECT_EQ(notif.progress_token.get<std::string>(), "test-456");
+    EXPECT_DOUBLE_EQ(notif.progress, 33.3);
+    ASSERT_TRUE(notif.total.has_value());
+    EXPECT_DOUBLE_EQ(notif.total.value(), 99.9);
+    ASSERT_TRUE(notif.message.has_value());
+    EXPECT_EQ(notif.message.value(), "Working...");
+}
+
+// Test progress tracker
+TEST_F(ProgressNotificationTest, ProgressTrackerBasic) {
+    progress_tracker tracker;
+    
+    json token1 = "token-1";
+    json request_id1 = 123;
+    
+    // Register token
+    tracker.register_token(token1, request_id1);
+    EXPECT_TRUE(tracker.is_token_active(token1));
+    
+    auto req_id = tracker.get_request_id(token1);
+    ASSERT_TRUE(req_id.has_value());
+    EXPECT_EQ(req_id.value(), request_id1);
+    
+    // Unregister token
+    tracker.unregister_token(token1);
+    EXPECT_FALSE(tracker.is_token_active(token1));
+    EXPECT_FALSE(tracker.get_request_id(token1).has_value());
+}
+
+// Test progress token extraction
+TEST_F(ProgressNotificationTest, ExtractProgressToken) {
+    // Test with progress token
+    json params_with_token = {
+        {"arg1", "value1"},
+        {"_meta", {
+            {"progressToken", "my-token"}
+        }}
+    };
+    
+    auto token = progress_tracker::extract_progress_token(params_with_token);
+    ASSERT_TRUE(token.has_value());
+    EXPECT_EQ(token.value().get<std::string>(), "my-token");
+    
+    // Test without progress token
+    json params_without_token = {
+        {"arg1", "value1"}
+    };
+    
+    auto no_token = progress_tracker::extract_progress_token(params_without_token);
+    EXPECT_FALSE(no_token.has_value());
+    
+    // Test with empty _meta
+    json params_empty_meta = {
+        {"arg1", "value1"},
+        {"_meta", json::object()}
+    };
+    
+    auto no_token2 = progress_tracker::extract_progress_token(params_empty_meta);
+    EXPECT_FALSE(no_token2.has_value());
+}
+
+// Test create progress notification request
+TEST_F(ProgressNotificationTest, CreateProgressNotificationRequest) {
+    progress_notification notif = progress_notification::create("token-999", 10.0, 20.0, "Test");
+    
+    request req = create_progress_notification(notif);
+    
+    EXPECT_EQ(req.jsonrpc, "2.0");
+    EXPECT_TRUE(req.is_notification());
+    EXPECT_EQ(req.method, "notifications/progress");
+    EXPECT_EQ(req.params["progressToken"].get<std::string>(), "token-999");
+    EXPECT_DOUBLE_EQ(req.params["progress"].get<double>(), 10.0);
+    EXPECT_DOUBLE_EQ(req.params["total"].get<double>(), 20.0);
+    EXPECT_EQ(req.params["message"].get<std::string>(), "Test");
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     
