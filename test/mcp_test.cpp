@@ -93,9 +93,9 @@ TEST_F(MessageFormatTest, NotificationMessageFormat) {
     EXPECT_TRUE(notification.is_notification());
 }
 
-class LifecycleEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
+class LifecycleTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
         // Set up test environment
         server::configuration config;
         config.host = "localhost";
@@ -125,52 +125,41 @@ public:
         client_->set_capabilities(client_capabilities);
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         // Clean up test environment
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        // Get client pointer
+        client_ptr_ = client_.get();
     }
 
-    static std::unique_ptr<sse_client>& GetClient() {
-        return client_;
-    }
-
-private:
+    // Use raw pointer for test access
+    sse_client* client_ptr_;
     static std::unique_ptr<server> server_;
     static std::unique_ptr<sse_client> client_;
 };
 
 // Static member variable definition
-std::unique_ptr<server> LifecycleEnvironment::server_;
-std::unique_ptr<sse_client> LifecycleEnvironment::client_;
-
-class LifecycleTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Get client pointer
-        client_ = LifecycleEnvironment::GetClient().get();
-    }
-
-    // Use raw pointer instead of reference
-    sse_client* client_;
-};
+std::unique_ptr<server> LifecycleTest::server_;
+std::unique_ptr<sse_client> LifecycleTest::client_;
 
 // Test initialize process
 TEST_F(LifecycleTest, InitializeProcess) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // Execute initialize
-    bool init_result = client_->initialize("TestClient", "1.0.0");
+    bool init_result = client_ptr_->initialize("TestClient", "1.0.0");
     
     // Verify initialize result
     EXPECT_TRUE(init_result);
     
     // Verify server capabilities
-    json server_capabilities = client_->get_server_capabilities();
+    json server_capabilities = client_ptr_->get_server_capabilities();
     EXPECT_TRUE(server_capabilities.contains("logging"));
     EXPECT_TRUE(server_capabilities.contains("prompts"));
     EXPECT_TRUE(server_capabilities.contains("resources"));
@@ -178,9 +167,10 @@ TEST_F(LifecycleTest, InitializeProcess) {
 }
 
 // Version control test environment
-class VersioningEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
+// Test version control
+class VersioningTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
         // Set up test environment
         server::configuration config;
         config.host = "localhost";
@@ -204,46 +194,37 @@ public:
         client_ = std::make_unique<sse_client>("http://localhost:8081");
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         // Clean up test environment
+        // Wait briefly to allow any detached SSE threads from tests to complete
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        // Get client pointer
+        client_ptr_ = client_.get();
     }
 
-    static std::unique_ptr<sse_client>& GetClient() {
-        return client_;
-    }
-
-private:
+    // Use raw pointer for test access
+    sse_client* client_ptr_;
     static std::unique_ptr<server> server_;
     static std::unique_ptr<sse_client> client_;
 };
 
-std::unique_ptr<server> VersioningEnvironment::server_;
-std::unique_ptr<sse_client> VersioningEnvironment::client_;
-
-// Test version control
-class VersioningTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Get client pointer
-        client_ = VersioningEnvironment::GetClient().get();
-    }
-
-    // Use raw pointer instead of reference
-    sse_client* client_;
-};
+std::unique_ptr<server> VersioningTest::server_;
+std::unique_ptr<sse_client> VersioningTest::client_;
 
 // Test supported version
 TEST_F(VersioningTest, SupportedVersion) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // Execute initialize
-    bool init_result = client_->initialize("TestClient", "1.0.0");
+    bool init_result = client_ptr_->initialize("TestClient", "1.0.0");
     
     // Verify initialize result
     EXPECT_TRUE(init_result);
@@ -254,21 +235,24 @@ TEST_F(VersioningTest, UnsupportedVersion) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     try {
         // Use httplib::Client to send unsupported version request
-        std::unique_ptr<httplib::Client> sse_client = std::make_unique<httplib::Client>("localhost", 8081);
         std::unique_ptr<httplib::Client> http_client = std::make_unique<httplib::Client>("localhost", 8081);
         
         // Open SSE connection
-        std::promise<std::string> msg_endpoint_promise;
-        std::promise<std::string> sse_promise;
-        std::future<std::string> msg_endpoint = msg_endpoint_promise.get_future();
-        std::future<std::string> sse_response = sse_promise.get_future();
+        auto msg_endpoint_promise = std::make_shared<std::promise<std::string>>();
+        auto sse_promise = std::make_shared<std::promise<std::string>>();
+        std::future<std::string> msg_endpoint = msg_endpoint_promise->get_future();
+        std::future<std::string> sse_response = sse_promise->get_future();
 
-        std::atomic<bool> sse_running{true};
-        std::atomic<bool> msg_endpoint_received{false};
-        std::atomic<bool> sse_response_received{false};
+        auto msg_endpoint_received = std::make_shared<std::atomic<bool>>(false);
+        auto sse_response_received = std::make_shared<std::atomic<bool>>(false);
 
-        std::thread sse_thread([&]() {
-            sse_client->Get("/sse", [&](const char* data, size_t len) {
+        // Use std::thread with shared state to avoid lifetime issues when detaching
+        std::thread sse_thread([msg_endpoint_received, sse_response_received,
+                                msg_endpoint_promise, sse_promise]() {
+            // Create SSE client inside thread so it's owned by the thread
+            httplib::Client sse_client("localhost", 8081);
+            sse_client.Get("/sse", [msg_endpoint_received, sse_response_received,
+                                    msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
                     std::string response(data, len);
                     size_t pos = response.find("data: ");
@@ -276,17 +260,17 @@ TEST_F(VersioningTest, UnsupportedVersion) {
                         std::string data_content = response.substr(pos + 6);
                         data_content = data_content.substr(0, data_content.find("\r\n"));
                         
-                        if (!msg_endpoint_received.load() && response.find("endpoint") != std::string::npos) {
-                            msg_endpoint_received.store(true);
+                        if (!msg_endpoint_received->load() && response.find("endpoint") != std::string::npos) {
+                            msg_endpoint_received->store(true);
                             try {
-                                msg_endpoint_promise.set_value(data_content);
+                                msg_endpoint_promise->set_value(data_content);
                             } catch (...) {
                                 // Ignore duplicate exception setting
                             }
-                        } else if (!sse_response_received.load() && response.find("message") != std::string::npos) {
-                            sse_response_received.store(true);
+                        } else if (!sse_response_received->load() && response.find("message") != std::string::npos) {
+                            sse_response_received->store(true);
                             try {
-                                sse_promise.set_value(data_content);
+                                sse_promise->set_value(data_content);
                             } catch (...) {
                                 // Ignore duplicate exception setting
                             }
@@ -295,7 +279,8 @@ TEST_F(VersioningTest, UnsupportedVersion) {
                 } catch (const std::exception& e) {
                     GTEST_LOG_(ERROR) << "SSE processing error: " << e.what();
                 }
-                return sse_running.load();
+                // Continue until we get both messages
+                return !msg_endpoint_received->load() || !sse_response_received->load();
             });
         });
         
@@ -312,48 +297,27 @@ TEST_F(VersioningTest, UnsupportedVersion) {
         auto mcp_res = json::parse(sse_response.get());
         EXPECT_EQ(mcp_res["error"]["code"].get<int>(), static_cast<int>(error_code::invalid_params));
 
-        // Close all connections
-        sse_running.store(false);
-        
-        // Try to interrupt SSE connection
-        try {
-            sse_client->Get("/sse", [](const char*, size_t) { return false; });
-        } catch (...) {
-            // Ignore any exception
-        }
-        
-        // Wait for thread to finish (max 1 second)
+        // Detach the thread - all state is heap-allocated via shared_ptr, so it's safe
+        // The thread will stop automatically once both messages are received
         if (sse_thread.joinable()) {
-            std::thread detacher([](std::thread& t) {
-                try {
-                    if (t.joinable()) {
-                        t.join();
-                    }
-                } catch (...) {
-                    if (t.joinable()) {
-                        t.detach();
-                    }
-                }
-            }, std::ref(sse_thread));
-            detacher.detach();
+            sse_thread.detach();
         }
-
-        // Clean up resources
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        sse_client.reset();
-        http_client.reset();
         
-        // Add delay to ensure resources are fully released
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // Clean up resources  
+        http_client.reset();
+    } catch (const std::exception& e) {
+        GTEST_LOG_(ERROR) << "Test exception: " << e.what();
+        EXPECT_TRUE(false);
     } catch (...) {
         EXPECT_TRUE(false);
     }
 }
 
 // Ping test environment
-class PingEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
+// Test Ping functionality
+class PingTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
         // Set up test environment
         server::configuration config;
         config.host = "localhost";
@@ -374,47 +338,38 @@ public:
         client_->set_capabilities(client_capabilities);
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         // Clean up test environment
+        // Wait briefly to allow any detached SSE threads from tests to complete
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        // Get client pointer
+        client_ptr_ = client_.get();
     }
 
-    static std::unique_ptr<sse_client>& GetClient() {
-        return client_;
-    }
-
-private:
+    // Use raw pointer for test access
+    sse_client* client_ptr_;
     static std::unique_ptr<server> server_;
     static std::unique_ptr<sse_client> client_;
 };
 
 // Static member variable definition
-std::unique_ptr<server> PingEnvironment::server_;
-std::unique_ptr<sse_client> PingEnvironment::client_;
-
-// Test Ping functionality
-class PingTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Get client pointer
-        client_ = PingEnvironment::GetClient().get();
-    }
-
-    // Use raw pointer instead of reference
-    sse_client* client_;
-};
+std::unique_ptr<server> PingTest::server_;
+std::unique_ptr<sse_client> PingTest::client_;
 
 // Test Ping request
 TEST_F(PingTest, PingRequest) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    client_->initialize("TestClient", "1.0.0");
-    bool ping_result = client_->ping();
+    client_ptr_->initialize("TestClient", "1.0.0");
+    bool ping_result = client_ptr_->ping();
     EXPECT_TRUE(ping_result);
 }
 
@@ -422,21 +377,24 @@ TEST_F(PingTest, DirectPing) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     try {
         // Use httplib::Client to send Ping request
-        std::unique_ptr<httplib::Client> sse_client = std::make_unique<httplib::Client>("localhost", 8082);
         std::unique_ptr<httplib::Client> http_client = std::make_unique<httplib::Client>("localhost", 8082);
         
         // Open SSE connection
-        std::promise<std::string> msg_endpoint_promise;
-        std::promise<std::string> sse_promise;
-        std::future<std::string> msg_endpoint = msg_endpoint_promise.get_future();
-        std::future<std::string> sse_response = sse_promise.get_future();
+        auto msg_endpoint_promise = std::make_shared<std::promise<std::string>>();
+        auto sse_promise = std::make_shared<std::promise<std::string>>();
+        std::future<std::string> msg_endpoint = msg_endpoint_promise->get_future();
+        std::future<std::string> sse_response = sse_promise->get_future();
 
-        std::atomic<bool> sse_running{true};
-        std::atomic<bool> msg_endpoint_received{false};
-        std::atomic<bool> sse_response_received{false};
+        auto msg_endpoint_received = std::make_shared<std::atomic<bool>>(false);
+        auto sse_response_received = std::make_shared<std::atomic<bool>>(false);
 
-        std::thread sse_thread([&]() {
-            sse_client->Get("/sse", [&](const char* data, size_t len) {
+        // Use std::thread with shared state to avoid lifetime issues when detaching
+        std::thread sse_thread([msg_endpoint_received, sse_response_received,
+                                msg_endpoint_promise, sse_promise]() {
+            // Create SSE client inside thread so it's owned by the thread
+            httplib::Client sse_client("localhost", 8082);
+            sse_client.Get("/sse", [msg_endpoint_received, sse_response_received,
+                                    msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
                     std::string response(data, len);
                     size_t pos = response.find("data: ");
@@ -444,17 +402,17 @@ TEST_F(PingTest, DirectPing) {
                         std::string data_content = response.substr(pos + 6);
                         data_content = data_content.substr(0, data_content.find("\r\n"));
                         
-                        if (!msg_endpoint_received.load() && response.find("endpoint") != std::string::npos) {
-                            msg_endpoint_received.store(true);
+                        if (!msg_endpoint_received->load() && response.find("endpoint") != std::string::npos) {
+                            msg_endpoint_received->store(true);
                             try {
-                                msg_endpoint_promise.set_value(data_content);
+                                msg_endpoint_promise->set_value(data_content);
                             } catch (...) {
                                 // Ignore duplicate exception setting
                             }
-                        } else if (!sse_response_received.load() && response.find("message") != std::string::npos) {
-                            sse_response_received.store(true);
+                        } else if (!sse_response_received->load() && response.find("message") != std::string::npos) {
+                            sse_response_received->store(true);
                             try {
-                                sse_promise.set_value(data_content);
+                                sse_promise->set_value(data_content);
                             } catch (...) {
                                 // Ignore duplicate exception setting
                             }
@@ -463,7 +421,8 @@ TEST_F(PingTest, DirectPing) {
                 } catch (const std::exception& e) {
                     GTEST_LOG_(ERROR) << "SSE processing error: " << e.what();
                 }
-                return sse_running.load();
+                // Continue until we get both messages
+                return !msg_endpoint_received->load() || !sse_response_received->load();
             });
         });
 
@@ -479,48 +438,27 @@ TEST_F(PingTest, DirectPing) {
         auto mcp_res = json::parse(sse_response.get());
         EXPECT_EQ(mcp_res["result"], json::object());
 
-        // Close all connections
-        sse_running.store(false);
-        
-        // Try to interrupt SSE connection
-        try {
-            sse_client->Get("/sse", [](const char*, size_t) { return false; });
-        } catch (...) {
-            // Ignore any exception
-        }
-        
-        // Wait for thread to finish (max 1 second)
+        // Detach the thread - all state is heap-allocated via shared_ptr, so it's safe
+        // The thread will stop automatically once both messages are received
         if (sse_thread.joinable()) {
-            std::thread detacher([](std::thread& t) {
-                try {
-                    if (t.joinable()) {
-                        t.join();
-                    }
-                } catch (...) {
-                    if (t.joinable()) {
-                        t.detach();
-                    }
-                }
-            }, std::ref(sse_thread));
-            detacher.detach();
+            sse_thread.detach();
         }
-
-        // Clean up resources
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        sse_client.reset();
-        http_client.reset();
         
-        // Add delay to ensure resources are fully released
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // Clean up resources
+        http_client.reset();
+    } catch (const std::exception& e) {
+        GTEST_LOG_(ERROR) << "Test exception: " << e.what();
+        EXPECT_TRUE(false);
     } catch (...) {
         EXPECT_TRUE(false);
     }
 }
 
 // Tools test environment
-class ToolsEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
+// Test tools functionality
+class ToolsTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
         // Set up test environment
         server::configuration config;
         config.host = "localhost";
@@ -613,48 +551,36 @@ public:
         client_->initialize("TestClient", "1.0.0");
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         // Clean up test environment
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        // Get client pointer
+        client_ptr_ = client_.get();
     }
 
-    static std::unique_ptr<sse_client>& GetClient() {
-        return client_;
-    }
-
-private:
+    // Use raw pointer for test access
+    sse_client* client_ptr_;
     static std::unique_ptr<server> server_;
     static std::unique_ptr<sse_client> client_;
 };
 
 // Static member variable definition
-std::unique_ptr<server> ToolsEnvironment::server_;
-std::unique_ptr<sse_client> ToolsEnvironment::client_;
-
-// Test tools functionality
-class ToolsTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Get client pointer
-        client_ = ToolsEnvironment::GetClient().get();
-    }
-
-    // Use raw pointer instead of reference
-    sse_client* client_;
-};
+std::unique_ptr<server> ToolsTest::server_;
+std::unique_ptr<sse_client> ToolsTest::client_;
 
 // Test listing tools
 TEST_F(ToolsTest, ListTools) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // Call list tools method
-    json tools_list = client_->send_request("tools/list").result;
+    json tools_list = client_ptr_->send_request("tools/list").result;
     
     // Verify tools list
     EXPECT_TRUE(tools_list.contains("tools"));
@@ -667,7 +593,7 @@ TEST_F(ToolsTest, ListTools) {
 TEST_F(ToolsTest, CallTool) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // Call tool
-    json tool_result = client_->call_tool("get_weather", {{"location", "New York"}});
+    json tool_result = client_ptr_->call_tool("get_weather", {{"location", "New York"}});
     
     // Verify tool call result
     EXPECT_TRUE(tool_result.contains("content"));
@@ -1014,9 +940,9 @@ TEST_F(BatchRequestTest, SingleRequestBatch) {
 }
 
 // Integration tests for batch request handling with server
-class BatchIntegrationEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
+class BatchIntegrationTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
         // Set up test server
         server::configuration config;
         config.host = "localhost";
@@ -1055,41 +981,30 @@ public:
         client_->set_capabilities(client_capabilities);
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        client_ptr_ = client_.get();
+        
+        // Initialize the client
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        bool init_result = client_ptr_->initialize("BatchTestClient", "1.0.0");
+        ASSERT_TRUE(init_result) << "Client initialization failed";
     }
 
-    static std::unique_ptr<sse_client>& GetClient() {
-        return client_;
-    }
-
-private:
+    sse_client* client_ptr_;
     static std::unique_ptr<server> server_;
     static std::unique_ptr<sse_client> client_;
 };
 
-std::unique_ptr<server> BatchIntegrationEnvironment::server_;
-std::unique_ptr<sse_client> BatchIntegrationEnvironment::client_;
-
-class BatchIntegrationTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        client_ = BatchIntegrationEnvironment::GetClient().get();
-        
-        // Initialize the client
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        bool init_result = client_->initialize("BatchTestClient", "1.0.0");
-        ASSERT_TRUE(init_result) << "Client initialization failed";
-    }
-
-    sse_client* client_;
-};
+std::unique_ptr<server> BatchIntegrationTest::server_;
+std::unique_ptr<sse_client> BatchIntegrationTest::client_;
 
 // Note: The following tests validate batch message format and parsing logic.
 // Full integration tests would require extending the SSE client to support
@@ -1101,7 +1016,7 @@ TEST_F(BatchIntegrationTest, BatchRequestValidation) {
     // by checking that single requests still work (backward compatibility)
     
     // Send a single request (non-batch)
-    json response = client_->send_request("tools/list").result;
+    json response = client_ptr_->send_request("tools/list").result;
     
     // Verify response is valid
     EXPECT_TRUE(response.contains("tools"));
@@ -1193,13 +1108,6 @@ TEST_F(JsonRpcServerValidationTest, NotificationStructureValid) {
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
-    
-    // Add global test environment
-    ::testing::AddGlobalTestEnvironment(new LifecycleEnvironment());
-    ::testing::AddGlobalTestEnvironment(new VersioningEnvironment());
-    ::testing::AddGlobalTestEnvironment(new PingEnvironment());
-    ::testing::AddGlobalTestEnvironment(new ToolsEnvironment());
-    ::testing::AddGlobalTestEnvironment(new BatchIntegrationEnvironment());
     
     return RUN_ALL_TESTS();
 } 

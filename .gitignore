@@ -46,6 +46,7 @@ tags
 build*
 _codeql_build_dir/
 _codeql_detected_source_root
+vcpkg/
 vcpkg_installed/
 !build-info.cmake
 !build-info.cpp.in
