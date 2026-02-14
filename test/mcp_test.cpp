@@ -676,6 +676,107 @@ TEST_F(ToolsTest, CallTool) {
     EXPECT_EQ(tool_result["content"][0]["text"], "Current weather in New York:\nTemperature: 72°F\nConditions: Partly cloudy");
 }
 
+// Test tool metadata annotations
+class ToolMetadataTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Setup for metadata tests
+    }
+};
+
+// Test tool with readOnly annotation
+TEST_F(ToolMetadataTest, ReadOnlyAnnotation) {
+    tool read_only_tool = tool_builder("get_data")
+        .with_description("Get data from database")
+        .with_string_param("id", "Data ID")
+        .with_read_only(true)
+        .build();
+    
+    json tool_json = read_only_tool.to_json();
+    
+    EXPECT_TRUE(tool_json.contains("annotations"));
+    EXPECT_TRUE(tool_json["annotations"].contains("readOnly"));
+    EXPECT_TRUE(tool_json["annotations"]["readOnly"].get<bool>());
+}
+
+// Test tool with destructive annotation
+TEST_F(ToolMetadataTest, DestructiveAnnotation) {
+    tool destructive_tool = tool_builder("delete_data")
+        .with_description("Delete data from database")
+        .with_string_param("id", "Data ID to delete")
+        .with_destructive(true)
+        .build();
+    
+    json tool_json = destructive_tool.to_json();
+    
+    EXPECT_TRUE(tool_json.contains("annotations"));
+    EXPECT_TRUE(tool_json["annotations"].contains("destructive"));
+    EXPECT_TRUE(tool_json["annotations"]["destructive"].get<bool>());
+}
+
+// Test tool with cost metadata
+TEST_F(ToolMetadataTest, CostMetadata) {
+    tool costly_tool = tool_builder("ai_inference")
+        .with_description("Run AI inference")
+        .with_string_param("prompt", "Inference prompt")
+        .with_cost(0.05)
+        .build();
+    
+    json tool_json = costly_tool.to_json();
+    
+    EXPECT_TRUE(tool_json.contains("annotations"));
+    EXPECT_TRUE(tool_json["annotations"].contains("cost"));
+    EXPECT_DOUBLE_EQ(tool_json["annotations"]["cost"].get<double>(), 0.05);
+}
+
+// Test tool with latency metadata
+TEST_F(ToolMetadataTest, LatencyMetadata) {
+    tool slow_tool = tool_builder("slow_query")
+        .with_description("Run a slow database query")
+        .with_string_param("query", "SQL query")
+        .with_latency(5000)
+        .build();
+    
+    json tool_json = slow_tool.to_json();
+    
+    EXPECT_TRUE(tool_json.contains("annotations"));
+    EXPECT_TRUE(tool_json["annotations"].contains("latency"));
+    EXPECT_EQ(tool_json["annotations"]["latency"].get<int>(), 5000);
+}
+
+// Test tool with multiple annotations
+TEST_F(ToolMetadataTest, MultipleAnnotations) {
+    tool multi_tool = tool_builder("complex_operation")
+        .with_description("Complex operation with multiple annotations")
+        .with_string_param("data", "Input data")
+        .with_read_only(false)
+        .with_destructive(true)
+        .with_cost(0.10)
+        .with_latency(3000)
+        .build();
+    
+    json tool_json = multi_tool.to_json();
+    
+    EXPECT_TRUE(tool_json.contains("annotations"));
+    EXPECT_FALSE(tool_json["annotations"]["readOnly"].get<bool>());
+    EXPECT_TRUE(tool_json["annotations"]["destructive"].get<bool>());
+    EXPECT_DOUBLE_EQ(tool_json["annotations"]["cost"].get<double>(), 0.10);
+    EXPECT_EQ(tool_json["annotations"]["latency"].get<int>(), 3000);
+}
+
+// Test tool without annotations
+TEST_F(ToolMetadataTest, NoAnnotations) {
+    tool simple_tool = tool_builder("simple")
+        .with_description("Simple tool without annotations")
+        .with_string_param("input", "Input parameter")
+        .build();
+    
+    json tool_json = simple_tool.to_json();
+    
+    // Annotations should not be present if not set
+    EXPECT_FALSE(tool_json.contains("annotations"));
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     
