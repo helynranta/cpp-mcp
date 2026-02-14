@@ -73,4 +73,4 @@ add_test(
 add_custom_target(run_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --verbose
     DEPENDS ${TEST_PROJECT_NAME}
-) 
+)
