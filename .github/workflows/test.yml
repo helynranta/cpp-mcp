@@ -46,7 +46,7 @@ jobs:
     
     - name: Upload Conformance Report
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: conformance-report-linux
         path: build/conformance_report_linux.txt
@@ -90,7 +90,7 @@ jobs:
     
     - name: Upload Conformance Report
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: conformance-report-windows
         path: build/conformance_report_windows.txt
@@ -133,7 +133,7 @@ jobs:
     
     - name: Upload Conformance Report
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: conformance-report-macos
         path: build/conformance_report_macos.txt
@@ -159,4 +159,3 @@ jobs:
         else
           echo "✅ MCP 2025-03-26 Conformance tests passed on all platforms"
         fi
-
