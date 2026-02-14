@@ -8,6 +8,10 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 
 - **JSON-RPC 2.0 Communication**: Request/response communication based on JSON-RPC 2.0 standard
 - **Batch Request Support**: Process multiple JSON-RPC requests in a single HTTP call (MCP 2025-03-26 requirement)
+- **Lifecycle Management**: Strict initialization lifecycle with state transitions (uninitialized → initializing → ready)
+- **Batch Initialization Protection**: Rejects initialize requests in batches per MCP 2025-03-26 specification
+- **Capability Negotiation**: Store and respect client capabilities negotiated during initialization
+- **Cancellation Support**: Handle cancellation notifications (notifications/cancelled) with configurable timeout
 - **Resource Abstraction**: Standard interfaces for resources such as files, APIs, etc.
 - **Tool Registration**: Register and call tools with structured parameters
 - **Extensible Architecture**: Easy to extend with new resource types and tools
@@ -432,6 +436,57 @@ Example notification:
         "progress": 50,
         "total": 100,
         "message": "Processing item 50"
+    }
+}
+```
+
+## Lifecycle Management and Cancellation
+
+The framework implements strict lifecycle management according to MCP 2025-03-26:
+
+### Lifecycle States
+
+Sessions transition through these states:
+- **Uninitialized**: Session created, waiting for initialize request
+- **Initializing**: Initialize request received, waiting for notifications/initialized
+- **Ready**: Session fully initialized and ready for operations
+- **Shutdown**: Session shutting down
+
+### Lifecycle Rules
+
+1. **Initialize must be first**: The `initialize` request must be the first message (except `ping`)
+2. **No batch initialization**: Initialize requests cannot be part of JSON-RPC batches
+3. **Initialized notification required**: After `initialize` response, client must send `notifications/initialized` before other requests
+4. **Ping allowed anytime**: `ping` requests are allowed in any lifecycle state
+
+### Configurable Request Timeout
+
+```cpp
+mcp::server::configuration config;
+config.request_timeout_seconds = 300;  // 5 minute timeout (0 = no timeout)
+mcp::server server(config);
+```
+
+### Cancellation Notification Handling
+
+Register a handler for cancellation notifications:
+
+```cpp
+server.set_cancellation_handler([](const json& request_id, const std::string& reason, const std::string& session_id) {
+    std::cout << "Request " << request_id << " cancelled: " << reason << std::endl;
+    // Clean up resources, stop processing, etc.
+});
+```
+
+Clients can send cancellation notifications:
+
+```json
+{
+    "jsonrpc": "2.0",
+    "method": "notifications/cancelled",
+    "params": {
+        "requestId": "123",
+        "reason": "User requested cancellation"
     }
 }
 ```

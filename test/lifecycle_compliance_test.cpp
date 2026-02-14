@@ -321,6 +321,66 @@ TEST_F(LifecycleComplianceTest, SuccessfulLifecycleSequence) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
+// Test cancellation notification handling
+TEST_F(LifecycleComplianceTest, CancellationNotificationHandling) {
+    // Set up cancellation handler to track calls
+    std::atomic<bool> cancellation_received{false};
+    json cancelled_request_id;
+    std::string cancellation_reason;
+    
+    auto* server = LifecycleComplianceEnvironment::GetServer().get();
+    server->set_cancellation_handler([&](const json& request_id, const std::string& reason, const std::string&) {
+        cancelled_request_id = request_id;
+        cancellation_reason = reason;
+        cancellation_received.store(true);
+    });
+    
+    // Initialize session first
+    json init_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "initialize"},
+        {"params", {
+            {"protocolVersion", "2025-03-26"},
+            {"capabilities", json::object()},
+            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}
+        }}
+    };
+    
+    http_client->Post(message_endpoint.c_str(), init_request.dump(), "application/json");
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    json initialized_notif = {
+        {"jsonrpc", "2.0"},
+        {"method", "notifications/initialized"}
+    };
+    
+    http_client->Post(message_endpoint.c_str(), initialized_notif.dump(), "application/json");
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // Send cancellation notification
+    json cancel_notif = {
+        {"jsonrpc", "2.0"},
+        {"method", "notifications/cancelled"},
+        {"params", {
+            {"requestId", 42},
+            {"reason", "User requested cancellation"}
+        }}
+    };
+    
+    auto res = http_client->Post(message_endpoint.c_str(), cancel_notif.dump(), "application/json");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(202, res->status);
+    
+    // Wait for notification to be processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    // Verify cancellation handler was called
+    EXPECT_TRUE(cancellation_received.load());
+    EXPECT_EQ(42, cancelled_request_id);
+    EXPECT_EQ("User requested cancellation", cancellation_reason);
+}
+
 // Register environment
 ::testing::Environment* const lifecycle_env =
     ::testing::AddGlobalTestEnvironment(new LifecycleComplianceEnvironment);
