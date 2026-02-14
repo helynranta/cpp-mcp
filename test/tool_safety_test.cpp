@@ -184,7 +184,7 @@ TEST_F(ToolSafetyTest, ConfirmationHandlerCanDeny) {
 }
 
 // Test: Tool without confirmation requirement executes freely
-TEST_F(ToolSafetyTest, ToolWithoutConfirmationExecutesFreelyy) {
+TEST_F(ToolSafetyTest, ToolWithoutConfirmationExecutesFreely) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
