@@ -54,6 +54,9 @@ public:
     }
 
     void TearDown() override {
+        // Wait for any background SSE activity to complete before destroying server
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        
         if (server_) {
             server_->stop();
         }
@@ -133,6 +136,9 @@ protected:
         if (sse_thread.joinable()) {
             sse_thread.detach();
         }
+        
+        // Wait for detached thread to finish httplib cleanup
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         
         return endpoint;
     }
@@ -365,6 +371,9 @@ TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
     if (sse_thread.joinable()) {
         sse_thread.detach();
     }
+    
+    // Wait for detached thread to finish httplib cleanup
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     EXPECT_FALSE(endpoint.empty()) << "Legacy /sse endpoint should still work";
     EXPECT_NE(endpoint.find("/message"), std::string::npos) 

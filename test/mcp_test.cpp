@@ -127,6 +127,9 @@ protected:
 
     static void TearDownTestSuite() {
         // Clean up test environment
+        // Wait for any background SSE activity to complete before destroying server
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        
         client_.reset();
         if (server_) {
             server_->stop();
@@ -197,7 +200,7 @@ protected:
     static void TearDownTestSuite() {
         // Clean up test environment
         // Wait briefly to allow any detached SSE threads from tests to complete
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         
         client_.reset();
         if (server_) {
@@ -303,6 +306,9 @@ TEST_F(VersioningTest, UnsupportedVersion) {
             sse_thread.detach();
         }
         
+        // Wait for detached thread to finish httplib cleanup
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        
         // Clean up resources  
         http_client.reset();
     } catch (const std::exception& e) {
@@ -341,7 +347,7 @@ protected:
     static void TearDownTestSuite() {
         // Clean up test environment
         // Wait briefly to allow any detached SSE threads from tests to complete
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         
         client_.reset();
         if (server_) {
@@ -443,6 +449,9 @@ TEST_F(PingTest, DirectPing) {
         if (sse_thread.joinable()) {
             sse_thread.detach();
         }
+        
+        // Wait for detached thread to finish httplib cleanup
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         
         // Clean up resources
         http_client.reset();
@@ -553,6 +562,9 @@ protected:
 
     static void TearDownTestSuite() {
         // Clean up test environment
+        // Wait for any background SSE activity to complete before destroying server
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        
         client_.reset();
         if (server_) {
             server_->stop();
@@ -982,6 +994,9 @@ protected:
     }
 
     static void TearDownTestSuite() {
+        // Wait for any background SSE activity to complete before destroying server
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        
         client_.reset();
         if (server_) {
             server_->stop();
@@ -1071,6 +1086,9 @@ protected:
     }
 
     static void TearDownTestSuite() {
+        // Wait for any background SSE activity to complete before destroying server
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        
         client_.reset();
         if (server_) {
             server_->stop();
