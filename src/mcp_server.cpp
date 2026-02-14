@@ -60,17 +60,25 @@ bool server::start(bool blocking) {
     // Setup CORS handling with Origin validation (MCP 2025-03-26 security)
     http_server_->Options(".*", [this](const httplib::Request& req, httplib::Response& res) {
         // Handle Origin validation for OPTIONS requests
+        // Note: OPTIONS requests are CORS preflight requests and should be allowed
+        // even without an Origin header, as they don't carry sensitive data
         auto origin_it = req.headers.find("Origin");
-        if (origin_it != req.headers.end() && is_origin_allowed(origin_it->second)) {
-            res.set_header("Access-Control-Allow-Origin", origin_it->second);
-            res.set_header("Access-Control-Allow-Credentials", "true");
-        } else if (!validate_origin_) {
-            // Only use wildcard if Origin validation is disabled
-            res.set_header("Access-Control-Allow-Origin", "*");
+        if (origin_it != req.headers.end()) {
+            // If Origin header is present, validate it
+            if (is_origin_allowed(origin_it->second)) {
+                res.set_header("Access-Control-Allow-Origin", origin_it->second);
+                res.set_header("Access-Control-Allow-Credentials", "true");
+            } else if (validate_origin_) {
+                // Origin validation enabled and origin not allowed
+                res.status = 403;
+                return;
+            } else {
+                // Origin validation disabled
+                res.set_header("Access-Control-Allow-Origin", "*");
+            }
         } else {
-            // Origin not allowed
-            res.status = 403;
-            return;
+            // No Origin header - allow with wildcard for OPTIONS preflight
+            res.set_header("Access-Control-Allow-Origin", "*");
         }
         res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
         res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept, Origin");
@@ -437,13 +445,13 @@ void server::register_tool(const tool& tool, tool_handler handler) {
                         bool confirmed = tool_confirmation_handler_(tool_name, tool_args, session_id);
                         if (!confirmed) {
                             throw mcp_exception(error_code::invalid_request, 
-                                "Tool execution denied: User confirmation required but not granted");
+                                "Tool execution denied: user confirmation required but not granted");
                         }
                     } else {
                         // If no confirmation handler is set but tool requires confirmation, deny execution
                         LOG_WARNING("Tool '", tool_name, "' requires confirmation but no handler is set");
                         throw mcp_exception(error_code::invalid_request, 
-                            "Tool execution denied: Confirmation required but no handler configured");
+                            "Tool execution denied: confirmation required but no handler configured");
                     }
                 }
                 

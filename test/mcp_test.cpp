@@ -1111,7 +1111,7 @@ TEST_F(BatchIntegrationTest, BatchRequestValidation) {
 // Test JSON-RPC validation integration with server
 class JsonRpcServerValidationTest : public ::testing::Test {
 protected:
-    void SetUp() override {
+    static void SetUpTestSuite() {
         // Set up test server
         server::configuration config;
         config.host = "localhost";
@@ -1150,18 +1150,26 @@ protected:
         
         // Initialize
         bool init_result = client_->initialize("ValidationTestClient", "1.0.0");
-        ASSERT_TRUE(init_result) << "Client initialization failed";
+        if (!init_result) {
+            throw std::runtime_error("Client initialization failed");
+        }
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    std::unique_ptr<server> server_;
-    std::unique_ptr<sse_client> client_;
+    static std::unique_ptr<server> server_;
+    static std::unique_ptr<sse_client> client_;
 };
+
+// Static member definitions
+std::unique_ptr<server> JsonRpcServerValidationTest::server_;
+std::unique_ptr<sse_client> JsonRpcServerValidationTest::client_;
 
 // Test that server accepts valid requests
 TEST_F(JsonRpcServerValidationTest, AcceptsValidRequest) {
