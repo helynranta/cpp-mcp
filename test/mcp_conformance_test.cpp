@@ -27,13 +27,13 @@ using namespace mcp;
 using json = nlohmann::ordered_json;
 
 /**
- * Test environment for MCP conformance tests
- * Sets up a server with a known configuration for testing
+ * Test fixture for conformance tests
+ * Sets up a server for each test run rather than globally
  */
-class McpConformanceEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
-        // Set up test server with known configuration
+class McpConformanceTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
+        // Set up test server with known configuration - runs once for all tests in this suite
         server::configuration config;
         config.host = "localhost";
         config.port = 9093; // Unique port to avoid conflicts
@@ -58,19 +58,27 @@ public:
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
+        // Tear down server - runs once after all tests in this suite
         if (server_) {
             server_->stop();
         }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        // Per-test setup
+        http_client = std::make_unique<httplib::Client>("localhost", 9093);
+        http_client->set_read_timeout(10, 0); // 10 seconds timeout
+    }
+
+    void TearDown() override {
+        // Per-test teardown
+        http_client.reset();
     }
 
 private:
-    void register_test_tools() {
+    static void register_test_tools() {
         // Tool 1: Simple echo tool (read-only)
         tool echo_tool = tool_builder("echo")
             .with_description("Echoes back the input message")
@@ -120,24 +128,9 @@ private:
         });
     }
 
-    static std::unique_ptr<server> server_;
-};
-
-std::unique_ptr<server> McpConformanceEnvironment::server_;
-
-/**
- * Test fixture for conformance tests
- */
-class McpConformanceTest : public ::testing::Test {
 protected:
-    void SetUp() override {
-        http_client = std::make_unique<httplib::Client>("localhost", 9093);
-        http_client->set_read_timeout(10, 0); // 10 seconds timeout
-    }
-
-    void TearDown() override {
-        http_client.reset();
-    }
+    static std::unique_ptr<server> server_;
+    std::unique_ptr<httplib::Client> http_client;
     
     // Helper: Extract session ID from response header
     std::string extract_session_id(const httplib::Result& res) {
@@ -156,8 +149,6 @@ protected:
         headers.emplace("Accept", "application/json");
         return http_client->Post("/mcp", headers, request.dump(), "application/json");
     }
-
-    std::unique_ptr<httplib::Client> http_client;
 };
 
 // ========================================================================
@@ -634,6 +625,5 @@ TEST_F(McpConformanceTest, Lifecycle_ProtocolVersionValidation) {
     EXPECT_EQ(202, res_good->status) << "Valid protocol version should be accepted";
 }
 
-// Register test environment
-::testing::Environment* const conformance_env =
-    ::testing::AddGlobalTestEnvironment(new McpConformanceEnvironment);
+// Initialize static member
+std::unique_ptr<server> McpConformanceTest::server_;
