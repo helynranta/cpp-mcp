@@ -54,15 +54,10 @@ public:
     }
 
     void TearDown() override {
-        // Stop server FIRST to close all connections
+        // Clean up - no long delays needed with isolated servers
         if (server_) {
             server_->stop();
         }
-        
-        // Wait longer for detached SSE activity to complete
-        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-        
-        // Now safe to destroy server
         server_.reset();
     }
 
