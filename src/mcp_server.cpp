@@ -18,6 +18,7 @@ server::server(const server::configuration& conf)
     , version_(conf.version)
     , sse_endpoint_(conf.sse_endpoint)
     , msg_endpoint_(conf.msg_endpoint)
+    , request_timeout_seconds_(conf.request_timeout_seconds)
     , thread_pool_(conf.threadpool_size)
 {
     #ifdef MCP_SSL
@@ -172,7 +173,8 @@ void server::stop() {
         // Clear the maps
         session_dispatchers_.clear();
         sse_threads_.clear();
-        session_initialized_.clear();
+        session_lifecycle_.clear();
+        session_client_capabilities_.clear();
     }
     
     // Close all sessions
@@ -432,6 +434,11 @@ void server::set_auth_handler(auth_handler handler) {
     auth_handler_ = handler;
 }
 
+void server::set_cancellation_handler(cancellation_handler handler) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    cancellation_handler_ = handler;
+}
+
 void server::handle_sse(const httplib::Request& req, httplib::Response& res) {
     std::string session_id = generate_session_id();
     std::string session_uri = msg_endpoint_ + "?session_id=" + session_id;
@@ -452,6 +459,8 @@ void server::handle_sse(const httplib::Request& req, httplib::Response& res) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         session_dispatchers_[session_id] = session_dispatcher;
+        // Initialize session to uninitialized lifecycle state
+        session_lifecycle_[session_id] = lifecycle_state::uninitialized;
     }
     
     // Create session thread
@@ -586,6 +595,22 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
     
     // Check if this is a batch request (array)
     if (req_json.is_array()) {
+        // Check if batch contains initialize method (not allowed per MCP 2025-03-26)
+        for (const auto& item : req_json) {
+            if (item.is_object() && item.contains("method") && 
+                item["method"].is_string() && item["method"] == "initialize") {
+                LOG_ERROR("Initialize method not allowed in batch requests per MCP 2025-03-26");
+                res.status = 400;
+                json error_response = response::create_error(
+                    nullptr,
+                    error_code::invalid_request,
+                    "Initialize request MUST NOT be part of a JSON-RPC batch"
+                ).to_json();
+                res.set_content(error_response.dump(), "application/json");
+                return;
+            }
+        }
+        
         // Handle batch request
         handle_batch_jsonrpc(req_json, session_id, res);
         return;
@@ -847,7 +872,65 @@ json server::process_request(const request& req, const std::string& session_id) 
     // Check if it is a notification
     if (req.is_notification()) {
         if (req.method == "notifications/initialized") {
-            set_session_initialized(session_id, true);
+            // Transition from initializing to ready state
+            auto current_state = get_session_lifecycle_state(session_id);
+            if (current_state == lifecycle_state::initializing) {
+                set_session_lifecycle_state(session_id, lifecycle_state::ready);
+                LOG_INFO("Session ", session_id, " transitioned to ready state");
+            } else {
+                LOG_WARNING("Received initialized notification in unexpected state for session: ", session_id);
+            }
+        } else if (req.method == "notifications/cancelled") {
+            // Handle cancellation notification per MCP 2025-03-26
+            if (req.params.contains("requestId")) {
+                json request_id = req.params["requestId"];
+                std::string reason = req.params.contains("reason") && req.params["reason"].is_string() 
+                    ? req.params["reason"].get<std::string>() 
+                    : "No reason provided";
+                
+                LOG_INFO("Received cancellation notification for request: ", request_id.dump(), 
+                         ", reason: ", reason, ", session: ", session_id);
+                
+                // Call cancellation handler if registered
+                cancellation_handler handler;
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    handler = cancellation_handler_;
+                }
+                
+                if (handler) {
+                    try {
+                        handler(request_id, reason, session_id);
+                    } catch (const std::exception& e) {
+                        LOG_ERROR("Exception in cancellation handler: ", e.what());
+                    } catch (...) {
+                        LOG_ERROR("Unknown exception in cancellation handler");
+                    }
+                }
+            } else {
+                LOG_WARNING("Received malformed cancellation notification (missing requestId) for session: ", session_id);
+            }
+        }
+        // Handle other notifications registered via register_notification
+        else {
+            notification_handler handler;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                auto it = notification_handlers_.find(req.method);
+                if (it != notification_handlers_.end()) {
+                    handler = it->second;
+                }
+            }
+            
+            if (handler) {
+                try {
+                    handler(req.params, session_id);
+                } catch (const std::exception& e) {
+                    LOG_ERROR("Exception in notification handler: ", e.what());
+                } catch (...) {
+                    LOG_ERROR("Unknown exception in notification handler");
+                }
+            }
         }
         return json::object();
     }
@@ -856,19 +939,33 @@ json server::process_request(const request& req, const std::string& session_id) 
     try {
         LOG_INFO("Processing method call: ", req.method);
         
-        // Special case: initialization
+        // Get current lifecycle state
+        auto current_state = get_session_lifecycle_state(session_id);
+        
+        // Enforce lifecycle rules per MCP 2025-03-26
         if (req.method == "initialize") {
+            // Initialize can only be sent when uninitialized
+            if (current_state != lifecycle_state::uninitialized) {
+                LOG_ERROR("Initialize request received in invalid state: ", session_id);
+                return response::create_error(
+                    req.id,
+                    error_code::invalid_request,
+                    "Initialize already called for this session"
+                ).to_json();
+            }
             return handle_initialize(req, session_id);
         } else if (req.method == "ping") {
+            // Ping is allowed in any state per MCP 2025-03-26
             return response::create_success(req.id, json::object()).to_json();
         }
 
-        if (!is_session_initialized(session_id)) {
-            LOG_WARNING("Session not initialized: ", session_id);
+        // All other requests require ready state (after initialized notification)
+        if (current_state != lifecycle_state::ready) {
+            LOG_WARNING("Request received before session ready: ", session_id, ", method: ", req.method);
             return response::create_error(
                 req.id,
                 error_code::invalid_request,
-                "Session not initialized"
+                "Session not ready - initialize handshake not complete"
             ).to_json();
         }
         
@@ -971,6 +1068,17 @@ json server::handle_initialize(const request& req, const std::string& session_id
     // Log connection
     LOG_INFO("Client connected: ", client_name, " ", client_version);
     
+    // Store client capabilities for this session
+    if (params.contains("capabilities")) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        session_client_capabilities_[session_id] = params["capabilities"];
+        LOG_INFO("Stored client capabilities for session: ", session_id);
+    }
+    
+    // Transition session to initializing state
+    set_session_lifecycle_state(session_id, lifecycle_state::initializing);
+    LOG_INFO("Session ", session_id, " transitioned to initializing state");
+    
     // Return server info and capabilities
     json server_info = {
         {"name", name_},
@@ -1033,26 +1141,29 @@ void server::send_progress(const std::string& session_id, const progress_notific
     send_jsonrpc(session_id, notif_req.to_json());
 }
 
-bool server::is_session_initialized(const std::string& session_id) const {
+lifecycle_state server::get_session_lifecycle_state(const std::string& session_id) const {
     // Check if session ID is valid
     if (session_id.empty()) {
-        return false;
+        return lifecycle_state::uninitialized;
     }
     
     try {
         std::lock_guard<std::mutex> lock(mutex_);
-        auto it = session_initialized_.find(session_id);
-        return (it != session_initialized_.end() && it->second);
+        auto it = session_lifecycle_.find(session_id);
+        if (it != session_lifecycle_.end()) {
+            return it->second;
+        }
+        return lifecycle_state::uninitialized;
     } catch (const std::exception& e) {
-        LOG_ERROR("Exception checking if session is initialized: ", e.what());
-        return false;
+        LOG_ERROR("Exception getting session lifecycle state: ", e.what());
+        return lifecycle_state::uninitialized;
     }
 }
 
-void server::set_session_initialized(const std::string& session_id, bool initialized) {
+void server::set_session_lifecycle_state(const std::string& session_id, lifecycle_state state) {
     // Check if session ID is valid
     if (session_id.empty()) {
-        LOG_WARNING("Cannot set initialization state for empty session_id");
+        LOG_WARNING("Cannot set lifecycle state for empty session_id");
         return;
     }
     
@@ -1061,12 +1172,27 @@ void server::set_session_initialized(const std::string& session_id, bool initial
         // Check if session still exists
         auto it = session_dispatchers_.find(session_id);
         if (it == session_dispatchers_.end()) {
-            LOG_WARNING("Cannot set initialization state for non-existent session: ", session_id);
+            LOG_WARNING("Cannot set lifecycle state for non-existent session: ", session_id);
             return;
         }
-        session_initialized_[session_id] = initialized;
+        session_lifecycle_[session_id] = state;
     } catch (const std::exception& e) {
-        LOG_ERROR("Exception setting session initialization state: ", e.what());
+        LOG_ERROR("Exception setting session lifecycle state: ", e.what());
+    }
+}
+
+bool server::is_session_initialized(const std::string& session_id) const {
+    // Backward compatibility: check if session is in ready state
+    auto state = get_session_lifecycle_state(session_id);
+    return state == lifecycle_state::ready;
+}
+
+void server::set_session_initialized(const std::string& session_id, bool initialized) {
+    // Backward compatibility: transition to ready or uninitialized state
+    if (initialized) {
+        set_session_lifecycle_state(session_id, lifecycle_state::ready);
+    } else {
+        set_session_lifecycle_state(session_id, lifecycle_state::uninitialized);
     }
 }
 
@@ -1164,8 +1290,9 @@ void server::close_session(const std::string& session_id) {
                 sse_threads_.erase(thread_it);
             }
             
-            // Clean up initialization status
-            session_initialized_.erase(session_id);
+            // Clean up lifecycle state and client capabilities
+            session_lifecycle_.erase(session_id);
+            session_client_capabilities_.erase(session_id);
         }
         
         // Clear request IDs for this session
