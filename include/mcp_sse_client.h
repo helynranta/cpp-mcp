@@ -167,6 +167,12 @@ public:
     json list_resource_templates() override;
 
     /**
+     * @brief Set progress notification handler
+     * @param handler The function to call when progress notifications are received
+     */
+    void set_progress_handler(progress_handler handler) override;
+
+    /**
      * @brief Check if the client is running
      * @return True if the client is running
      */
@@ -242,6 +248,9 @@ private:
     
     // Response condition variable
     std::condition_variable response_cv_;
+    
+    // Progress notification handler
+    progress_handler progress_handler_;
 };
 
 } // namespace mcp

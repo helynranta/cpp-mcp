@@ -641,8 +641,26 @@ void stdio_client::read_thread_func() {
                                 }
                             } else if (message.contains("method")) {
                                 // This is a request or notification
-                                LOG_INFO("Received request/notification: ", message["method"]);
-                                // Currently not handling requests from the server
+                                std::string method = message["method"].get<std::string>();
+                                LOG_INFO("Received request/notification: ", method);
+                                
+                                // Handle progress notifications
+                                if (method == "notifications/progress" && message.contains("params")) {
+                                    progress_handler handler_copy;
+                                    {
+                                        std::lock_guard<std::mutex> lock(mutex_);
+                                        handler_copy = progress_handler_;
+                                    }
+                                    
+                                    if (handler_copy) {
+                                        try {
+                                            progress_notification notif = progress_notification::from_params(message["params"]);
+                                            handler_copy(notif);
+                                        } catch (const std::exception& e) {
+                                            LOG_ERROR("Error handling progress notification: ", e.what());
+                                        }
+                                    }
+                                }
                             }
                         }
                     } catch (const json::exception& e) {
@@ -750,8 +768,26 @@ void stdio_client::read_thread_func() {
                                 }
                             } else if (message.contains("method")) {
                                 // This is a request or notification
-                                LOG_INFO("Received request/notification: ", message["method"]);
-                                // Currently not handling requests from the server
+                                std::string method = message["method"].get<std::string>();
+                                LOG_INFO("Received request/notification: ", method);
+                                
+                                // Handle progress notifications
+                                if (method == "notifications/progress" && message.contains("params")) {
+                                    progress_handler handler_copy;
+                                    {
+                                        std::lock_guard<std::mutex> lock(mutex_);
+                                        handler_copy = progress_handler_;
+                                    }
+                                    
+                                    if (handler_copy) {
+                                        try {
+                                            progress_notification notif = progress_notification::from_params(message["params"]);
+                                            handler_copy(notif);
+                                        } catch (const std::exception& e) {
+                                            LOG_ERROR("Error handling progress notification: ", e.what());
+                                        }
+                                    }
+                                }
                             }
                         }
                     } catch (const json::exception& e) {
@@ -845,6 +881,11 @@ json stdio_client::send_jsonrpc(const request& req) {
         
         throw mcp_exception(error_code::internal_error, "Timeout waiting for response");
     }
+}
+
+void stdio_client::set_progress_handler(progress_handler handler) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    progress_handler_ = handler;
 }
 
 } // namespace mcp 

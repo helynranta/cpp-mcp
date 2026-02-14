@@ -118,6 +118,14 @@ Example usage:
 
 **Note**: Remember to compile with `-DMCP_SSL=ON` when connecting to an https base URL.
 
+### Progress Notification Example (`examples/progress_example.cpp`)
+
+Demonstrates real-time progress notifications:
+- Server sends progress updates during long-running operations
+- Client receives and displays progress in real-time
+- Shows both with and without progress tokens
+- Example of proper progress token handling
+
 ## How to Use
 
 ### Setting up an HTTP Server
@@ -236,6 +244,110 @@ json result = client.call_tool("tool_name", {
     {"param1", "value1"},
     {"param2", "value2"}
 });
+```
+
+
+## Progress Notifications
+
+MCP supports progress notifications for long-running operations. This allows servers to send real-time progress updates to clients during tool execution.
+
+### Server-Side Progress Notifications
+
+```cpp
+#include "mcp_server.h"
+#include "mcp_progress.h"
+
+// Register a long-running tool
+mcp::tool long_tool = mcp::tool_builder("process_data")
+    .with_description("Process large dataset with progress updates")
+    .with_number_param("count", "Number of items to process", 100.0)
+    .build();
+
+server.register_tool(long_tool, [&server](const mcp::json& params, const std::string& session_id) -> mcp::json {
+    int count = params.value("count", 100);
+    
+    // Check if client requested progress updates
+    auto progress_token = mcp::progress_tracker::extract_progress_token(params);
+    
+    for (int i = 1; i <= count; ++i) {
+        // Do work...
+        process_item(i);
+        
+        // Send progress notification if token is available
+        if (progress_token.has_value()) {
+            mcp::progress_notification notif = mcp::progress_notification::create(
+                progress_token.value(),
+                static_cast<double>(i),        // current progress
+                static_cast<double>(count),    // total (optional)
+                "Processing item " + std::to_string(i)  // message (optional)
+            );
+            
+            server.send_progress(session_id, notif);
+        }
+    }
+    
+    return {{"result", "Completed"}};
+});
+```
+
+### Client-Side Progress Handling
+
+```cpp
+#include "mcp_sse_client.h"
+#include "mcp_progress.h"
+
+mcp::sse_client client("http://localhost:8080");
+
+// Set up progress handler to receive notifications
+client.set_progress_handler([](const mcp::progress_notification& notif) {
+    std::cout << "Progress: " << notif.progress;
+    
+    if (notif.total.has_value()) {
+        double percent = (notif.progress / notif.total.value()) * 100.0;
+        std::cout << "/" << notif.total.value() << " (" << percent << "%)";
+    }
+    
+    if (notif.message.has_value()) {
+        std::cout << " - " << notif.message.value();
+    }
+    
+    std::cout << std::endl;
+});
+
+client.initialize("My Client", "1.0.0");
+
+// Call tool with progress token in metadata
+mcp::json params = {
+    {"count", 50},
+    {"_meta", {
+        {"progressToken", "operation-123"}  // Include progress token
+    }}
+};
+
+mcp::json result = client.call_tool("process_data", params);
+```
+
+### Progress Notification Format
+
+Progress notifications follow the MCP specification (2025-03-26):
+
+- **progressToken**: Token from the original request (required)
+- **progress**: Current progress value, must always increase (required)
+- **total**: Total value if known (optional)
+- **message**: Human-readable status message (optional)
+
+Example notification:
+```json
+{
+    "jsonrpc": "2.0",
+    "method": "notifications/progress",
+    "params": {
+        "progressToken": "operation-123",
+        "progress": 50,
+        "total": 100,
+        "message": "Processing item 50"
+    }
+}
 ```
 
 

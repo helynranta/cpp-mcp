@@ -14,6 +14,7 @@
 #include "mcp_tool.h"
 #include "mcp_thread_pool.h"
 #include "mcp_logger.h"
+#include "mcp_progress.h"
 
 // Include the HTTP library
 #include "httplib.h"
@@ -317,6 +318,13 @@ public:
      * @param req The request to send
      */
     void send_request(const std::string& session_id, const request& req);
+
+    /**
+     * @brief Send a progress notification to a client
+     * @param session_id The session ID of the client
+     * @param notification The progress notification to send
+     */
+    void send_progress(const std::string& session_id, const progress_notification& notification);
 
     /**
      * @brief Set mount point for server
