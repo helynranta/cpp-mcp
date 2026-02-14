@@ -375,7 +375,34 @@ bool sse_client::parse_sse_data(const char* data, size_t length) {
             try {
                 json response = json::parse(data_content);
                 
-                if (response.contains("jsonrpc") && response.contains("id") && !response["id"].is_null()) {
+                // Check if this is a notification (no id field or id is null)
+                if (response.contains("jsonrpc") && response.contains("method") && 
+                    (!response.contains("id") || response["id"].is_null())) {
+                    // Handle notifications
+                    std::string method = response["method"].get<std::string>();
+                    
+                    if (method == "notifications/progress") {
+                        // Handle progress notification
+                        if (response.contains("params")) {
+                            progress_handler handler_copy;
+                            {
+                                std::lock_guard<std::mutex> lock(mutex_);
+                                handler_copy = progress_handler_;
+                            }
+                            
+                            if (handler_copy) {
+                                try {
+                                    progress_notification notif = progress_notification::from_params(response["params"]);
+                                    handler_copy(notif);
+                                } catch (const std::exception& e) {
+                                    LOG_ERROR("Error handling progress notification: ", e.what());
+                                }
+                            }
+                        }
+                    } else {
+                        LOG_INFO("Received notification: ", method);
+                    }
+                } else if (response.contains("jsonrpc") && response.contains("id") && !response["id"].is_null()) {
                     json id = response["id"];
                     
                     std::lock_guard<std::mutex> lock(response_mutex_);
@@ -574,6 +601,11 @@ json sse_client::send_jsonrpc(const request& req) {
 
 bool sse_client::is_running() const {
     return sse_running_;
+}
+
+void sse_client::set_progress_handler(progress_handler handler) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    progress_handler_ = handler;
 }
 
 } // namespace mcp

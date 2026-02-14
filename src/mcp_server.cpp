@@ -839,6 +839,12 @@ void server::send_request(const std::string& session_id, const request& req) {
     send_jsonrpc(session_id, req.to_json());
 }
 
+void server::send_progress(const std::string& session_id, const progress_notification& notification) {
+    // Create a progress notification request
+    request notif_req = create_progress_notification(notification);
+    send_jsonrpc(session_id, notif_req.to_json());
+}
+
 bool server::is_session_initialized(const std::string& session_id) const {
     // Check if session ID is valid
     if (session_id.empty()) {

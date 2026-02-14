@@ -12,6 +12,7 @@
 #include "mcp_message.h"
 #include "mcp_tool.h"
 #include "mcp_logger.h"
+#include "mcp_progress.h"
 
 #include <string>
 #include <vector>
@@ -125,6 +126,12 @@ public:
      * @return List of resource templates
      */
     virtual json list_resource_templates() = 0;
+
+    /**
+     * @brief Set progress notification handler
+     * @param handler The function to call when progress notifications are received
+     */
+    virtual void set_progress_handler(progress_handler handler) = 0;
 
     /**
      * @brief Check if the client is running

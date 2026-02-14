@@ -14,6 +14,7 @@
 #include "mcp_tool.h"
 #include "mcp_thread_pool.h"
 #include "mcp_logger.h"
+#include "mcp_progress.h"
 
 // Include the HTTP library
 #include "httplib.h"
@@ -319,6 +320,13 @@ public:
     void send_request(const std::string& session_id, const request& req);
 
     /**
+     * @brief Send a progress notification to a client
+     * @param session_id The session ID of the client
+     * @param notification The progress notification to send
+     */
+    void send_progress(const std::string& session_id, const progress_notification& notification);
+
+    /**
      * @brief Set mount point for server
      * @param mount_point The mount point to set
      * @param dir The directory to serve from the mount point
@@ -379,6 +387,9 @@ private:
     
     // Map to track session initialization status (session_id -> initialized)
     std::map<std::string, bool> session_initialized_;
+
+    // Progress tracker for managing progress tokens
+    std::map<std::string, progress_tracker> session_progress_trackers_;
 
     // Handle SSE requests
     void handle_sse(const httplib::Request& req, httplib::Response& res);
