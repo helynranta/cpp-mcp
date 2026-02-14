@@ -77,9 +77,13 @@ protected:
         http_client = std::make_unique<httplib::Client>("localhost", 9091);
         
         // Establish SSE connection and get session endpoint
-        sse_thread = std::thread([this]() {
-            httplib::Client sse_client("localhost", 9091);
-            sse_client.Get("/sse", [this](const char* data, size_t len) {
+        auto sse_client = std::make_shared<httplib::Client>("localhost", 9091);
+        
+        sse_thread = std::thread([this, sse_client]() {
+            // Store pointer atomically so TearDown can access it
+            sse_client_ptr.store(sse_client.get(), std::memory_order_release);
+            
+            sse_client->Get("/sse", [this](const char* data, size_t len) {
                 std::string response(data, len);
                 
                 // Extract message endpoint
@@ -97,6 +101,9 @@ protected:
                 }
                 return true;
             });
+            
+            // Clear pointer when done
+            sse_client_ptr.store(nullptr, std::memory_order_release);
         });
         
         // Wait for endpoint to be ready
@@ -109,16 +116,24 @@ protected:
     }
 
     void TearDown() override {
-        // Clean up
+        // Clean up - stop SSE client before detaching to avoid crashes during global teardown
+        auto client = sse_client_ptr.load(std::memory_order_acquire);
+        if (client) {
+            client->stop();
+        }
         if (sse_thread.joinable()) {
-            // Note: SSE thread will continue running, but that's okay for testing
-            sse_thread.detach();
+            // Give the thread a moment to exit after stop() is called
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
         }
         http_client.reset();
     }
 
     std::unique_ptr<httplib::Client> http_client;
     std::thread sse_thread;
+    std::atomic<httplib::Client*> sse_client_ptr{nullptr};
     std::string message_endpoint;
     std::mutex endpoint_mutex;
     std::condition_variable endpoint_cv;

@@ -229,13 +229,16 @@ TEST_F(VersioningTest, UnsupportedVersion) {
 
         // Capture port for use in detached thread
         int test_port = port_;
+        auto sse_client_ptr = std::make_shared<std::atomic<httplib::Client*>>(nullptr);
         
         // Use std::thread with shared state to avoid lifetime issues when detaching
         std::thread sse_thread([msg_endpoint_received, sse_response_received,
-                                msg_endpoint_promise, sse_promise, test_port]() {
+                                msg_endpoint_promise, sse_promise, test_port, sse_client_ptr]() {
             // Create SSE client inside thread so it's owned by the thread
-            httplib::Client sse_client("localhost", test_port);
-            sse_client.Get("/sse", [msg_endpoint_received, sse_response_received,
+            auto sse_client = std::make_shared<httplib::Client>("localhost", test_port);
+            sse_client_ptr->store(sse_client.get(), std::memory_order_release);
+            
+            sse_client->Get("/sse", [msg_endpoint_received, sse_response_received,
                                     msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
                     std::string response(data, len);
@@ -266,6 +269,8 @@ TEST_F(VersioningTest, UnsupportedVersion) {
                 // Continue until we get both messages
                 return !msg_endpoint_received->load() || !sse_response_received->load();
             });
+            
+            sse_client_ptr->store(nullptr, std::memory_order_release);
         });
         
         std::string endpoint = msg_endpoint.get();
@@ -281,11 +286,26 @@ TEST_F(VersioningTest, UnsupportedVersion) {
         auto mcp_res = json::parse(sse_response.get());
         EXPECT_EQ(mcp_res["error"]["code"].get<int>(), static_cast<int>(error_code::invalid_params));
 
+        // Give the callback a moment to finish and return before stopping
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // Stop SSE client before detaching to avoid crashes during global teardown
+        auto client = sse_client_ptr->load(std::memory_order_acquire);
+        if (client) {
+            client->stop();
+        }
+        
         // Detach the thread - all state is heap-allocated via shared_ptr, so it's safe
         // The thread will stop automatically once both messages are received
         if (sse_thread.joinable()) {
-            sse_thread.detach();
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
         }
+        
+        // Give detached thread time to fully stop before test ends
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
         // Clean up resources  
         http_client.reset();
@@ -383,13 +403,16 @@ TEST_F(PingTest, DirectPing) {
 
         // Capture port for use in detached thread
         int test_port = port_;
+        auto sse_client_ptr = std::make_shared<std::atomic<httplib::Client*>>(nullptr);
         
         // Use std::thread with shared state to avoid lifetime issues when detaching
         std::thread sse_thread([msg_endpoint_received, sse_response_received,
-                                msg_endpoint_promise, sse_promise, test_port]() {
+                                msg_endpoint_promise, sse_promise, test_port, sse_client_ptr]() {
             // Create SSE client inside thread so it's owned by the thread
-            httplib::Client sse_client("localhost", test_port);
-            sse_client.Get("/sse", [msg_endpoint_received, sse_response_received,
+            auto sse_client = std::make_shared<httplib::Client>("localhost", test_port);
+            sse_client_ptr->store(sse_client.get(), std::memory_order_release);
+            
+            sse_client->Get("/sse", [msg_endpoint_received, sse_response_received,
                                     msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
                     std::string response(data, len);
@@ -420,6 +443,8 @@ TEST_F(PingTest, DirectPing) {
                 // Continue until we get both messages
                 return !msg_endpoint_received->load() || !sse_response_received->load();
             });
+            
+            sse_client_ptr->store(nullptr, std::memory_order_release);
         });
 
         std::string endpoint = msg_endpoint.get();
@@ -434,11 +459,26 @@ TEST_F(PingTest, DirectPing) {
         auto mcp_res = json::parse(sse_response.get());
         EXPECT_EQ(mcp_res["result"], json::object());
 
+        // Give the callback a moment to finish and return before stopping
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // Stop SSE client before detaching to avoid crashes during global teardown
+        auto client = sse_client_ptr->load(std::memory_order_acquire);
+        if (client) {
+            client->stop();
+        }
+        
         // Detach the thread - all state is heap-allocated via shared_ptr, so it's safe
         // The thread will stop automatically once both messages are received
         if (sse_thread.joinable()) {
-            sse_thread.detach();
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
         }
+        
+        // Give detached thread time to fully stop before test ends
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
         // Clean up resources
         http_client.reset();

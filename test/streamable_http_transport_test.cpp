@@ -100,10 +100,13 @@ protected:
         bool got_endpoint = false;
         std::mutex mtx;
         std::condition_variable cv;
+        auto sse_client = std::make_shared<httplib::Client>("localhost", 9092);
+        std::atomic<httplib::Client*> client_ptr{nullptr};
         
-        std::thread sse_thread([&]() {
-            httplib::Client sse_client("localhost", 9092);
-            auto res = sse_client.Get("/mcp", 
+        std::thread sse_thread([&, sse_client]() {
+            client_ptr.store(sse_client.get(), std::memory_order_release);
+            
+            auto res = sse_client->Get("/mcp", 
                 [&](const char* data, size_t len) {
                     std::string response(data, len);
                     
@@ -123,6 +126,8 @@ protected:
                     }
                     return true;
                 });
+            
+            client_ptr.store(nullptr, std::memory_order_release);
         });
         
         // Wait for endpoint
@@ -131,8 +136,18 @@ protected:
             cv.wait_for(lock, std::chrono::seconds(3), [&] { return got_endpoint; });
         }
         
+        // Stop the client before detaching to avoid crashes during teardown
+        auto client = client_ptr.load(std::memory_order_acquire);
+        if (client) {
+            client->stop();
+        }
+        
         if (sse_thread.joinable()) {
-            sse_thread.detach();
+            // Give it a moment to exit after stop()
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
         }
         
         return endpoint;
@@ -334,10 +349,13 @@ TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
     bool got_endpoint = false;
     std::mutex mtx;
     std::condition_variable cv;
+    auto sse_client = std::make_shared<httplib::Client>("localhost", 9092);
+    std::atomic<httplib::Client*> client_ptr{nullptr};
     
-    std::thread sse_thread([&]() {
-        httplib::Client sse_client("localhost", 9092);
-        sse_client.Get("/sse", [&](const char* data, size_t len) {
+    std::thread sse_thread([&, sse_client]() {
+        client_ptr.store(sse_client.get(), std::memory_order_release);
+        
+        sse_client->Get("/sse", [&](const char* data, size_t len) {
             std::string response(data, len);
             
             if (response.find("endpoint") != std::string::npos) {
@@ -356,6 +374,8 @@ TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             return true;
         });
+        
+        client_ptr.store(nullptr, std::memory_order_release);
     });
     
     {
@@ -363,8 +383,18 @@ TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
         cv.wait_for(lock, std::chrono::seconds(3), [&] { return got_endpoint; });
     }
     
+    // Stop the client before detaching to avoid crashes during teardown
+    auto client = client_ptr.load(std::memory_order_acquire);
+    if (client) {
+        client->stop();
+    }
+    
     if (sse_thread.joinable()) {
-        sse_thread.detach();
+        // Give it a moment to exit after stop()
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        if (sse_thread.joinable()) {
+            sse_thread.detach();
+        }
     }
     
     EXPECT_FALSE(endpoint.empty()) << "Legacy /sse endpoint should still work";
