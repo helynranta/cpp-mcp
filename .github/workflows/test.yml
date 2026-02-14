@@ -20,14 +20,12 @@ jobs:
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
-      with:
-        vcpkgGitCommitId: 'c8696863d371ab7f46545af1bce2c0fb2f62832e'
     
     - name: Configure CMake
       run: |
-        cmake -B build \
-          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
-          -DMCP_BUILD_TESTS=ON \
+        cmake -B build \ 
+          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \ 
+          -DMCP_BUILD_TESTS=ON \ 
           -DCMAKE_BUILD_TYPE=Release
     
     - name: Build
@@ -56,8 +54,6 @@ jobs:
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
-      with:
-        vcpkgGitCommitId: 'c8696863d371ab7f46545af1bce2c0fb2f62832e'
     
     - name: Configure CMake
       run: |
@@ -92,14 +88,12 @@ jobs:
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
-      with:
-        vcpkgGitCommitId: 'c8696863d371ab7f46545af1bce2c0fb2f62832e'
     
     - name: Configure CMake
       run: |
-        cmake -B build \
-          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
-          -DMCP_BUILD_TESTS=ON \
+        cmake -B build \ 
+          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \ 
+          -DMCP_BUILD_TESTS=ON \ 
           -DCMAKE_BUILD_TYPE=Release
     
     - name: Build
