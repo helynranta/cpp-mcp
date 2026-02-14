@@ -966,8 +966,9 @@ TEST_F(BatchRequestTest, MixedBatchFormat) {
     EXPECT_TRUE(batch[0].contains("id"));
     EXPECT_FALSE(batch[0]["id"].is_null());
     
-    // Verify notification has no ID
-    EXPECT_FALSE(batch[1].contains("id") && !batch[1]["id"].is_null());
+    // Verify notification has no ID (same pattern as line 988-990)
+    bool is_notification = !batch[1].contains("id") || batch[1]["id"].is_null();
+    EXPECT_TRUE(is_notification);
 }
 
 // Test notification-only batch
