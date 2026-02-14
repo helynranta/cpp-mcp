@@ -52,12 +52,15 @@ public:
     }
 
     void TearDown() override {
-        // Wait for any background SSE activity to complete before destroying server
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        
+        // Stop server FIRST to close all connections
         if (server_) {
             server_->stop();
         }
+        
+        // Wait longer for detached SSE activity to complete
+        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        
+        // Now safe to destroy server
         server_.reset();
     }
 
@@ -116,10 +119,6 @@ protected:
             // Note: SSE thread will continue running, but that's okay for testing
             sse_thread.detach();
         }
-        
-        // Wait for detached thread to finish httplib cleanup
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        
         http_client.reset();
     }
 
