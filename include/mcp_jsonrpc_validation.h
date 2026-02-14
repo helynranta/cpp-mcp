@@ -272,9 +272,11 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         
         // Remove all IDs for this session
+        // Use prefix matching to find all keys starting with "session_id:"
+        std::string prefix = session_id + ":";
         auto it = active_ids_.begin();
         while (it != active_ids_.end()) {
-            if (it->find(session_id + ":") == 0) {
+            if (it->rfind(prefix, 0) == 0) {
                 it = active_ids_.erase(it);
             } else {
                 ++it;
