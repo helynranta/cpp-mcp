@@ -8,6 +8,11 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 
 - **JSON-RPC 2.0 Communication**: Request/response communication based on JSON-RPC 2.0 standard
 - **Batch Request Support**: Process multiple JSON-RPC requests in a single HTTP call (MCP 2025-03-26 requirement)
+- **Streamable HTTP Transport**: Full support for MCP 2025-03-26 Streamable HTTP transport with unified `/mcp` endpoint
+  - Single endpoint for GET, POST, and DELETE methods
+  - `Mcp-Session-Id` header-based session management
+  - SSE (Server-Sent Events) streaming for real-time responses
+  - Backward compatible with legacy `/sse` and `/message` endpoints
 - **Lifecycle Management**: Strict initialization lifecycle with state transitions (uninitialized → initializing → ready)
 - **Batch Initialization Protection**: Rejects initialize requests in batches per MCP 2025-03-26 specification
 - **Capability Negotiation**: Store and respect client capabilities negotiated during initialization
@@ -39,6 +44,99 @@ git submodule update --init --recursive # Get GoogleTest
 
 cmake -B build -DMCP_SSL=ON
 cmake --build build --config Release
+```
+
+## HTTP Transport
+
+This framework implements the MCP 2025-03-26 Streamable HTTP transport specification with a unified `/mcp` endpoint.
+
+### Streamable HTTP Endpoint
+
+The server exposes a single `/mcp` endpoint that supports:
+
+- **GET** - Establishes an SSE (Server-Sent Events) connection for receiving responses
+  - Returns session endpoint information
+  - Sets `Mcp-Session-Id` header in response
+  - Streams responses in real-time via SSE
+
+- **POST** - Sends JSON-RPC requests or notifications
+  - Requires `Mcp-Session-Id` header or `session_id` query parameter
+  - Requires `Accept` header with `application/json` and/or `text/event-stream`
+  - Returns HTTP 202 Accepted for async processing
+  - Returns HTTP 406 Not Acceptable if Accept header missing or invalid
+  - Responses delivered via SSE connection
+  - Notifications (no ID) return 202 immediately
+  - Requests (with ID) process asynchronously with SSE response
+
+- **DELETE** - Terminates a session
+  - Requires `Mcp-Session-Id` header or `session_id` query parameter
+  - Returns HTTP 204 No Content on success
+  - Returns HTTP 404 if session not found
+
+### Session Management
+
+Sessions are managed using the `Mcp-Session-Id` header (recommended) or `session_id` query parameter (legacy):
+
+```cpp
+// Example: Establish session via GET
+GET /mcp HTTP/1.1
+Host: localhost:8080
+
+// Response includes session ID
+HTTP/1.1 200 OK
+Mcp-Session-Id: abc123-session-id
+Content-Type: text/event-stream
+
+event: endpoint
+data: /mcp?session_id=abc123-session-id
+
+// Subsequent requests use the session ID
+POST /mcp HTTP/1.1
+Host: localhost:8080
+Mcp-Session-Id: abc123-session-id
+Content-Type: application/json
+Accept: application/json, text/event-stream
+
+{"jsonrpc":"2.0","id":1,"method":"tools/list"}
+```
+
+### Backward Compatibility
+
+The framework maintains backward compatibility with legacy endpoints:
+
+- **`/sse`** (deprecated) - Legacy SSE connection endpoint
+- **`/message`** (deprecated) - Legacy JSON-RPC POST endpoint
+
+These endpoints use query parameter-based session management (`?session_id=...`) and will continue to work for existing clients.
+
+### Migration Guide
+
+To migrate from legacy endpoints to Streamable HTTP transport:
+
+1. **Update SSE connection**: Change `GET /sse` to `GET /mcp`
+2. **Update POST endpoint**: Change `POST /message` to `POST /mcp`
+3. **Use header-based sessions**: Add `Mcp-Session-Id` header instead of query parameter
+4. **Add Accept header**: Include `Accept: application/json, text/event-stream` in POST requests
+5. **Handle DELETE**: Implement session cleanup using `DELETE /mcp` with `Mcp-Session-Id` header
+
+Example migration:
+
+```cpp
+// Old (legacy)
+GET /sse                                    // Establish SSE
+POST /message?session_id=abc123 HTTP/1.1   // Send request
+Content-Type: application/json
+
+// New (Streamable HTTP)
+GET /mcp HTTP/1.1                           // Establish SSE
+  -> Response includes: Mcp-Session-Id: abc123
+  
+POST /mcp HTTP/1.1                          // Send request
+Mcp-Session-Id: abc123
+Accept: application/json, text/event-stream
+
+DELETE /mcp HTTP/1.1                        // Terminate session
+Mcp-Session-Id: abc123
 ```
 
 ## Adopters
