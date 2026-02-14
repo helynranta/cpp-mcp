@@ -209,11 +209,14 @@ public:
         /** Server version */
         std::string version{ "0.0.1" };
 
-        /** SSE endpoint path */
+        /** SSE endpoint path (legacy, deprecated) */
         std::string sse_endpoint{ "/sse" };
 
-        /** Message endpoint path */
+        /** Message endpoint path (legacy, deprecated) */
         std::string msg_endpoint{ "/message" };
+
+        /** MCP unified endpoint path (Streamable HTTP transport) */
+        std::string mcp_endpoint{ "/mcp" };
 
         unsigned int threadpool_size{ std::thread::hardware_concurrency() };
 
@@ -380,9 +383,12 @@ private:
     // Session-specific event dispatchers
     std::map<std::string, std::shared_ptr<event_dispatcher>> session_dispatchers_;
 
-    // Server-sent events endpoint
+    // Server-sent events endpoint (legacy)
     std::string sse_endpoint_;
     std::string msg_endpoint_;
+    
+    // MCP unified endpoint (Streamable HTTP transport)
+    std::string mcp_endpoint_;
     
     // Method handlers
     std::map<std::string, method_handler> method_handlers_;
@@ -420,11 +426,23 @@ private:
     // Map to track client capabilities per session (session_id -> capabilities)
     std::map<std::string, json> session_client_capabilities_;
 
-    // Handle SSE requests
+    // Handle SSE requests (legacy)
     void handle_sse(const httplib::Request& req, httplib::Response& res);
     
-    // Handle incoming JSON-RPC requests
+    // Handle incoming JSON-RPC requests (legacy)
     void handle_jsonrpc(const httplib::Request& req, httplib::Response& res);
+
+    // Handle unified MCP endpoint (Streamable HTTP transport)
+    void handle_mcp(const httplib::Request& req, httplib::Response& res);
+    
+    // Handle MCP GET request (SSE connection establishment)
+    void handle_mcp_get(const httplib::Request& req, httplib::Response& res);
+    
+    // Handle MCP POST request (JSON-RPC messages)
+    void handle_mcp_post(const httplib::Request& req, httplib::Response& res);
+    
+    // Handle MCP DELETE request (session termination)
+    void handle_mcp_delete(const httplib::Request& req, httplib::Response& res);
 
     // Handle batch JSON-RPC requests
     void handle_batch_jsonrpc(const json& batch_json, const std::string& session_id, httplib::Response& res);
@@ -452,6 +470,12 @@ private:
 
     // Generate a random session ID
     std::string generate_session_id() const;
+    
+    // Extract session ID from request (Mcp-Session-Id header or query parameter)
+    std::string extract_session_id(const httplib::Request& req) const;
+    
+    // Set session ID in response header
+    void set_session_id_header(httplib::Response& res, const std::string& session_id) const;
     
     // Auxiliary function to create an async handler from a regular handler
     template<typename F>
