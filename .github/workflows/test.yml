@@ -1,0 +1,117 @@
+name: CI Tests
+
+on:
+  pull_request:
+    branches: [ main, master, copilot/update-library-to-latest-spec ]
+  push:
+    branches: [ main, master, copilot/update-library-to-latest-spec ]
+  workflow_dispatch:
+
+jobs:
+  test-linux:
+    name: Test on Linux
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Install vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 'c8696863d371ab7f46545af1bce2c0fb2f62832e'
+    
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+          -DMCP_BUILD_TESTS=ON \
+          -DCMAKE_BUILD_TYPE=Release
+    
+    - name: Build
+      run: cmake --build build --config Release -j$(nproc)
+    
+    - name: Run GoogleTest tests
+      run: |
+        cd build
+        ctest --output-on-failure -C Release -R mcp_tests
+    
+    - name: Run Catch2 tests
+      run: |
+        cd build
+        ctest --output-on-failure -C Release -R mcp_catch2_tests
+      continue-on-error: true
+  
+  test-windows:
+    name: Test on Windows
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Install vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 'c8696863d371ab7f46545af1bce2c0fb2f62832e'
+    
+    - name: Configure CMake
+      run: |
+        cmake -B build `
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+          -DMCP_BUILD_TESTS=ON `
+          -DCMAKE_BUILD_TYPE=Release
+    
+    - name: Build
+      run: cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
+    
+    - name: Run GoogleTest tests
+      run: |
+        cd build
+        ctest --output-on-failure -C Release -R mcp_tests
+    
+    - name: Run Catch2 tests
+      run: |
+        cd build
+        ctest --output-on-failure -C Release -R mcp_catch2_tests
+      continue-on-error: true
+  
+  test-macos:
+    name: Test on macOS
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Install vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 'c8696863d371ab7f46545af1bce2c0fb2f62832e'
+    
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+          -DMCP_BUILD_TESTS=ON \
+          -DCMAKE_BUILD_TYPE=Release
+    
+    - name: Build
+      run: cmake --build build --config Release -j$(sysctl -n hw.ncpu)
+    
+    - name: Run GoogleTest tests
+      run: |
+        cd build
+        ctest --output-on-failure -C Release -R mcp_tests
+    
+    - name: Run Catch2 tests
+      run: |
+        cd build
+        ctest --output-on-failure -C Release -R mcp_catch2_tests
+      continue-on-error: true

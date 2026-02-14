@@ -301,25 +301,9 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
         return;
     }
     
-    // Get session ID
+    // Get session ID from params (optional - for backward compatibility)
     auto it = req.params.find("session_id");
-    std::string session_id = it != req.params.end() ? it->second : "";
-
-    // Update session activity time
-    if (!session_id.empty()) {
-        std::shared_ptr<event_dispatcher> dispatcher;
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            auto disp_it = session_dispatchers_.find(session_id);
-            if (disp_it != session_dispatchers_.end()) {
-                dispatcher = disp_it->second;
-            }
-        }
-        
-        if (dispatcher) {
-            dispatcher->update_activity();
-        }
-    }
+    std::string session_id = it != req.params.end() ? it->second : "default";
     
     // Parse request
     json req_json;
@@ -330,26 +314,6 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
         res.status = 400;
         res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
         return;
-    }
-    
-    // Check if session exists
-    std::shared_ptr<event_dispatcher> dispatcher;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        auto disp_it = session_dispatchers_.find(session_id);
-        if (disp_it == session_dispatchers_.end()) {
-            // Handle ping request
-            if (req_json["method"] == "ping") {
-                res.status = 202;
-                res.set_content("Accepted", "text/plain");
-                return;
-            }
-            LOG_ERROR("Session not found: ", session_id);
-            res.status = 404;
-            res.set_content("{\"error\":\"Session not found\"}", "application/json");
-            return;
-        }
-        dispatcher = disp_it->second;
     }
     
     // Create request object
@@ -383,24 +347,12 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
         return;
     }
     
-    // For requests with ID, process it asynchronously in the thread pool and return the result via SSE
-    thread_pool_.enqueue([this, mcp_req, session_id, dispatcher]() {
-        // Process the request
-        json response_json = process_request(mcp_req, session_id);
-        
-        // Send response via SSE
-        std::stringstream ss;
-        ss << "event: message\r\ndata: " << response_json.dump() << "\r\n\r\n";
-        bool result = dispatcher->send_event(ss.str());
-        
-        if (!result) {
-            LOG_ERROR("Failed to send response via SSE: session_id=", session_id);
-        }
-    });
+    // Process the request synchronously
+    json response_json = process_request(mcp_req, session_id);
     
-    // Return 202 Accepted
-    res.status = 202;
-    res.set_content("Accepted", "text/plain");
+    // Return the response directly as JSON
+    res.status = 200;
+    res.set_content(response_json.dump(), "application/json");
 }
 
 json server::process_request(const request& req, const std::string& session_id) {
@@ -573,12 +525,6 @@ void server::set_session_initialized(const std::string& session_id, bool initial
     
     try {
         std::lock_guard<std::mutex> lock(mutex_);
-        // Check if session still exists
-        auto it = session_dispatchers_.find(session_id);
-        if (it == session_dispatchers_.end()) {
-            LOG_WARNING("Cannot set initialization state for non-existent session: ", session_id);
-            return;
-        }
         session_initialized_[session_id] = initialized;
     } catch (const std::exception& e) {
         LOG_ERROR("Exception setting session initialization state: ", e.what());

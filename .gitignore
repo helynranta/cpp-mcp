@@ -44,6 +44,7 @@ lcov-report/
 tags
 .build/
 build*
+vcpkg_installed/
 !build-info.cmake
 !build-info.cpp.in
 !build-info.sh
