@@ -276,7 +276,8 @@ public:
         std::string prefix = session_id + ":";
         auto it = active_ids_.begin();
         while (it != active_ids_.end()) {
-            if (it->rfind(prefix, 0) == 0) {
+            // Check if the key starts with the prefix
+            if (it->compare(0, prefix.size(), prefix) == 0) {
                 it = active_ids_.erase(it);
             } else {
                 ++it;

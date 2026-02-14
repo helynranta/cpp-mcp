@@ -823,7 +823,7 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
                 json response_json = process_request(mcp_req, session_id);
                 batch_response.push_back(response_json);
                 
-                // Remove request ID from tracker after processing
+                // Remove request ID from tracker after processing (only for non-notifications)
                 request_id_tracker_.remove_request_id(session_id, mcp_req.id);
             }
         }
