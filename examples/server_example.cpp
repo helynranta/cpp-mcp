@@ -144,6 +144,8 @@ int main() {
     // Register tools
     mcp::tool time_tool = mcp::tool_builder("get_time")
         .with_description("Get current time")
+        .with_read_only(true)
+        .with_latency(100)
         .build();
     
     mcp::tool echo_tool = mcp::tool_builder("echo")
@@ -151,6 +153,8 @@ int main() {
         .with_string_param("text", "Text to echo")
         .with_boolean_param("uppercase", "Convert to uppercase", false)
         .with_boolean_param("reverse", "Reverse the text", false)
+        .with_read_only(true)
+        .with_latency(50)
         .build();
     
     mcp::tool calc_tool = mcp::tool_builder("calculator")
@@ -158,11 +162,15 @@ int main() {
         .with_string_param("operation", "Operation to perform (add, subtract, multiply, divide)")
         .with_number_param("a", "First operand")
         .with_number_param("b", "Second operand")
+        .with_read_only(true)
+        .with_latency(100)
         .build();
 
     mcp::tool hello_tool = mcp::tool_builder("hello")
         .with_description("Say hello")
         .with_string_param("name", "Name to say hello to", "World")
+        .with_read_only(true)
+        .with_latency(50)
         .build();
     
     server.register_tool(time_tool, get_time_handler);

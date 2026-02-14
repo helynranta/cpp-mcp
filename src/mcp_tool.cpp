@@ -98,6 +98,30 @@ tool_builder& tool_builder::with_object_param(const std::string& name,
     return *this;
 }
 
+tool_builder& tool_builder::with_read_only(bool value) {
+    has_read_only_ = true;
+    read_only_value_ = value;
+    return *this;
+}
+
+tool_builder& tool_builder::with_destructive(bool value) {
+    has_destructive_ = true;
+    destructive_value_ = value;
+    return *this;
+}
+
+tool_builder& tool_builder::with_cost(double value) {
+    has_cost_ = true;
+    cost_value_ = value;
+    return *this;
+}
+
+tool_builder& tool_builder::with_latency(int value) {
+    has_latency_ = true;
+    latency_value_ = value;
+    return *this;
+}
+
 tool tool_builder::build() const {
     tool t;
     t.name = name_;
@@ -112,6 +136,19 @@ tool tool_builder::build() const {
     }
     
     t.parameters_schema = schema;
+    
+    // Set metadata annotations
+    t.has_read_only = has_read_only_;
+    t.read_only_value = read_only_value_;
+    
+    t.has_destructive = has_destructive_;
+    t.destructive_value = destructive_value_;
+    
+    t.has_cost = has_cost_;
+    t.cost_value = cost_value_;
+    
+    t.has_latency = has_latency_;
+    t.latency_value = latency_value_;
     
     return t;
 }

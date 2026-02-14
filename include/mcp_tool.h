@@ -25,13 +25,51 @@ struct tool {
     std::string description;
     json parameters_schema;
     
+    // Optional metadata annotations
+    bool has_read_only = false;
+    bool read_only_value = false;
+    
+    bool has_destructive = false;
+    bool destructive_value = false;
+    
+    bool has_cost = false;
+    double cost_value = 0.0;
+    
+    bool has_latency = false;
+    int latency_value = 0;
+    
     // Convert to JSON for API documentation
     json to_json() const {
-        return {
+        json result = {
             {"name", name},
             {"description", description},
-            {"inputSchema", parameters_schema} // You may need `parameters` instead of `inputSchema` for OAI format
+            {"inputSchema", parameters_schema}
         };
+        
+        // Add annotations if any are set
+        if (has_read_only || has_destructive || has_cost || has_latency) {
+            json annotations = json::object();
+            
+            if (has_read_only) {
+                annotations["readOnly"] = read_only_value;
+            }
+            
+            if (has_destructive) {
+                annotations["destructive"] = destructive_value;
+            }
+            
+            if (has_cost) {
+                annotations["cost"] = cost_value;
+            }
+            
+            if (has_latency) {
+                annotations["latency"] = latency_value;
+            }
+            
+            result["annotations"] = annotations;
+        }
+        
+        return result;
     }
 };
 
@@ -117,6 +155,34 @@ public:
                                    bool required = true);
     
     /**
+     * @brief Set the readOnly annotation
+     * @param value Whether the tool is read-only (doesn't modify state)
+     * @return Reference to this builder
+     */
+    tool_builder& with_read_only(bool value);
+    
+    /**
+     * @brief Set the destructive annotation
+     * @param value Whether the tool can cause destructive/irreversible changes
+     * @return Reference to this builder
+     */
+    tool_builder& with_destructive(bool value);
+    
+    /**
+     * @brief Set the cost metadata
+     * @param value The operational or financial cost of using this tool
+     * @return Reference to this builder
+     */
+    tool_builder& with_cost(double value);
+    
+    /**
+     * @brief Set the latency metadata
+     * @param value The expected latency in milliseconds
+     * @return Reference to this builder
+     */
+    tool_builder& with_latency(int value);
+    
+    /**
      * @brief Build the tool
      * @return The constructed tool
      */
@@ -127,6 +193,19 @@ private:
     std::string description_;
     json parameters_;
     std::vector<std::string> required_params_;
+    
+    // Metadata annotations
+    bool has_read_only_ = false;
+    bool read_only_value_ = false;
+    
+    bool has_destructive_ = false;
+    bool destructive_value_ = false;
+    
+    bool has_cost_ = false;
+    double cost_value_ = 0.0;
+    
+    bool has_latency_ = false;
+    int latency_value_ = 0;
     
     // Helper to add a parameter of any type
     tool_builder& add_param(const std::string& name, 

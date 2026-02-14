@@ -326,6 +326,7 @@ Maintain TESTING_IMPLEMENTATION_PLAN.md and related docs:
 ### External Resources
 
 - [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
+- [MCP GitHub Repository](https://github.com/modelcontextprotocol/modelcontextprotocol) - Official specification and protocol details
 - [GoogleTest Documentation](https://google.github.io/googletest/)
 - [vcpkg Documentation](https://vcpkg.io/en/docs/)
 
