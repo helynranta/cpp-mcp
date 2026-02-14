@@ -12,6 +12,8 @@ add_library(${TARGET} STATIC
     ../include/mcp_tool.h
     mcp_stdio_client.cpp
     ../include/mcp_stdio_client.h
+    mcp_sse_client.cpp
+    ../include/mcp_sse_client.h
 )
 
 target_link_libraries(${TARGET} PUBLIC ${CMAKE_THREAD_LIBS_INIT})
