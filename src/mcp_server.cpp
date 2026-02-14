@@ -217,9 +217,11 @@ void server::stop() {
         session_client_capabilities_.clear();
     }
     
-    // Close all sessions
-    for (const auto& [session_id, _] : session_dispatchers_) {
-        close_session(session_id);
+    // Close all dispatchers to gracefully disconnect SSE clients
+    for (const auto& dispatcher : dispatchers_to_close) {
+        if (dispatcher && !dispatcher->is_closed()) {
+            dispatcher->close();
+        }
     }
     
     // Give threads some time to handle close events

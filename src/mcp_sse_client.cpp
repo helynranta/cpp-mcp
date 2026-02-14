@@ -309,7 +309,12 @@ void sse_client::open_sse_connection() {
                     break;
                 }
 
-                LOG_ERROR("SSE connection error: ", e.what());
+                // Log first attempt as INFO since connection drops during shutdown are normal
+                if (retry_count == 1) {
+                    LOG_INFO("SSE connection closed: ", e.what());
+                } else {
+                    LOG_WARNING("SSE connection error (attempt ", retry_count, "): ", e.what());
+                }
                 
                 int delay = retry_delay_base * (1 << (retry_count - 1));
                 LOG_INFO("Will retry in ", delay, " ms (attempt ", retry_count, "/", max_retries, ")");
