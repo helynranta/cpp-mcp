@@ -11,12 +11,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Find required packages
 find_package(Threads REQUIRED)
 
+# For older versions of CMake, this option needs to be set
+# IMPORTANT: Must be set BEFORE add_subdirectory to take effect
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
 # Use local Google Test
 set(GTEST_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/googletest)
 add_subdirectory(${GTEST_ROOT} googletest-build)
-
-# For older versions of CMake, this option needs to be set
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
 # Include header directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../include)
