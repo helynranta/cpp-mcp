@@ -36,6 +36,17 @@
 
 namespace mcp {
 
+/**
+ * @enum lifecycle_state
+ * @brief Lifecycle states for MCP session per 2025-03-26 spec
+ */
+enum class lifecycle_state {
+    uninitialized,  // Session created but initialize not received
+    initializing,   // initialize request received, waiting for initialized notification
+    ready,          // Session fully initialized and ready for operations
+    shutdown        // Session shutting down
+};
+
 using method_handler = std::function<json(const json&, const std::string&)>;
 using tool_handler = method_handler;
 using notification_handler = std::function<void(const json&, const std::string&)>;
@@ -386,8 +397,11 @@ private:
     // Thread pool for async method handlers
     thread_pool thread_pool_;
     
-    // Map to track session initialization status (session_id -> initialized)
-    std::map<std::string, bool> session_initialized_;
+    // Map to track session lifecycle state (session_id -> state)
+    std::map<std::string, lifecycle_state> session_lifecycle_;
+    
+    // Map to track client capabilities per session (session_id -> capabilities)
+    std::map<std::string, json> session_client_capabilities_;
 
     // Handle SSE requests
     void handle_sse(const httplib::Request& req, httplib::Response& res);
@@ -407,10 +421,16 @@ private:
     // Handle initialization request
     json handle_initialize(const request& req, const std::string& session_id);
     
-    // Check if a session is initialized
+    // Get session lifecycle state
+    lifecycle_state get_session_lifecycle_state(const std::string& session_id) const;
+    
+    // Set session lifecycle state
+    void set_session_lifecycle_state(const std::string& session_id, lifecycle_state state);
+    
+    // Check if a session is initialized (for backward compatibility)
     bool is_session_initialized(const std::string& session_id) const;
     
-    // Set session initialization status
+    // Set session initialization status (for backward compatibility)
     void set_session_initialized(const std::string& session_id, bool initialized);
 
     // Generate a random session ID
