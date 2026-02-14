@@ -309,7 +309,7 @@ void sse_client::open_sse_connection() {
                     break;
                 }
 
-                LOG_ERROR("SSE connection error: ", e.what());
+                LOG_WARNING("SSE connection error: ", e.what());
                 
                 int delay = retry_delay_base * (1 << (retry_count - 1));
                 LOG_INFO("Will retry in ", delay, " ms (attempt ", retry_count, "/", max_retries, ")");
