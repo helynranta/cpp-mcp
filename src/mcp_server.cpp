@@ -445,13 +445,13 @@ void server::register_tool(const tool& tool, tool_handler handler) {
                         bool confirmed = tool_confirmation_handler_(tool_name, tool_args, session_id);
                         if (!confirmed) {
                             throw mcp_exception(error_code::invalid_request, 
-                                "Tool execution denied: User confirmation required but not granted");
+                                "Tool execution denied: user confirmation required but not granted");
                         }
                     } else {
                         // If no confirmation handler is set but tool requires confirmation, deny execution
                         LOG_WARNING("Tool '", tool_name, "' requires confirmation but no handler is set");
                         throw mcp_exception(error_code::invalid_request, 
-                            "Tool execution denied: Confirmation required but no handler configured");
+                            "Tool execution denied: confirmation required but no handler configured");
                     }
                 }
                 
