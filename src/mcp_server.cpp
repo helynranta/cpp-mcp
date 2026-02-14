@@ -615,9 +615,36 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
     // Create request object
     request mcp_req;
     try {
+        // Validate the JSON-RPC message first
+        std::string validation_error;
+        if (!validate_request_message(req_json, validation_error)) {
+            LOG_ERROR("Invalid JSON-RPC request: ", validation_error);
+            res.status = 400;
+            json error_response = response::create_error(
+                req_json.contains("id") ? req_json["id"] : nullptr,
+                error_code::invalid_request,
+                validation_error
+            ).to_json();
+            res.set_content(error_response.dump(), "application/json");
+            return;
+        }
+        
         mcp_req.jsonrpc = req_json["jsonrpc"].get<std::string>();
         if (req_json.contains("id") && !req_json["id"].is_null()) {
             mcp_req.id = req_json["id"];
+            
+            // Check for duplicate request ID
+            if (!request_id_tracker_.add_request_id(session_id, mcp_req.id)) {
+                LOG_ERROR("Duplicate request ID: ", mcp_req.id.dump());
+                res.status = 400;
+                json error_response = response::create_error(
+                    mcp_req.id,
+                    error_code::invalid_request,
+                    "Duplicate request ID"
+                ).to_json();
+                res.set_content(error_response.dump(), "application/json");
+                return;
+            }
         }
         mcp_req.method = req_json["method"].get<std::string>();
         if (req_json.contains("params")) {
@@ -647,6 +674,11 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
     thread_pool_.enqueue([this, mcp_req, session_id, dispatcher]() {
         // Process the request
         json response_json = process_request(mcp_req, session_id);
+        
+        // Remove request ID from tracker after processing
+        if (!mcp_req.is_notification()) {
+            request_id_tracker_.remove_request_id(session_id, mcp_req.id);
+        }
         
         // Send response via SSE
         std::stringstream ss;
@@ -701,11 +733,26 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
         const auto& item = batch_json[i];
         
         try {
+            // Validate each batch item
+            std::string validation_error;
+            if (!validate_request_message(item, validation_error)) {
+                LOG_ERROR("Invalid JSON-RPC request in batch item ", i, ": ", validation_error);
+                parse_error = true;
+                break;
+            }
+            
             request mcp_req;
             mcp_req.jsonrpc = item["jsonrpc"].get<std::string>();
             
             if (item.contains("id") && !item["id"].is_null()) {
                 mcp_req.id = item["id"];
+                
+                // Check for duplicate request ID
+                if (!request_id_tracker_.add_request_id(session_id, mcp_req.id)) {
+                    LOG_ERROR("Duplicate request ID in batch: ", mcp_req.id.dump());
+                    parse_error = true;
+                    break;
+                }
             }
             
             mcp_req.method = item["method"].get<std::string>();
@@ -775,6 +822,9 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
                 // Process request and collect response
                 json response_json = process_request(mcp_req, session_id);
                 batch_response.push_back(response_json);
+                
+                // Remove request ID from tracker after processing
+                request_id_tracker_.remove_request_id(session_id, mcp_req.id);
             }
         }
         
@@ -1117,6 +1167,9 @@ void server::close_session(const std::string& session_id) {
             // Clean up initialization status
             session_initialized_.erase(session_id);
         }
+        
+        // Clear request IDs for this session
+        request_id_tracker_.clear_session(session_id);
         
         // Close dispatcher outside the lock
         if (dispatcher_to_close && !dispatcher_to_close->is_closed()) {
