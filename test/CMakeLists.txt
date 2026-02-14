@@ -30,6 +30,7 @@ set(TEST_SOURCES
     mcp_test.cpp
     jsonrpc_validation_test.cpp
     lifecycle_compliance_test.cpp
+    streamable_http_transport_test.cpp
 )
 
 # Create test executable
