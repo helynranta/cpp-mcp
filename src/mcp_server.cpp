@@ -18,6 +18,7 @@ server::server(const server::configuration& conf)
     , version_(conf.version)
     , sse_endpoint_(conf.sse_endpoint)
     , msg_endpoint_(conf.msg_endpoint)
+    , request_timeout_seconds_(conf.request_timeout_seconds)
     , thread_pool_(conf.threadpool_size)
 {
     #ifdef MCP_SSL
@@ -431,6 +432,11 @@ std::vector<tool> server::get_tools() const {
 void server::set_auth_handler(auth_handler handler) {
     std::lock_guard<std::mutex> lock(mutex_);
     auth_handler_ = handler;
+}
+
+void server::set_cancellation_handler(cancellation_handler handler) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    cancellation_handler_ = handler;
 }
 
 void server::handle_sse(const httplib::Request& req, httplib::Response& res) {
@@ -874,9 +880,58 @@ json server::process_request(const request& req, const std::string& session_id) 
             } else {
                 LOG_WARNING("Received initialized notification in unexpected state for session: ", session_id);
             }
+        } else if (req.method == "notifications/cancelled") {
+            // Handle cancellation notification per MCP 2025-03-26
+            if (req.params.contains("requestId")) {
+                json request_id = req.params["requestId"];
+                std::string reason = req.params.contains("reason") && req.params["reason"].is_string() 
+                    ? req.params["reason"].get<std::string>() 
+                    : "No reason provided";
+                
+                LOG_INFO("Received cancellation notification for request: ", request_id.dump(), 
+                         ", reason: ", reason, ", session: ", session_id);
+                
+                // Call cancellation handler if registered
+                cancellation_handler handler;
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    handler = cancellation_handler_;
+                }
+                
+                if (handler) {
+                    try {
+                        handler(request_id, reason, session_id);
+                    } catch (const std::exception& e) {
+                        LOG_ERROR("Exception in cancellation handler: ", e.what());
+                    } catch (...) {
+                        LOG_ERROR("Unknown exception in cancellation handler");
+                    }
+                }
+            } else {
+                LOG_WARNING("Received malformed cancellation notification (missing requestId) for session: ", session_id);
+            }
         }
-        // Handle other notifications (e.g., notifications/cancelled)
-        // TODO: Add cancellation handling here
+        // Handle other notifications registered via register_notification
+        else {
+            notification_handler handler;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                auto it = notification_handlers_.find(req.method);
+                if (it != notification_handlers_.end()) {
+                    handler = it->second;
+                }
+            }
+            
+            if (handler) {
+                try {
+                    handler(req.params, session_id);
+                } catch (const std::exception& e) {
+                    LOG_ERROR("Exception in notification handler: ", e.what());
+                } catch (...) {
+                    LOG_ERROR("Unknown exception in notification handler");
+                }
+            }
+        }
         return json::object();
     }
     

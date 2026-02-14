@@ -52,6 +52,7 @@ using tool_handler = method_handler;
 using notification_handler = std::function<void(const json&, const std::string&)>;
 using auth_handler = std::function<bool(const std::string&, const std::string&)>;
 using session_cleanup_handler = std::function<void(const std::string&)>;
+using cancellation_handler = std::function<void(const json& request_id, const std::string& reason, const std::string& session_id)>;
 
 class event_dispatcher {
 public:
@@ -216,6 +217,9 @@ public:
 
         unsigned int threadpool_size{ std::thread::hardware_concurrency() };
 
+        /** Request timeout in seconds (0 = no timeout) */
+        unsigned int request_timeout_seconds{ 0 };
+
         #ifdef MCP_SSL        
         /**
          * @brief SSL configuration settings.
@@ -325,6 +329,13 @@ public:
     void set_auth_handler(auth_handler handler);
 
     /**
+     * @brief Set cancellation handler
+     * @param handler Function to call when a cancellation notification is received
+     * @note Handler receives request_id, reason, and session_id
+     */
+    void set_cancellation_handler(cancellation_handler handler);
+
+    /**
      * @brief Send a request (or notification) to a client
      * @param session_id The session ID of the client
      * @param req The request to send
@@ -387,6 +398,12 @@ private:
     
     // Authentication handler
     auth_handler auth_handler_;
+    
+    // Cancellation handler
+    cancellation_handler cancellation_handler_;
+    
+    // Request timeout in seconds
+    unsigned int request_timeout_seconds_;
     
     // Mutex for thread safety
     mutable std::mutex mutex_;
