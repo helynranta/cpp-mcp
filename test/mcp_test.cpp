@@ -358,6 +358,8 @@ public:
         server::configuration config;
         config.host = "localhost";
         config.port = 8082;
+        config.name = "TestServer";
+        config.version = "1.0.0";
         server_ = std::make_unique<server>(config);
         
         // Start server (non-blocking mode)
@@ -523,6 +525,8 @@ public:
         server::configuration config;
         config.host = "localhost";
         config.port = 8083;
+        config.name = "TestServer";
+        config.version = "1.0.0";
         server_ = std::make_unique<server>(config);
         
         // Create a test tool
