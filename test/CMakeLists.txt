@@ -31,6 +31,8 @@ set(TEST_SOURCES
     jsonrpc_validation_test.cpp
     lifecycle_compliance_test.cpp
     streamable_http_transport_test.cpp
+    http_security_test.cpp
+    tool_safety_test.cpp
 )
 
 # Create test executable

@@ -38,6 +38,10 @@ struct tool {
     bool has_latency = false;
     int latency_value = 0;
     
+    // Security flags (MCP 2025-03-26)
+    // Tool requires user confirmation before execution (for destructive operations)
+    bool requires_confirmation = false;
+    
     // Convert to JSON for API documentation
     json to_json() const {
         json result = {
@@ -183,6 +187,14 @@ public:
     tool_builder& with_latency(int value);
     
     /**
+     * @brief Require user confirmation before executing this tool (MCP 2025-03-26 safety)
+     * @param value Whether the tool requires confirmation before execution
+     * @return Reference to this builder
+     * @note Typically used for destructive or sensitive operations
+     */
+    tool_builder& with_confirmation_required(bool value = true);
+    
+    /**
      * @brief Build the tool
      * @return The constructed tool
      */
@@ -206,6 +218,9 @@ private:
     
     bool has_latency_ = false;
     int latency_value_ = 0;
+    
+    // Security flags (MCP 2025-03-26)
+    bool requires_confirmation_ = false;
     
     // Helper to add a parameter of any type
     tool_builder& add_param(const std::string& name, 
