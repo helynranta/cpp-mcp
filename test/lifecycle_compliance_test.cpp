@@ -52,6 +52,7 @@ public:
     }
 
     void TearDown() override {
+        // Clean up - no long delays needed with isolated servers
         if (server_) {
             server_->stop();
         }

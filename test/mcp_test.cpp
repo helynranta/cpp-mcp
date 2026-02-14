@@ -93,13 +93,17 @@ TEST_F(MessageFormatTest, NotificationMessageFormat) {
     EXPECT_TRUE(notification.is_notification());
 }
 
+// Test Lifecycle functionality - each test gets its own server
 class LifecycleTest : public ::testing::Test {
 protected:
-    static void SetUpTestSuite() {
-        // Set up test environment
+    void SetUp() override {
+        // Create server on unique port for this test (avoid conflicts)
+        static std::atomic<int> port_counter{10000};
+        port_ = port_counter.fetch_add(1);
+        
         server::configuration config;
         config.host = "localhost";
-        config.port = 8080;
+        config.port = port_;
         config.name = "TestServer";
         config.version = "1.0.0";
         server_ = std::make_unique<server>(config);
@@ -121,12 +125,12 @@ protected:
             {"roots", {{"listChanged", true}}},
             {"sampling", json::object()}
         };
-        client_ = std::make_unique<sse_client>("http://localhost:8080");
+        client_ = std::make_unique<sse_client>("http://localhost:" + std::to_string(port_));
         client_->set_capabilities(client_capabilities);
     }
 
-    static void TearDownTestSuite() {
-        // Clean up test environment
+    void TearDown() override {
+        // Clean up - no need to wait since each test has isolated server
         client_.reset();
         if (server_) {
             server_->stop();
@@ -134,47 +138,38 @@ protected:
         server_.reset();
     }
 
-    void SetUp() override {
-        // Get client pointer
-        client_ptr_ = client_.get();
-    }
-
-    // Use raw pointer for test access
-    sse_client* client_ptr_;
-    static std::unique_ptr<server> server_;
-    static std::unique_ptr<sse_client> client_;
+    int port_;
+    std::unique_ptr<server> server_;
+    std::unique_ptr<sse_client> client_;
 };
-
-// Static member variable definition
-std::unique_ptr<server> LifecycleTest::server_;
-std::unique_ptr<sse_client> LifecycleTest::client_;
 
 // Test initialize process
 TEST_F(LifecycleTest, InitializeProcess) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // Execute initialize
-    bool init_result = client_ptr_->initialize("TestClient", "1.0.0");
+    bool init_result = client_->initialize("TestClient", "1.0.0");
     
     // Verify initialize result
     EXPECT_TRUE(init_result);
     
     // Verify server capabilities
-    json server_capabilities = client_ptr_->get_server_capabilities();
+    json server_capabilities = client_->get_server_capabilities();
     EXPECT_TRUE(server_capabilities.contains("logging"));
     EXPECT_TRUE(server_capabilities.contains("prompts"));
     EXPECT_TRUE(server_capabilities.contains("resources"));
     EXPECT_TRUE(server_capabilities.contains("tools"));
 }
 
-// Version control test environment
-// Test version control
+// Test version control - each test gets isolated server
 class VersioningTest : public ::testing::Test {
 protected:
-    static void SetUpTestSuite() {
-        // Set up test environment
+    void SetUp() override {
+        // Create server on unique port for this test
+        static std::atomic<int> port_counter{11000};
+        port_ = port_counter.fetch_add(1);
+        
         server::configuration config;
         config.host = "localhost";
-        config.port = 8081;
+        config.port = port_;
         config.name = "TestServer";
         config.version = "1.0.0";
         server_ = std::make_unique<server>(config);
@@ -191,14 +186,11 @@ protected:
         // Start server (non-blocking mode)
         server_->start(false);
 
-        client_ = std::make_unique<sse_client>("http://localhost:8081");
+        client_ = std::make_unique<sse_client>("http://localhost:" + std::to_string(port_));
     }
 
-    static void TearDownTestSuite() {
-        // Clean up test environment
-        // Wait briefly to allow any detached SSE threads from tests to complete
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        
+    void TearDown() override {
+        // Clean up - isolated server means no shared resource conflicts
         client_.reset();
         if (server_) {
             server_->stop();
@@ -206,25 +198,15 @@ protected:
         server_.reset();
     }
 
-    void SetUp() override {
-        // Get client pointer
-        client_ptr_ = client_.get();
-    }
-
-    // Use raw pointer for test access
-    sse_client* client_ptr_;
-    static std::unique_ptr<server> server_;
-    static std::unique_ptr<sse_client> client_;
+    int port_;
+    std::unique_ptr<server> server_;
+    std::unique_ptr<sse_client> client_;
 };
-
-std::unique_ptr<server> VersioningTest::server_;
-std::unique_ptr<sse_client> VersioningTest::client_;
 
 // Test supported version
 TEST_F(VersioningTest, SupportedVersion) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // Execute initialize
-    bool init_result = client_ptr_->initialize("TestClient", "1.0.0");
+    bool init_result = client_->initialize("TestClient", "1.0.0");
     
     // Verify initialize result
     EXPECT_TRUE(init_result);
@@ -232,10 +214,9 @@ TEST_F(VersioningTest, SupportedVersion) {
 
 // Test unsupported version
 TEST_F(VersioningTest, UnsupportedVersion) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     try {
         // Use httplib::Client to send unsupported version request
-        std::unique_ptr<httplib::Client> http_client = std::make_unique<httplib::Client>("localhost", 8081);
+        std::unique_ptr<httplib::Client> http_client = std::make_unique<httplib::Client>("localhost", port_);
         
         // Open SSE connection
         auto msg_endpoint_promise = std::make_shared<std::promise<std::string>>();
@@ -246,11 +227,14 @@ TEST_F(VersioningTest, UnsupportedVersion) {
         auto msg_endpoint_received = std::make_shared<std::atomic<bool>>(false);
         auto sse_response_received = std::make_shared<std::atomic<bool>>(false);
 
+        // Capture port for use in detached thread
+        int test_port = port_;
+        
         // Use std::thread with shared state to avoid lifetime issues when detaching
         std::thread sse_thread([msg_endpoint_received, sse_response_received,
-                                msg_endpoint_promise, sse_promise]() {
+                                msg_endpoint_promise, sse_promise, test_port]() {
             // Create SSE client inside thread so it's owned by the thread
-            httplib::Client sse_client("localhost", 8081);
+            httplib::Client sse_client("localhost", test_port);
             sse_client.Get("/sse", [msg_endpoint_received, sse_response_received,
                                     msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
@@ -313,36 +297,53 @@ TEST_F(VersioningTest, UnsupportedVersion) {
     }
 }
 
-// Ping test environment
-// Test Ping functionality
+// Ping test - each test gets isolated server
 class PingTest : public ::testing::Test {
 protected:
-    static void SetUpTestSuite() {
-        // Set up test environment
+    void SetUp() override {
+        // Create server on unique port for this test
+        static std::atomic<int> port_counter{12000};
+        port_ = port_counter.fetch_add(1);
+        
         server::configuration config;
         config.host = "localhost";
-        config.port = 8082;
+        config.port = port_;
         config.name = "TestServer";
         config.version = "1.0.0";
         server_ = std::make_unique<server>(config);
         
+        // Set server capabilities
+        json server_capabilities = {
+            {"logging", json::object()},
+            {"prompts", {{"listChanged", true}}},
+            {"resources", {{"subscribe", true}, {"listChanged", true}}},
+            {"tools", {{"listChanged", true}}}
+        };
+        server_->set_capabilities(server_capabilities);
+        
+        // Register a simple tool
+        tool test_tool = tool_builder("test_tool")
+            .with_description("A test tool")
+            .with_string_param("message", "A test parameter", "")
+            .build();
+        
+        server_->register_tool(test_tool, [](const json& params, const std::string&) -> json {
+            return {{"result", "Test response"}};
+        });
+        
         // Start server (non-blocking mode)
         server_->start(false);
-        
-        // Create client
+
         json client_capabilities = {
             {"roots", {{"listChanged", true}}},
             {"sampling", json::object()}
         };
-        client_ = std::make_unique<sse_client>("http://localhost:8082");
+        client_ = std::make_unique<sse_client>("http://localhost:" + std::to_string(port_));
         client_->set_capabilities(client_capabilities);
     }
 
-    static void TearDownTestSuite() {
-        // Clean up test environment
-        // Wait briefly to allow any detached SSE threads from tests to complete
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        
+    void TearDown() override {
+        // Clean up - isolated server means no shared resource conflicts
         client_.reset();
         if (server_) {
             server_->stop();
@@ -350,34 +351,26 @@ protected:
         server_.reset();
     }
 
-    void SetUp() override {
-        // Get client pointer
-        client_ptr_ = client_.get();
-    }
-
-    // Use raw pointer for test access
-    sse_client* client_ptr_;
-    static std::unique_ptr<server> server_;
-    static std::unique_ptr<sse_client> client_;
+    int port_;
+    std::unique_ptr<server> server_;
+    std::unique_ptr<sse_client> client_;
 };
-
-// Static member variable definition
-std::unique_ptr<server> PingTest::server_;
-std::unique_ptr<sse_client> PingTest::client_;
 
 // Test Ping request
 TEST_F(PingTest, PingRequest) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    client_ptr_->initialize("TestClient", "1.0.0");
-    bool ping_result = client_ptr_->ping();
+    // Initialize client
+    bool init_result = client_->initialize("TestClient", "1.0.0");
+    EXPECT_TRUE(init_result);
+    
+    // Send ping request
+    bool ping_result = client_->ping();
     EXPECT_TRUE(ping_result);
 }
 
 TEST_F(PingTest, DirectPing) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     try {
         // Use httplib::Client to send Ping request
-        std::unique_ptr<httplib::Client> http_client = std::make_unique<httplib::Client>("localhost", 8082);
+        std::unique_ptr<httplib::Client> http_client = std::make_unique<httplib::Client>("localhost", port_);
         
         // Open SSE connection
         auto msg_endpoint_promise = std::make_shared<std::promise<std::string>>();
@@ -388,11 +381,14 @@ TEST_F(PingTest, DirectPing) {
         auto msg_endpoint_received = std::make_shared<std::atomic<bool>>(false);
         auto sse_response_received = std::make_shared<std::atomic<bool>>(false);
 
+        // Capture port for use in detached thread
+        int test_port = port_;
+        
         // Use std::thread with shared state to avoid lifetime issues when detaching
         std::thread sse_thread([msg_endpoint_received, sse_response_received,
-                                msg_endpoint_promise, sse_promise]() {
+                                msg_endpoint_promise, sse_promise, test_port]() {
             // Create SSE client inside thread so it's owned by the thread
-            httplib::Client sse_client("localhost", 8082);
+            httplib::Client sse_client("localhost", test_port);
             sse_client.Get("/sse", [msg_endpoint_received, sse_response_received,
                                     msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
@@ -552,7 +548,7 @@ protected:
     }
 
     static void TearDownTestSuite() {
-        // Clean up test environment
+        // Clean up test environment - no long delays needed since no detached threads
         client_.reset();
         if (server_) {
             server_->stop();
@@ -982,6 +978,7 @@ protected:
     }
 
     static void TearDownTestSuite() {
+        // Clean up test environment - no long delays needed since no detached threads
         client_.reset();
         if (server_) {
             server_->stop();
@@ -1071,6 +1068,7 @@ protected:
     }
 
     static void TearDownTestSuite() {
+        // Clean up test environment - no long delays needed since no detached threads
         client_.reset();
         if (server_) {
             server_->stop();
