@@ -1,5 +1,7 @@
 # MCP Protocol Framework
 
+> ⚠️ **WARNING**: This is a purely vibe-coded experimental fork. Use at your own risk!
+
 [Model Context Protocol (MCP)](https://spec.modelcontextprotocol.io/specification/2025-03-26/architecture/) is an open protocol that provides a standardized way for AI models and agents to interact with various resources, tools, and services. This framework implements the core functionality of the MCP protocol, conforming to the 2025-03-26 basic protocol specification.
 
 For the full specification and protocol details, see the [MCP GitHub repository](https://github.com/modelcontextprotocol/modelcontextprotocol).
@@ -148,16 +150,6 @@ Accept: application/json, text/event-stream
 DELETE /mcp HTTP/1.1                        // Terminate session
 Mcp-Session-Id: abc123
 ```
-
-## Adopters
-
-Here are some open-source projects that are using this repository.  
-If you're using it too, feel free to submit a PR to be featured here!
-
-- [humanus.cpp](https://github.com/WHU-MYTH-Lab/humanus.cpp): Lightweight C++ LLM agent framework
-- ...waiting for your contribution...
-
-
 
 ## Components
 
