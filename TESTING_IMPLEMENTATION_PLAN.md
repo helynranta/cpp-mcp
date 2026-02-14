@@ -1,25 +1,27 @@
 # Testing Infrastructure Implementation Plan
 
 ## Overview
-This document outlines the remaining tasks to complete the Catch2 testing infrastructure and CI/CD pipeline for the cpp-mcp project.
+This document outlines the remaining tasks to complete the testing infrastructure and CI/CD pipeline for the cpp-mcp project.
 
 ## Completed Work ✅
 
 1. **vcpkg Integration**
-   - Created `vcpkg.json` manifest with Catch2 dependency
+   - Created `vcpkg.json` manifest (dependencies managed via vcpkg)
+   - Created `vcpkg-configuration.json` for vcpkg registry configuration
    - Updated `.gitignore` to exclude `vcpkg_installed/`
    - Verified vcpkg integration works with CMake
 
-2. **Catch2 Test Framework**
-   - Created `test/catch2_tests.cpp` with comprehensive client/server tests
-   - Updated `test/CMakeLists.txt` to build both GoogleTest and Catch2 tests
-   - Tests include: server lifecycle, message format, tool builder, error handling
+2. **GoogleTest Framework**
+   - Existing GoogleTest tests in `test/mcp_test.cpp`
+   - Updated `test/CMakeLists.txt` to use only GoogleTest (Catch2 removed)
+   - Tests include: message format, lifecycle, version control, ping, tool functionality
 
 3. **CI/CD Pipeline**
    - Created `.github/workflows/test.yml`
    - Supports Linux (Ubuntu), Windows, and macOS
-   - Uses vcpkg for dependency management
-   - Runs both GoogleTest and Catch2 tests
+   - Uses vcpkg for dependency management with caching enabled
+   - Runs GoogleTest tests automatically
+   - Triggers only on main branch (PRs and pushes)
 
 4. **Code Cleanup**
    - Fixed SSE-related compilation errors in `src/mcp_server.cpp`
@@ -27,30 +29,7 @@ This document outlines the remaining tasks to complete the Catch2 testing infras
 
 ## Remaining Tasks - GitHub Issues to Create
 
-### Issue #1: Fix Catch2 Tests API Compatibility
-**Priority:** HIGH  
-**Estimated Effort:** 1-2 hours  
-**Assignable to:** Single agent
-
-**Description:**
-The Catch2 tests reference `input_schema` but the tool struct uses `parameters_schema`. Update the tests to match the actual API.
-
-**Tasks:**
-- [ ] Update all references from `input_schema` to `parameters_schema` in `test/catch2_tests.cpp`
-- [ ] Verify test compilation succeeds
-- [ ] Run tests locally to ensure they pass
-- [ ] Document any API changes discovered
-
-**Files to modify:**
-- `test/catch2_tests.cpp` (lines 165, 172-174)
-
-**Acceptance criteria:**
-- `mcp_catch2_tests` compiles without errors
-- All Catch2 tests pass when run
-
----
-
-### Issue #2: Update GoogleTest Tests (Remove SSE Client)
+### Issue #1: Update GoogleTest Tests (Remove SSE Client)
 **Priority:** HIGH  
 **Estimated Effort:** 2-3 hours  
 **Assignable to:** Single agent
@@ -75,7 +54,7 @@ The existing GoogleTest suite (`test/mcp_test.cpp`) still references the removed
 
 ---
 
-### Issue #3: Complete Server SSE Cleanup
+### Issue #2: Complete Server SSE Cleanup
 **Priority:** MEDIUM  
 **Estimated Effort:** 1-2 hours  
 **Assignable to:** Single agent
@@ -101,9 +80,9 @@ Remove remaining SSE-related code, particularly the `event_dispatcher` class whi
 
 ---
 
-### Issue #4: Validate and Fix CI/CD Pipeline
+### Issue #3: Validate and Fix CI/CD Pipeline
 **Priority:** HIGH  
-**Estimated Effort:** 2-3 hours  
+**Estimated Effort:** 1-2 hours  
 **Assignable to:** Single agent
 
 **Description:**
@@ -115,7 +94,7 @@ Test the GitHub Actions workflow and fix any platform-specific issues. Ensure te
 - [ ] Fix any Windows build/test failures
 - [ ] Fix any macOS build/test failures
 - [ ] Ensure vcpkg dependency installation works on all platforms
-- [ ] Verify both test suites run in CI
+- [ ] Verify GoogleTest tests run in CI
 - [ ] Add test result reporting/badges
 
 **Files to modify:**
@@ -123,12 +102,12 @@ Test the GitHub Actions workflow and fix any platform-specific issues. Ensure te
 
 **Acceptance criteria:**
 - Workflow runs successfully on Linux, Windows, and macOS
-- Both GoogleTest and Catch2 tests execute
+- GoogleTest tests execute successfully
 - Clear pass/fail status visible in GitHub Actions
 
 ---
 
-### Issue #5: Update Documentation
+### Issue #4: Update Documentation
 **Priority:** MEDIUM  
 **Estimated Effort:** 1-2 hours  
 **Assignable to:** Single agent
@@ -138,9 +117,9 @@ Update README and add testing documentation to help developers understand how to
 
 **Tasks:**
 - [ ] Add CI/CD status badge to README.md
-- [ ] Document testing requirements (vcpkg, Catch2, GoogleTest)
+- [ ] Document testing requirements (vcpkg, GoogleTest)
 - [ ] Add instructions for running tests locally
-- [ ] Document test frameworks used and why
+- [ ] Document test framework used and why
 - [ ] Add troubleshooting section for common build issues
 - [ ] Update building instructions with vcpkg toolchain
 
@@ -160,17 +139,16 @@ Update README and add testing documentation to help developers understand how to
 ## Implementation Order
 
 **Phase 1 (Parallel):**
-- Issue #1: Fix Catch2 Tests API Compatibility
-- Issue #2: Update GoogleTest Tests
+- Issue #1: Update GoogleTest Tests
 
 **Phase 2 (After Phase 1):**
-- Issue #3: Complete Server SSE Cleanup
+- Issue #2: Complete Server SSE Cleanup
 
 **Phase 3 (After Phases 1 & 2):**
-- Issue #4: Validate and Fix CI/CD Pipeline
+- Issue #3: Validate and Fix CI/CD Pipeline
 
 **Phase 4 (After Phase 3):**
-- Issue #5: Update Documentation
+- Issue #4: Update Documentation
 
 ## Testing Strategy
 

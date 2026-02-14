@@ -22,8 +22,8 @@ The cpp-mcp project is designed to be developed collaboratively by multiple AI a
 **Example TDD Workflow:**
 
 ```bash
-# 1. Write test in test/catch2_tests.cpp or test/mcp_test.cpp
-TEST_CASE("New feature works correctly", "[feature]") {
+# 1. Write test in test/mcp_test.cpp
+TEST(NewFeatureTest, WorksCorrectly) {
     // Arrange
     auto component = create_test_component();
     
@@ -31,18 +31,18 @@ TEST_CASE("New feature works correctly", "[feature]") {
     auto result = component.new_feature();
     
     // Assert
-    REQUIRE(result.is_valid());
+    EXPECT_TRUE(result.is_valid());
 }
 
 # 2. Verify test fails
 cmake --build build
-cd build && ctest -R mcp_catch2_tests -V
+cd build && ctest -R mcp_tests -V
 
 # 3. Implement the feature
 # ... write implementation code ...
 
 # 4. Verify test passes
-cd build && ctest -R mcp_catch2_tests -V
+cd build && ctest -R mcp_tests -V
 
 # 5. Refactor if needed while keeping tests green
 ```
@@ -57,10 +57,9 @@ cd build && ctest -R mcp_catch2_tests -V
 
 ### 3. Testing Requirements
 
-**Two test frameworks are used:**
+**Test framework used:**
 
-- **GoogleTest** - For existing tests and C-style testing
-- **Catch2** - For new client/server communication tests (preferred for new tests)
+- **GoogleTest** - For all tests (unit, integration, and client/server communication)
 
 **Test Coverage Requirements:**
 - All new features must have corresponding tests
@@ -80,9 +79,6 @@ cmake --build build --config Release
 
 # Run GoogleTest suite
 cd build && ctest -R mcp_tests -V
-
-# Run Catch2 suite
-cd build && ctest -R mcp_catch2_tests -V
 
 # Run all tests
 cd build && ctest -V
@@ -133,8 +129,7 @@ cpp-mcp/
 │   ├── mcp_tool.cpp
 │   └── ...
 ├── test/             # Test files
-│   ├── catch2_tests.cpp     # Catch2 tests (new)
-│   ├── mcp_test.cpp         # GoogleTest tests (existing)
+│   ├── mcp_test.cpp         # GoogleTest tests
 │   └── googletest/          # GoogleTest submodule
 ├── examples/         # Example applications
 │   ├── server_example.cpp
@@ -153,10 +148,10 @@ cpp-mcp/
 1. **Create an issue** describing the feature
 2. **Write tests first:**
    ```cpp
-   // test/catch2_tests.cpp
-   TEST_CASE("New feature behavior", "[feature]") {
+   // test/mcp_test.cpp
+   TEST(NewFeatureTest, Behavior) {
        // Write test before implementation
-       REQUIRE(new_feature_works());
+       EXPECT_TRUE(new_feature_works());
    }
    ```
 3. **Implement the feature** in appropriate files
@@ -178,13 +173,13 @@ Tools are registered in the server and can be called by clients:
 
 ```cpp
 // 1. Write test first
-TEST_CASE("New tool registration", "[tool]") {
+TEST(ToolRegistrationTest, NewTool) {
     tool new_tool = tool_builder("my_tool")
         .with_description("Description")
         .with_string_param("param", "Description", "default")
         .build();
     
-    REQUIRE(new_tool.name == "my_tool");
+    EXPECT_EQ(new_tool.name, "my_tool");
 }
 
 // 2. Implement the tool
@@ -214,7 +209,7 @@ The project uses GitHub Actions for continuous integration:
 
 - **Platforms tested:** Ubuntu, Windows, macOS
 - **Build configurations:** Release
-- **Test frameworks:** GoogleTest + Catch2
+- **Test framework:** GoogleTest
 - **Dependency management:** vcpkg
 
 **Pipeline triggers:**
@@ -258,11 +253,11 @@ When encountering issues:
 
 Test individual components in isolation:
 ```cpp
-TEST_CASE("Tool builder creates valid tools", "[tool][unit]") {
+TEST(ToolBuilderTest, CreatesValidTools) {
     tool t = tool_builder("test")
         .with_description("Test tool")
         .build();
-    REQUIRE(t.name == "test");
+    EXPECT_EQ(t.name, "test");
 }
 ```
 
@@ -270,18 +265,18 @@ TEST_CASE("Tool builder creates valid tools", "[tool][unit]") {
 
 Test component interactions:
 ```cpp
-TEST_CASE("Client-server communication", "[integration]") {
+TEST(ClientServerTest, Communication) {
     TestServer server(8891);
     server.start();
     
     // Test server is reachable
-    REQUIRE(server.is_running());
+    EXPECT_TRUE(server.is_running());
 }
 ```
 
 ### Test Organization
 
-- **Use tags** - Organize tests with tags: `[unit]`, `[integration]`, `[server]`, `[client]`
+- **Use test fixtures** - Group related tests with GoogleTest fixtures
 - **Descriptive names** - Test names should describe what they verify
 - **Independent tests** - Tests should not depend on execution order
 - **Clean up resources** - Use RAII or test fixtures for cleanup
@@ -331,7 +326,6 @@ Maintain TESTING_IMPLEMENTATION_PLAN.md and related docs:
 ### External Resources
 
 - [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
-- [Catch2 Documentation](https://github.com/catchorg/Catch2)
 - [GoogleTest Documentation](https://google.github.io/googletest/)
 - [vcpkg Documentation](https://vcpkg.io/en/docs/)
 

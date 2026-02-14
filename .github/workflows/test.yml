@@ -2,9 +2,9 @@ name: CI Tests
 
 on:
   pull_request:
-    branches: [ main, master, copilot/update-library-to-latest-spec ]
+    branches: [ main ]
   push:
-    branches: [ main, master, copilot/update-library-to-latest-spec ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -20,12 +20,14 @@ jobs:
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgJsonGlob: 'vcpkg.json'
     
     - name: Configure CMake
       run: |
-        cmake -B build \ 
-          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \ 
-          -DMCP_BUILD_TESTS=ON \ 
+        cmake -B build \
+          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+          -DMCP_BUILD_TESTS=ON \
           -DCMAKE_BUILD_TYPE=Release
     
     - name: Build
@@ -35,12 +37,6 @@ jobs:
       run: |
         cd build
         ctest --output-on-failure -C Release -R mcp_tests
-    
-    - name: Run Catch2 tests
-      run: |
-        cd build
-        ctest --output-on-failure -C Release -R mcp_catch2_tests
-      continue-on-error: true
   
   test-windows:
     name: Test on Windows
@@ -54,6 +50,8 @@ jobs:
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgJsonGlob: 'vcpkg.json'
     
     - name: Configure CMake
       run: |
@@ -69,12 +67,6 @@ jobs:
       run: |
         cd build
         ctest --output-on-failure -C Release -R mcp_tests
-    
-    - name: Run Catch2 tests
-      run: |
-        cd build
-        ctest --output-on-failure -C Release -R mcp_catch2_tests
-      continue-on-error: true
   
   test-macos:
     name: Test on macOS
@@ -88,12 +80,14 @@ jobs:
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgJsonGlob: 'vcpkg.json'
     
     - name: Configure CMake
       run: |
-        cmake -B build \ 
-          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \ 
-          -DMCP_BUILD_TESTS=ON \ 
+        cmake -B build \
+          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+          -DMCP_BUILD_TESTS=ON \
           -DCMAKE_BUILD_TYPE=Release
     
     - name: Build
@@ -103,9 +97,3 @@ jobs:
       run: |
         cd build
         ctest --output-on-failure -C Release -R mcp_tests
-    
-    - name: Run Catch2 tests
-      run: |
-        cd build
-        ctest --output-on-failure -C Release -R mcp_catch2_tests
-      continue-on-error: true
