@@ -584,6 +584,14 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
         return;
     }
     
+    // Check if this is a batch request (array)
+    if (req_json.is_array()) {
+        // Handle batch request
+        handle_batch_jsonrpc(req_json, session_id, res);
+        return;
+    }
+    
+    // Handle single request (existing logic)
     // Check if session exists
     std::shared_ptr<event_dispatcher> dispatcher;
     {
@@ -647,6 +655,136 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
         
         if (!result) {
             LOG_ERROR("Failed to send response via SSE: session_id=", session_id);
+        }
+    });
+    
+    // Return 202 Accepted
+    res.status = 202;
+    res.set_content("Accepted", "text/plain");
+}
+
+void server::handle_batch_jsonrpc(const json& batch_json, const std::string& session_id, httplib::Response& res) {
+    // Validate batch is not empty (per JSON-RPC 2.0 spec)
+    if (batch_json.empty()) {
+        LOG_ERROR("Received empty batch array");
+        res.status = 400;
+        json error_response = response::create_error(
+            nullptr,
+            error_code::invalid_request,
+            "Invalid Request: batch cannot be empty"
+        ).to_json();
+        res.set_content(error_response.dump(), "application/json");
+        return;
+    }
+    
+    // Check if session exists (required for batch processing)
+    std::shared_ptr<event_dispatcher> dispatcher;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto disp_it = session_dispatchers_.find(session_id);
+        if (disp_it == session_dispatchers_.end()) {
+            LOG_ERROR("Session not found for batch request: ", session_id);
+            res.status = 404;
+            res.set_content("{\"error\":\"Session not found\"}", "application/json");
+            return;
+        }
+        dispatcher = disp_it->second;
+    }
+    
+    // Parse all batch items
+    std::vector<request> requests;
+    std::vector<size_t> request_indices; // Track which items are requests (not notifications)
+    bool has_requests = false;
+    bool parse_error = false;
+    
+    for (size_t i = 0; i < batch_json.size(); ++i) {
+        const auto& item = batch_json[i];
+        
+        try {
+            request mcp_req;
+            mcp_req.jsonrpc = item["jsonrpc"].get<std::string>();
+            
+            if (item.contains("id") && !item["id"].is_null()) {
+                mcp_req.id = item["id"];
+            }
+            
+            mcp_req.method = item["method"].get<std::string>();
+            
+            if (item.contains("params")) {
+                mcp_req.params = item["params"];
+            }
+            
+            requests.push_back(mcp_req);
+            
+            // Track if this is a request (not a notification)
+            if (!mcp_req.is_notification()) {
+                request_indices.push_back(i);
+                has_requests = true;
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to parse batch item ", i, ": ", e.what());
+            parse_error = true;
+            break;
+        }
+    }
+    
+    // If there was a parse error, return error response
+    if (parse_error) {
+        res.status = 400;
+        json error_response = response::create_error(
+            nullptr,
+            error_code::invalid_request,
+            "Invalid Request: malformed batch item"
+        ).to_json();
+        res.set_content(error_response.dump(), "application/json");
+        return;
+    }
+    
+    // If batch contains only notifications, process them and return 202
+    if (!has_requests) {
+        LOG_INFO("Processing notification-only batch with ", requests.size(), " items");
+        
+        // Process all notifications asynchronously
+        for (const auto& mcp_req : requests) {
+            thread_pool_.enqueue([this, mcp_req, session_id]() {
+                process_request(mcp_req, session_id);
+            });
+        }
+        
+        // Return 202 Accepted for notification-only batch
+        res.status = 202;
+        res.set_content("Accepted", "text/plain");
+        return;
+    }
+    
+    // Process batch with requests: process all and collect responses
+    LOG_INFO("Processing batch with ", requests.size(), " items (", request_indices.size(), " requests)");
+    
+    // Process all items asynchronously and send batch response via SSE
+    thread_pool_.enqueue([this, requests, request_indices, session_id, dispatcher]() {
+        json batch_response = json::array();
+        
+        // Process each request
+        for (size_t i = 0; i < requests.size(); ++i) {
+            const auto& mcp_req = requests[i];
+            
+            if (mcp_req.is_notification()) {
+                // Process notification without response
+                process_request(mcp_req, session_id);
+            } else {
+                // Process request and collect response
+                json response_json = process_request(mcp_req, session_id);
+                batch_response.push_back(response_json);
+            }
+        }
+        
+        // Send batch response via SSE
+        std::stringstream ss;
+        ss << "event: message\r\ndata: " << batch_response.dump() << "\r\n\r\n";
+        bool result = dispatcher->send_event(ss.str());
+        
+        if (!result) {
+            LOG_ERROR("Failed to send batch response via SSE: session_id=", session_id);
         }
     });
     
