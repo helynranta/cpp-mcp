@@ -4,8 +4,8 @@ cmake_minimum_required(VERSION 3.10)
 set(TEST_PROJECT_NAME "mcp_tests")
 project(${TEST_PROJECT_NAME})
 
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
+# Set C++ standard to C++23 for latest features
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find required packages

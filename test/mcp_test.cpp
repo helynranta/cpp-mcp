@@ -196,6 +196,9 @@ protected:
 
     static void TearDownTestSuite() {
         // Clean up test environment
+        // Wait briefly to allow any detached SSE threads from tests to complete
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
         client_.reset();
         if (server_) {
             server_->stop();
@@ -232,21 +235,24 @@ TEST_F(VersioningTest, UnsupportedVersion) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     try {
         // Use httplib::Client to send unsupported version request
-        std::unique_ptr<httplib::Client> sse_client = std::make_unique<httplib::Client>("localhost", 8081);
         std::unique_ptr<httplib::Client> http_client = std::make_unique<httplib::Client>("localhost", 8081);
         
         // Open SSE connection
-        std::promise<std::string> msg_endpoint_promise;
-        std::promise<std::string> sse_promise;
-        std::future<std::string> msg_endpoint = msg_endpoint_promise.get_future();
-        std::future<std::string> sse_response = sse_promise.get_future();
+        auto msg_endpoint_promise = std::make_shared<std::promise<std::string>>();
+        auto sse_promise = std::make_shared<std::promise<std::string>>();
+        std::future<std::string> msg_endpoint = msg_endpoint_promise->get_future();
+        std::future<std::string> sse_response = sse_promise->get_future();
 
-        std::atomic<bool> sse_running{true};
-        std::atomic<bool> msg_endpoint_received{false};
-        std::atomic<bool> sse_response_received{false};
+        auto msg_endpoint_received = std::make_shared<std::atomic<bool>>(false);
+        auto sse_response_received = std::make_shared<std::atomic<bool>>(false);
 
-        std::thread sse_thread([&]() {
-            sse_client->Get("/sse", [&](const char* data, size_t len) {
+        // Use std::thread with shared state to avoid lifetime issues when detaching
+        std::thread sse_thread([msg_endpoint_received, sse_response_received,
+                                msg_endpoint_promise, sse_promise]() {
+            // Create SSE client inside thread so it's owned by the thread
+            httplib::Client sse_client("localhost", 8081);
+            sse_client.Get("/sse", [msg_endpoint_received, sse_response_received,
+                                    msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
                     std::string response(data, len);
                     size_t pos = response.find("data: ");
@@ -254,17 +260,17 @@ TEST_F(VersioningTest, UnsupportedVersion) {
                         std::string data_content = response.substr(pos + 6);
                         data_content = data_content.substr(0, data_content.find("\r\n"));
                         
-                        if (!msg_endpoint_received.load() && response.find("endpoint") != std::string::npos) {
-                            msg_endpoint_received.store(true);
+                        if (!msg_endpoint_received->load() && response.find("endpoint") != std::string::npos) {
+                            msg_endpoint_received->store(true);
                             try {
-                                msg_endpoint_promise.set_value(data_content);
+                                msg_endpoint_promise->set_value(data_content);
                             } catch (...) {
                                 // Ignore duplicate exception setting
                             }
-                        } else if (!sse_response_received.load() && response.find("message") != std::string::npos) {
-                            sse_response_received.store(true);
+                        } else if (!sse_response_received->load() && response.find("message") != std::string::npos) {
+                            sse_response_received->store(true);
                             try {
-                                sse_promise.set_value(data_content);
+                                sse_promise->set_value(data_content);
                             } catch (...) {
                                 // Ignore duplicate exception setting
                             }
@@ -273,7 +279,8 @@ TEST_F(VersioningTest, UnsupportedVersion) {
                 } catch (const std::exception& e) {
                     GTEST_LOG_(ERROR) << "SSE processing error: " << e.what();
                 }
-                return sse_running.load();
+                // Continue until we get both messages
+                return !msg_endpoint_received->load() || !sse_response_received->load();
             });
         });
         
@@ -290,39 +297,17 @@ TEST_F(VersioningTest, UnsupportedVersion) {
         auto mcp_res = json::parse(sse_response.get());
         EXPECT_EQ(mcp_res["error"]["code"].get<int>(), static_cast<int>(error_code::invalid_params));
 
-        // Close all connections
-        sse_running.store(false);
-        
-        // Try to interrupt SSE connection
-        try {
-            sse_client->Get("/sse", [](const char*, size_t) { return false; });
-        } catch (...) {
-            // Ignore any exception
-        }
-        
-        // Wait for thread to finish (max 1 second)
+        // Detach the thread - all state is heap-allocated via shared_ptr, so it's safe
+        // The thread will stop automatically once both messages are received
         if (sse_thread.joinable()) {
-            std::thread detacher([](std::thread& t) {
-                try {
-                    if (t.joinable()) {
-                        t.join();
-                    }
-                } catch (...) {
-                    if (t.joinable()) {
-                        t.detach();
-                    }
-                }
-            }, std::ref(sse_thread));
-            detacher.detach();
+            sse_thread.detach();
         }
-
-        // Clean up resources
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        sse_client.reset();
-        http_client.reset();
         
-        // Add delay to ensure resources are fully released
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // Clean up resources  
+        http_client.reset();
+    } catch (const std::exception& e) {
+        GTEST_LOG_(ERROR) << "Test exception: " << e.what();
+        EXPECT_TRUE(false);
     } catch (...) {
         EXPECT_TRUE(false);
     }
@@ -355,6 +340,9 @@ protected:
 
     static void TearDownTestSuite() {
         // Clean up test environment
+        // Wait briefly to allow any detached SSE threads from tests to complete
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
         client_.reset();
         if (server_) {
             server_->stop();
@@ -389,21 +377,24 @@ TEST_F(PingTest, DirectPing) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     try {
         // Use httplib::Client to send Ping request
-        std::unique_ptr<httplib::Client> sse_client = std::make_unique<httplib::Client>("localhost", 8082);
         std::unique_ptr<httplib::Client> http_client = std::make_unique<httplib::Client>("localhost", 8082);
         
         // Open SSE connection
-        std::promise<std::string> msg_endpoint_promise;
-        std::promise<std::string> sse_promise;
-        std::future<std::string> msg_endpoint = msg_endpoint_promise.get_future();
-        std::future<std::string> sse_response = sse_promise.get_future();
+        auto msg_endpoint_promise = std::make_shared<std::promise<std::string>>();
+        auto sse_promise = std::make_shared<std::promise<std::string>>();
+        std::future<std::string> msg_endpoint = msg_endpoint_promise->get_future();
+        std::future<std::string> sse_response = sse_promise->get_future();
 
-        std::atomic<bool> sse_running{true};
-        std::atomic<bool> msg_endpoint_received{false};
-        std::atomic<bool> sse_response_received{false};
+        auto msg_endpoint_received = std::make_shared<std::atomic<bool>>(false);
+        auto sse_response_received = std::make_shared<std::atomic<bool>>(false);
 
-        std::thread sse_thread([&]() {
-            sse_client->Get("/sse", [&](const char* data, size_t len) {
+        // Use std::thread with shared state to avoid lifetime issues when detaching
+        std::thread sse_thread([msg_endpoint_received, sse_response_received,
+                                msg_endpoint_promise, sse_promise]() {
+            // Create SSE client inside thread so it's owned by the thread
+            httplib::Client sse_client("localhost", 8082);
+            sse_client.Get("/sse", [msg_endpoint_received, sse_response_received,
+                                    msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
                     std::string response(data, len);
                     size_t pos = response.find("data: ");
@@ -411,17 +402,17 @@ TEST_F(PingTest, DirectPing) {
                         std::string data_content = response.substr(pos + 6);
                         data_content = data_content.substr(0, data_content.find("\r\n"));
                         
-                        if (!msg_endpoint_received.load() && response.find("endpoint") != std::string::npos) {
-                            msg_endpoint_received.store(true);
+                        if (!msg_endpoint_received->load() && response.find("endpoint") != std::string::npos) {
+                            msg_endpoint_received->store(true);
                             try {
-                                msg_endpoint_promise.set_value(data_content);
+                                msg_endpoint_promise->set_value(data_content);
                             } catch (...) {
                                 // Ignore duplicate exception setting
                             }
-                        } else if (!sse_response_received.load() && response.find("message") != std::string::npos) {
-                            sse_response_received.store(true);
+                        } else if (!sse_response_received->load() && response.find("message") != std::string::npos) {
+                            sse_response_received->store(true);
                             try {
-                                sse_promise.set_value(data_content);
+                                sse_promise->set_value(data_content);
                             } catch (...) {
                                 // Ignore duplicate exception setting
                             }
@@ -430,7 +421,8 @@ TEST_F(PingTest, DirectPing) {
                 } catch (const std::exception& e) {
                     GTEST_LOG_(ERROR) << "SSE processing error: " << e.what();
                 }
-                return sse_running.load();
+                // Continue until we get both messages
+                return !msg_endpoint_received->load() || !sse_response_received->load();
             });
         });
 
@@ -446,39 +438,17 @@ TEST_F(PingTest, DirectPing) {
         auto mcp_res = json::parse(sse_response.get());
         EXPECT_EQ(mcp_res["result"], json::object());
 
-        // Close all connections
-        sse_running.store(false);
-        
-        // Try to interrupt SSE connection
-        try {
-            sse_client->Get("/sse", [](const char*, size_t) { return false; });
-        } catch (...) {
-            // Ignore any exception
-        }
-        
-        // Wait for thread to finish (max 1 second)
+        // Detach the thread - all state is heap-allocated via shared_ptr, so it's safe
+        // The thread will stop automatically once both messages are received
         if (sse_thread.joinable()) {
-            std::thread detacher([](std::thread& t) {
-                try {
-                    if (t.joinable()) {
-                        t.join();
-                    }
-                } catch (...) {
-                    if (t.joinable()) {
-                        t.detach();
-                    }
-                }
-            }, std::ref(sse_thread));
-            detacher.detach();
+            sse_thread.detach();
         }
-
-        // Clean up resources
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        sse_client.reset();
-        http_client.reset();
         
-        // Add delay to ensure resources are fully released
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // Clean up resources
+        http_client.reset();
+    } catch (const std::exception& e) {
+        GTEST_LOG_(ERROR) << "Test exception: " << e.what();
+        EXPECT_TRUE(false);
     } catch (...) {
         EXPECT_TRUE(false);
     }
