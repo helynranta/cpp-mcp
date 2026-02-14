@@ -93,9 +93,9 @@ TEST_F(MessageFormatTest, NotificationMessageFormat) {
     EXPECT_TRUE(notification.is_notification());
 }
 
-class LifecycleEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
+class LifecycleTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
         // Set up test environment
         server::configuration config;
         config.host = "localhost";
@@ -125,52 +125,41 @@ public:
         client_->set_capabilities(client_capabilities);
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         // Clean up test environment
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        // Get client pointer
+        client_ptr_ = client_.get();
     }
 
-    static std::unique_ptr<sse_client>& GetClient() {
-        return client_;
-    }
-
-private:
+    // Use raw pointer for test access
+    sse_client* client_ptr_;
     static std::unique_ptr<server> server_;
     static std::unique_ptr<sse_client> client_;
 };
 
 // Static member variable definition
-std::unique_ptr<server> LifecycleEnvironment::server_;
-std::unique_ptr<sse_client> LifecycleEnvironment::client_;
-
-class LifecycleTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Get client pointer
-        client_ = LifecycleEnvironment::GetClient().get();
-    }
-
-    // Use raw pointer instead of reference
-    sse_client* client_;
-};
+std::unique_ptr<server> LifecycleTest::server_;
+std::unique_ptr<sse_client> LifecycleTest::client_;
 
 // Test initialize process
 TEST_F(LifecycleTest, InitializeProcess) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // Execute initialize
-    bool init_result = client_->initialize("TestClient", "1.0.0");
+    bool init_result = client_ptr_->initialize("TestClient", "1.0.0");
     
     // Verify initialize result
     EXPECT_TRUE(init_result);
     
     // Verify server capabilities
-    json server_capabilities = client_->get_server_capabilities();
+    json server_capabilities = client_ptr_->get_server_capabilities();
     EXPECT_TRUE(server_capabilities.contains("logging"));
     EXPECT_TRUE(server_capabilities.contains("prompts"));
     EXPECT_TRUE(server_capabilities.contains("resources"));
@@ -178,9 +167,10 @@ TEST_F(LifecycleTest, InitializeProcess) {
 }
 
 // Version control test environment
-class VersioningEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
+// Test version control
+class VersioningTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
         // Set up test environment
         server::configuration config;
         config.host = "localhost";
@@ -204,46 +194,34 @@ public:
         client_ = std::make_unique<sse_client>("http://localhost:8081");
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         // Clean up test environment
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        // Get client pointer
+        client_ptr_ = client_.get();
     }
 
-    static std::unique_ptr<sse_client>& GetClient() {
-        return client_;
-    }
-
-private:
+    // Use raw pointer for test access
+    sse_client* client_ptr_;
     static std::unique_ptr<server> server_;
     static std::unique_ptr<sse_client> client_;
 };
 
-std::unique_ptr<server> VersioningEnvironment::server_;
-std::unique_ptr<sse_client> VersioningEnvironment::client_;
-
-// Test version control
-class VersioningTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Get client pointer
-        client_ = VersioningEnvironment::GetClient().get();
-    }
-
-    // Use raw pointer instead of reference
-    sse_client* client_;
-};
+std::unique_ptr<server> VersioningTest::server_;
+std::unique_ptr<sse_client> VersioningTest::client_;
 
 // Test supported version
 TEST_F(VersioningTest, SupportedVersion) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // Execute initialize
-    bool init_result = client_->initialize("TestClient", "1.0.0");
+    bool init_result = client_ptr_->initialize("TestClient", "1.0.0");
     
     // Verify initialize result
     EXPECT_TRUE(init_result);
@@ -351,9 +329,10 @@ TEST_F(VersioningTest, UnsupportedVersion) {
 }
 
 // Ping test environment
-class PingEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
+// Test Ping functionality
+class PingTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
         // Set up test environment
         server::configuration config;
         config.host = "localhost";
@@ -374,47 +353,35 @@ public:
         client_->set_capabilities(client_capabilities);
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         // Clean up test environment
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        // Get client pointer
+        client_ptr_ = client_.get();
     }
 
-    static std::unique_ptr<sse_client>& GetClient() {
-        return client_;
-    }
-
-private:
+    // Use raw pointer for test access
+    sse_client* client_ptr_;
     static std::unique_ptr<server> server_;
     static std::unique_ptr<sse_client> client_;
 };
 
 // Static member variable definition
-std::unique_ptr<server> PingEnvironment::server_;
-std::unique_ptr<sse_client> PingEnvironment::client_;
-
-// Test Ping functionality
-class PingTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Get client pointer
-        client_ = PingEnvironment::GetClient().get();
-    }
-
-    // Use raw pointer instead of reference
-    sse_client* client_;
-};
+std::unique_ptr<server> PingTest::server_;
+std::unique_ptr<sse_client> PingTest::client_;
 
 // Test Ping request
 TEST_F(PingTest, PingRequest) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    client_->initialize("TestClient", "1.0.0");
-    bool ping_result = client_->ping();
+    client_ptr_->initialize("TestClient", "1.0.0");
+    bool ping_result = client_ptr_->ping();
     EXPECT_TRUE(ping_result);
 }
 
@@ -518,9 +485,10 @@ TEST_F(PingTest, DirectPing) {
 }
 
 // Tools test environment
-class ToolsEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
+// Test tools functionality
+class ToolsTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
         // Set up test environment
         server::configuration config;
         config.host = "localhost";
@@ -613,48 +581,36 @@ public:
         client_->initialize("TestClient", "1.0.0");
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         // Clean up test environment
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        // Get client pointer
+        client_ptr_ = client_.get();
     }
 
-    static std::unique_ptr<sse_client>& GetClient() {
-        return client_;
-    }
-
-private:
+    // Use raw pointer for test access
+    sse_client* client_ptr_;
     static std::unique_ptr<server> server_;
     static std::unique_ptr<sse_client> client_;
 };
 
 // Static member variable definition
-std::unique_ptr<server> ToolsEnvironment::server_;
-std::unique_ptr<sse_client> ToolsEnvironment::client_;
-
-// Test tools functionality
-class ToolsTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Get client pointer
-        client_ = ToolsEnvironment::GetClient().get();
-    }
-
-    // Use raw pointer instead of reference
-    sse_client* client_;
-};
+std::unique_ptr<server> ToolsTest::server_;
+std::unique_ptr<sse_client> ToolsTest::client_;
 
 // Test listing tools
 TEST_F(ToolsTest, ListTools) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // Call list tools method
-    json tools_list = client_->send_request("tools/list").result;
+    json tools_list = client_ptr_->send_request("tools/list").result;
     
     // Verify tools list
     EXPECT_TRUE(tools_list.contains("tools"));
@@ -667,7 +623,7 @@ TEST_F(ToolsTest, ListTools) {
 TEST_F(ToolsTest, CallTool) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // Call tool
-    json tool_result = client_->call_tool("get_weather", {{"location", "New York"}});
+    json tool_result = client_ptr_->call_tool("get_weather", {{"location", "New York"}});
     
     // Verify tool call result
     EXPECT_TRUE(tool_result.contains("content"));
@@ -1014,9 +970,9 @@ TEST_F(BatchRequestTest, SingleRequestBatch) {
 }
 
 // Integration tests for batch request handling with server
-class BatchIntegrationEnvironment : public ::testing::Environment {
-public:
-    void SetUp() override {
+class BatchIntegrationTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
         // Set up test server
         server::configuration config;
         config.host = "localhost";
@@ -1055,41 +1011,30 @@ public:
         client_->set_capabilities(client_capabilities);
     }
 
-    void TearDown() override {
+    static void TearDownTestSuite() {
         client_.reset();
-        server_->stop();
+        if (server_) {
+            server_->stop();
+        }
         server_.reset();
     }
 
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
+    void SetUp() override {
+        client_ptr_ = client_.get();
+        
+        // Initialize the client
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        bool init_result = client_ptr_->initialize("BatchTestClient", "1.0.0");
+        ASSERT_TRUE(init_result) << "Client initialization failed";
     }
 
-    static std::unique_ptr<sse_client>& GetClient() {
-        return client_;
-    }
-
-private:
+    sse_client* client_ptr_;
     static std::unique_ptr<server> server_;
     static std::unique_ptr<sse_client> client_;
 };
 
-std::unique_ptr<server> BatchIntegrationEnvironment::server_;
-std::unique_ptr<sse_client> BatchIntegrationEnvironment::client_;
-
-class BatchIntegrationTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        client_ = BatchIntegrationEnvironment::GetClient().get();
-        
-        // Initialize the client
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        bool init_result = client_->initialize("BatchTestClient", "1.0.0");
-        ASSERT_TRUE(init_result) << "Client initialization failed";
-    }
-
-    sse_client* client_;
-};
+std::unique_ptr<server> BatchIntegrationTest::server_;
+std::unique_ptr<sse_client> BatchIntegrationTest::client_;
 
 // Note: The following tests validate batch message format and parsing logic.
 // Full integration tests would require extending the SSE client to support
@@ -1101,7 +1046,7 @@ TEST_F(BatchIntegrationTest, BatchRequestValidation) {
     // by checking that single requests still work (backward compatibility)
     
     // Send a single request (non-batch)
-    json response = client_->send_request("tools/list").result;
+    json response = client_ptr_->send_request("tools/list").result;
     
     // Verify response is valid
     EXPECT_TRUE(response.contains("tools"));
@@ -1193,13 +1138,6 @@ TEST_F(JsonRpcServerValidationTest, NotificationStructureValid) {
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
-    
-    // Add global test environment
-    ::testing::AddGlobalTestEnvironment(new LifecycleEnvironment());
-    ::testing::AddGlobalTestEnvironment(new VersioningEnvironment());
-    ::testing::AddGlobalTestEnvironment(new PingEnvironment());
-    ::testing::AddGlobalTestEnvironment(new ToolsEnvironment());
-    ::testing::AddGlobalTestEnvironment(new BatchIntegrationEnvironment());
     
     return RUN_ALL_TESTS();
 } 
