@@ -195,9 +195,6 @@ public:
         /** Server version */
         std::string version{ "0.0.1" };
 
-        /** SSE endpoint path */
-        std::string sse_endpoint{ "/sse" };
-
         /** Message endpoint path */
         std::string msg_endpoint{ "/message" };
 
@@ -312,13 +309,6 @@ public:
     void set_auth_handler(auth_handler handler);
 
     /**
-     * @brief Send a request (or notification) to a client
-     * @param session_id The session ID of the client
-     * @param req The request to send
-     */
-    void send_request(const std::string& session_id, const request& req);
-
-    /**
      * @brief Set mount point for server
      * @param mount_point The mount point to set
      * @param dir The directory to serve from the mount point
@@ -340,17 +330,7 @@ private:
     // Server thread (for non-blocking mode)
     std::unique_ptr<std::thread> server_thread_;
 
-    // SSE thread
-    std::map<std::string, std::unique_ptr<std::thread>> sse_threads_;
-
-    // Event dispatcher for server-sent events
-    event_dispatcher sse_dispatcher_;
-    
-    // Session-specific event dispatchers
-    std::map<std::string, std::shared_ptr<event_dispatcher>> session_dispatchers_;
-
-    // Server-sent events endpoint
-    std::string sse_endpoint_;
+    // Message endpoint
     std::string msg_endpoint_;
     
     // Method handlers
@@ -380,14 +360,8 @@ private:
     // Map to track session initialization status (session_id -> initialized)
     std::map<std::string, bool> session_initialized_;
 
-    // Handle SSE requests
-    void handle_sse(const httplib::Request& req, httplib::Response& res);
-    
     // Handle incoming JSON-RPC requests
     void handle_jsonrpc(const httplib::Request& req, httplib::Response& res);
-
-    // Send a JSON-RPC message to a client
-    void send_jsonrpc(const std::string& session_id, const json& message);
     
     // Process a JSON-RPC request
     json process_request(const request& req, const std::string& session_id);
@@ -427,19 +401,8 @@ private:
         return auto_lock(mutex_);
     }
 
-    // Session management and maintenance
-    void check_inactive_sessions();
-
-    std::mutex maintenance_mutex_;
-    std::condition_variable maintenance_cond_;
-    std::unique_ptr<std::thread> maintenance_thread_;
-    bool maintenance_thread_run_ = false;
-
     // Session cleanup handler
     std::map<std::string, session_cleanup_handler> session_cleanup_handler_;
-
-    // Close session
-    void close_session(const std::string& session_id);
 };
 
 } // namespace mcp

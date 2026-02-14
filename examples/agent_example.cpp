@@ -1,6 +1,6 @@
 #include "httplib.h"
 #include "mcp_server.h"
-#include "mcp_sse_client.h"
+#include "mcp_stdio_client.h"
 
 struct Config {
     // LLM Config
@@ -309,68 +309,22 @@ int main(int argc, char* argv[]) {
     // Start server
     server.start(false);  // Non-blocking mode
 
-    // Create a client
-    mcp::sse_client client("http://localhost:" + std::to_string(config.port));
+    // Note: For agent example, we're using the server directly via stdio
+    // In a real scenario, you might launch the server as a separate process
+    // and connect via stdio_client with the appropriate command
     
-    // Set timeout
-    client.set_timeout(10);
-
-    bool initialized = client.initialize("ExampleClient", "0.1.0");
-
-    if (!initialized) {
-        std::cerr << "Failed to initialize connection to server" << std::endl;
-        return 1;
+    std::cout << "Server started on port " << config.port << std::endl;
+    std::cout << "Agent example ready - server is running" << std::endl;
+    std::cout << "Note: This example previously used SSE client." << std::endl;
+    std::cout << "For stdio communication, use mcp::stdio_client with appropriate command." << std::endl;
+    
+    // Keep server running
+    while (server.is_running()) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
-    // Get available tools
-    {
-        std::cout << "\nGetting available tools..." << std::endl;
-        auto tools = client.get_tools();
-        std::cout << "Available tools:" << std::endl;
-        for (const auto& tool : tools) {
-            std::cout << "- " << tool.name << ": " << tool.description << std::endl;
-        }
-    }
-
-    // Initialize messages
-    mcp::json messages;
-
-    if (!config.system_prompt.empty()) {
-        mcp::json system_message = {
-            {"role", "system"},
-            {"content", config.system_prompt}
-        };
-        messages.push_back(system_message);
-    }
-
-    // Start chating with LLM
-    while (true) {
-        std::cout << "\n>>> ";
-
-        std::string prompt;
-        readline_utf8(prompt, false);
-
-        messages.push_back({
-            {"role", "user"},
-            {"content", prompt}
-        });
-
-        // Maximum steps calling tools without user input
-        int steps = config.max_steps;
-
-        while (steps--) {
-            auto response = ask_tool(messages, tools);
-            messages.push_back(response);
-
-            display_message(response);
-
-            // No tool calls, exit loop
-            if (response["tool_calls"].empty()) {
-                break;
-            }
-
-            // Call tool
-            for (const auto& tool_call : response["tool_calls"]) {
+    return 0;
+}
                 try {
                     std::string tool_name = tool_call["function"]["name"].get<std::string>();
 

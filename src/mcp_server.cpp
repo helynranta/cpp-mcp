@@ -16,7 +16,6 @@ server::server(const server::configuration& conf)
     , port_(conf.port)
     , name_(conf.name)
     , version_(conf.version)
-    , sse_endpoint_(conf.sse_endpoint)
     , msg_endpoint_(conf.msg_endpoint)
     , thread_pool_(conf.threadpool_size)
 {
@@ -65,39 +64,6 @@ bool server::start(bool blocking) {
         this->handle_jsonrpc(req, res);
         LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"POST ", req.path, " HTTP/1.1\" ", res.status);
     });
-
-    // Setup SSE endpoint
-    http_server_->Get(sse_endpoint_.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
-        this->handle_sse(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"GET ", req.path, " HTTP/1.1\" ", res.status);
-    });
-    
-    // Start resource check thread (only start in non-blocking mode)
-    if (!blocking) {
-        maintenance_thread_run_ = true;
-        maintenance_thread_ = std::make_unique<std::thread>([this]() {
-            while (true) {
-                // Check inactive sessions every 60 seconds
-                std::unique_lock<std::mutex> lock(maintenance_mutex_);
-                auto should_exit = maintenance_cond_.wait_for(lock, std::chrono::seconds(60), [this] {
-                    return !maintenance_thread_run_;
-                });
-                if (should_exit) {
-                    LOG_INFO("Maintenance thread exiting");
-                    return;
-                }
-                lock.unlock();
-
-                try {
-                    check_inactive_sessions();
-                } catch (const std::exception& e) {
-                    LOG_ERROR("Exception in maintenance thread: ", e.what());
-                } catch (...) {
-                    LOG_ERROR("Unknown exception in maintenance thread");
-                }
-            }
-        });
-    }
     
     // Start server
     if (blocking) {
@@ -131,129 +97,19 @@ void server::stop() {
     
     LOG_INFO("Stopping MCP server on ", host_, ":", port_);
     running_ = false;
-
-    // Close maintenance thread
-    if (maintenance_thread_ && maintenance_thread_->joinable()) {
-        {
-            std::unique_lock<std::mutex> lock(maintenance_mutex_);
-            maintenance_thread_run_ = false;
-        }
-
-        maintenance_cond_.notify_one();
-
-        try {
-            maintenance_thread_->join();
-        } catch (...) {
-            maintenance_thread_->detach();
-        }
-    }
     
-    // Copy all dispatchers and threads to avoid holding the lock for too long
-    std::vector<std::shared_ptr<event_dispatcher>> dispatchers_to_close;
-    std::vector<std::unique_ptr<std::thread>> threads_to_join;
-    
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        
-        // Copy all dispatchers
-        dispatchers_to_close.reserve(session_dispatchers_.size());
-        for (const auto& [_, dispatcher] : session_dispatchers_) {
-            dispatchers_to_close.push_back(dispatcher);
-        }
-        
-        // Copy all threads
-        threads_to_join.reserve(sse_threads_.size());
-        for (auto& [_, thread] : sse_threads_) {
-            if (thread && thread->joinable()) {
-                threads_to_join.push_back(std::move(thread));
-            }
-        }
-        
-        // Clear the maps
-        session_dispatchers_.clear();
-        sse_threads_.clear();
-        session_initialized_.clear();
-    }
-    
-    // Close all sessions
-    for (const auto& [session_id, _] : session_dispatchers_) {
-        close_session(session_id);
-    }
-    
-    // Give threads some time to handle close events
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-    
-    // Wait for threads to finish outside the lock (with timeout limit)
-    const auto timeout_point = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    
-    for (auto& thread : threads_to_join) {
-        if (!thread || !thread->joinable()) {
-            continue;
-        }
-        
-        if (std::chrono::steady_clock::now() >= timeout_point) {
-            // If timeout reached, detach remaining threads
-            LOG_WARNING("Thread join timeout reached, detaching remaining threads");
-            thread->detach();
-            continue;
-        }
-        
-        // Try using timeout join
-        bool joined = false;
-        try {
-            // Create future and promise for timeout join
-            std::promise<void> thread_done;
-            auto future = thread_done.get_future();
-            
-            // Try join in another thread
-            std::thread join_helper([&thread, &thread_done]() {
-                try {
-                    thread->join();
-                    thread_done.set_value();
-                } catch (...) {
-                    try {
-                        thread_done.set_exception(std::current_exception());
-                    } catch (...) {}
-                }
-            });
-            
-            // Wait for join to complete or timeout
-            if (future.wait_for(std::chrono::milliseconds(100)) == std::future_status::ready) {
-                future.get(); // Get possible exception
-                joined = true;
-            }
-            
-            // Process join_helper thread
-            if (join_helper.joinable()) {
-                if (joined) {
-                    join_helper.join();
-                } else {
-                    join_helper.detach();
-                }
-            }
-        } catch (...) {
-            joined = false;
-        }
-        
-        // If join fails, then detach
-        if (!joined) {
-            try {
-                thread->detach();
-            } catch (...) {
-                // Ignore exceptions
-            }
-        }
-    }
-    
-    if (server_thread_ && server_thread_->joinable()) {
+    // Stop the HTTP server
+    if (http_server_) {
         http_server_->stop();
+    }
+    
+    // Wait for server thread to finish
+    if (server_thread_ && server_thread_->joinable()) {
         try {
             server_thread_->join();
         } catch (...) {
             server_thread_->detach();
         }
-    } else {
-        http_server_->stop();
     }
     
     LOG_INFO("MCP server stopped");
@@ -430,114 +286,6 @@ std::vector<tool> server::get_tools() const {
 void server::set_auth_handler(auth_handler handler) {
     std::lock_guard<std::mutex> lock(mutex_);
     auth_handler_ = handler;
-}
-
-void server::handle_sse(const httplib::Request& req, httplib::Response& res) {
-    std::string session_id = generate_session_id();
-    std::string session_uri = msg_endpoint_ + "?session_id=" + session_id;
-    
-    // Setup SSE response headers
-    res.set_header("Content-Type", "text/event-stream");
-    res.set_header("Cache-Control", "no-cache");
-    res.set_header("Connection", "keep-alive");
-    res.set_header("Access-Control-Allow-Origin", "*");
-    
-    // Create session-specific event dispatcher
-    auto session_dispatcher = std::make_shared<event_dispatcher>();
-    
-    // Initialize activity time
-    session_dispatcher->update_activity();
-    
-    // Add session dispatcher to mapping table
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        session_dispatchers_[session_id] = session_dispatcher;
-    }
-    
-    // Create session thread
-    auto thread = std::make_unique<std::thread>([this, res, session_id, session_uri, session_dispatcher]() {
-        try {
-            // Send initial session URI
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            std::stringstream ss;
-            ss << "event: endpoint\r\ndata: " << session_uri << "\r\n\r\n";
-            session_dispatcher->send_event(ss.str());
-            
-            // Update activity time (after sending message)
-            session_dispatcher->update_activity();
-            
-            // Send periodic heartbeats to detect connection status
-            int heartbeat_count = 0;
-            while (running_ && !session_dispatcher->is_closed()) {
-               std::this_thread::sleep_for(std::chrono::seconds(5) + std::chrono::milliseconds(rand() % 500)); // NOTE: DO NOT set it the same as the timeout of wait_event
-                
-                if (session_dispatcher->is_closed() || !running_) {
-                    break;
-                }
-                
-                std::stringstream heartbeat;
-                heartbeat << "event: heartbeat\r\ndata: " << heartbeat_count++ << "\r\n\r\n";
-                
-                try {
-                    bool sent = session_dispatcher->send_event(heartbeat.str());
-                    if (!sent) {
-                        LOG_WARNING("Failed to send heartbeat, client may have closed connection: ", session_id);
-                        break;
-                    }
-                    
-                    // Update activity time (heartbeat successful)
-                    session_dispatcher->update_activity();
-                } catch (const std::exception& e) {
-                    LOG_ERROR("Failed to send heartbeat: ", e.what());
-                    break;
-                }
-            }
-        } catch (const std::exception& e) {
-            LOG_ERROR("SSE session thread exception: ", session_id, ", ", e.what());
-        }
-        
-        close_session(session_id);
-    });
-    
-    // Store thread
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        sse_threads_[session_id] = std::move(thread);
-    }
-    
-    // Setup chunked content provider
-    res.set_chunked_content_provider("text/event-stream", [this, session_id, session_dispatcher](size_t /* offset */, httplib::DataSink& sink) {
-        try {
-            // Check if session is closed - directly get status from dispatcher, reduce lock contention
-            if (session_dispatcher->is_closed()) {
-                return false;
-            }
-            
-            // Update activity time (received request)
-            session_dispatcher->update_activity();
-            
-            // Wait for event
-            bool result = session_dispatcher->wait_event(&sink);
-            if (!result) {
-                LOG_WARNING("Failed to wait for event, closing connection: ", session_id);
-                
-                close_session(session_id);
-                
-                return false;
-            }
-            
-            // Update activity time (successfully received message)
-            session_dispatcher->update_activity();
-
-            return true;
-        } catch (const std::exception& e) {
-            LOG_ERROR("SSE content provider exception: ", e.what());
-            
-            close_session(session_id);
-            
-            return false;
-        }
-    });
 }
 
 void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res) {
@@ -800,45 +548,6 @@ json server::handle_initialize(const request& req, const std::string& session_id
     return response::create_success(req.id, result).to_json();
 }
 
-void server::send_jsonrpc(const std::string& session_id, const json& message) {
-    // Check if session ID is valid
-    if (session_id.empty()) {
-        LOG_WARNING("Cannot send message to empty session_id");
-        return;
-    }
-
-    // Get session dispatcher
-    std::shared_ptr<event_dispatcher> dispatcher;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        auto it = session_dispatchers_.find(session_id);
-        if (it == session_dispatchers_.end()) {
-            LOG_ERROR("Session not found: ", session_id);
-            return;
-        }
-        dispatcher = it->second;
-    }
-    
-    // Confirm dispatcher is still valid
-    if (!dispatcher || dispatcher->is_closed()) {
-        LOG_WARNING("Cannot send to closed session: ", session_id);
-        return;
-    }
-    
-    // Send message
-    std::stringstream ss;
-    ss << "event: message\r\ndata: " << message.dump() << "\r\n\r\n";
-    bool result = dispatcher->send_event(ss.str());
-    
-    if (!result) {
-        LOG_ERROR("Failed to send message to session: ", session_id);
-    }
-}
-
-void server::send_request(const std::string& session_id, const request& req) {
-    send_jsonrpc(session_id, req.to_json());
-}
-
 bool server::is_session_initialized(const std::string& session_id) const {
     // Check if session ID is valid
     if (session_id.empty()) {
@@ -912,82 +621,8 @@ std::string server::generate_session_id() const {
     return ss.str();
 }
 
-void server::check_inactive_sessions() {
-    if (!running_) return;
-    
-    const auto now = std::chrono::steady_clock::now();
-    const auto timeout = std::chrono::minutes(60); // 1 hour inactive then close
-    
-    std::vector<std::string> sessions_to_close;
-    
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        for (const auto& [session_id, dispatcher] : session_dispatchers_) {
-            if (now - dispatcher->last_activity() > timeout) {
-                // Exceeded idle time limit
-                sessions_to_close.push_back(session_id);
-            }
-        }
-    }
-    
-    // Close inactive sessions
-    for (const auto& session_id : sessions_to_close) {
-        LOG_INFO("Closing inactive session: ", session_id);
-        
-        close_session(session_id);
-    }
-}
-
 bool server::set_mount_point(const std::string& mount_point, const std::string& dir, httplib::Headers headers) {
     return http_server_->set_mount_point(mount_point, dir, headers);
-}
-
-void server::close_session(const std::string& session_id) {
-     // Clean up resources safely
-    try {
-        for (const auto& [key, handler] : session_cleanup_handler_) {
-            handler(key);
-        }
-
-        // Copy resources to be processed
-        std::shared_ptr<event_dispatcher> dispatcher_to_close;
-        std::unique_ptr<std::thread> thread_to_release;
-        
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            
-            // Get dispatcher pointer
-            auto dispatcher_it = session_dispatchers_.find(session_id);
-            if (dispatcher_it != session_dispatchers_.end()) {
-                dispatcher_to_close = dispatcher_it->second;
-                session_dispatchers_.erase(dispatcher_it);
-            }
-            
-            // Get thread pointer
-            auto thread_it = sse_threads_.find(session_id);
-            if (thread_it != sse_threads_.end()) {
-                thread_to_release = std::move(thread_it->second);
-                sse_threads_.erase(thread_it);
-            }
-            
-            // Clean up initialization status
-            session_initialized_.erase(session_id);
-        }
-        
-        // Close dispatcher outside the lock
-        if (dispatcher_to_close && !dispatcher_to_close->is_closed()) {
-            dispatcher_to_close->close();
-        }
-        
-        // Release thread resources
-        if (thread_to_release) {
-            thread_to_release.release();
-        }
-    } catch (const std::exception& e) {
-        LOG_WARNING("Exception while cleaning up session resources: ", session_id, ", ", e.what());
-    } catch (...) {
-        LOG_WARNING("Unknown exception while cleaning up session resources: ", session_id);
-    }
 }
 
 } // namespace mcp
