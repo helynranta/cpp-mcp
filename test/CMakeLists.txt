@@ -28,6 +28,7 @@ include_directories(${GTEST_ROOT}/googlemock/include)
 # Add test source files
 set(TEST_SOURCES
     mcp_test.cpp
+    jsonrpc_validation_test.cpp
 )
 
 # Create test executable

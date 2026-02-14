@@ -15,6 +15,7 @@
 #include "mcp_thread_pool.h"
 #include "mcp_logger.h"
 #include "mcp_progress.h"
+#include "mcp_jsonrpc_validation.h"
 
 // Include the HTTP library
 #include "httplib.h"
@@ -448,6 +449,9 @@ private:
 
     // Session cleanup handler
     std::map<std::string, session_cleanup_handler> session_cleanup_handler_;
+
+    // Request ID tracker for uniqueness validation
+    request_id_tracker request_id_tracker_;
 
     // Close session
     void close_session(const std::string& session_id);
