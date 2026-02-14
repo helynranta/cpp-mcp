@@ -33,6 +33,7 @@ set(TEST_SOURCES
     streamable_http_transport_test.cpp
     http_security_test.cpp
     tool_safety_test.cpp
+    mcp_conformance_test.cpp
 )
 
 # Create test executable

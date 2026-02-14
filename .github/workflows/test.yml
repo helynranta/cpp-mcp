@@ -33,10 +33,23 @@ jobs:
     - name: Build
       run: cmake --build build --config Release -j$(nproc)
     
-    - name: Run GoogleTest tests
+    - name: Run MCP 2025-03-26 Conformance Tests (REQUIRED)
       run: |
         cd build
-        ctest --output-on-failure -C Release -R mcp_tests
+        ctest --output-on-failure -C Release -R mcp_tests --verbose
+    
+    - name: Generate Conformance Report
+      if: always()
+      run: |
+        cd build
+        ctest --output-on-failure -C Release -R mcp_tests --verbose > conformance_report_linux.txt 2>&1 || true
+    
+    - name: Upload Conformance Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: conformance-report-linux
+        path: build/conformance_report_linux.txt
   
   test-windows:
     name: Test on Windows
@@ -63,10 +76,24 @@ jobs:
     - name: Build
       run: cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
     
-    - name: Run GoogleTest tests
+    - name: Run MCP 2025-03-26 Conformance Tests (REQUIRED)
       run: |
         cd build
-        ctest --output-on-failure -C Release -R mcp_tests
+        ctest --output-on-failure -C Release -R mcp_tests --verbose
+    
+    - name: Generate Conformance Report
+      if: always()
+      run: |
+        cd build
+        ctest --output-on-failure -C Release -R mcp_tests --verbose > conformance_report_windows.txt 2>&1
+      continue-on-error: true
+    
+    - name: Upload Conformance Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: conformance-report-windows
+        path: build/conformance_report_windows.txt
   
   test-macos:
     name: Test on macOS
@@ -93,7 +120,43 @@ jobs:
     - name: Build
       run: cmake --build build --config Release -j$(sysctl -n hw.ncpu)
     
-    - name: Run GoogleTest tests
+    - name: Run MCP 2025-03-26 Conformance Tests (REQUIRED)
       run: |
         cd build
-        ctest --output-on-failure -C Release -R mcp_tests
+        ctest --output-on-failure -C Release -R mcp_tests --verbose
+    
+    - name: Generate Conformance Report
+      if: always()
+      run: |
+        cd build
+        ctest --output-on-failure -C Release -R mcp_tests --verbose > conformance_report_macos.txt 2>&1 || true
+    
+    - name: Upload Conformance Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: conformance-report-macos
+        path: build/conformance_report_macos.txt
+  
+  # Conformance gate - all platforms must pass
+  conformance-gate:
+    name: MCP 2025-03-26 Conformance Gate
+    runs-on: ubuntu-latest
+    needs: [test-linux, test-windows, test-macos]
+    if: always()
+    
+    steps:
+    - name: Check conformance test results
+      run: |
+        if [ "${{ needs.test-linux.result }}" != "success" ] || \
+           [ "${{ needs.test-windows.result }}" != "success" ] || \
+           [ "${{ needs.test-macos.result }}" != "success" ]; then
+          echo "❌ MCP 2025-03-26 Conformance tests failed on one or more platforms"
+          echo "Linux: ${{ needs.test-linux.result }}"
+          echo "Windows: ${{ needs.test-windows.result }}"
+          echo "macOS: ${{ needs.test-macos.result }}"
+          exit 1
+        else
+          echo "✅ MCP 2025-03-26 Conformance tests passed on all platforms"
+        fi
+
