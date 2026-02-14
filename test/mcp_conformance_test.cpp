@@ -22,7 +22,6 @@
 #include "httplib.h"
 #include <thread>
 #include <chrono>
-#include <atomic>
 
 using namespace mcp;
 using json = nlohmann::ordered_json;
@@ -148,31 +147,6 @@ protected:
             return it->second;
         }
         return "";
-    }
-    
-    // Helper: Establish SSE session and return session ID
-    std::pair<std::string, std::thread> establish_session() {
-        std::string session_id;
-        std::atomic<bool> got_session{false};
-        
-        std::thread sse_thread([&]() {
-            httplib::Client sse_client("localhost", 9093);
-            sse_client.Get("/mcp", [&](const char* data, size_t len) {
-                // Just need to establish connection, store session ID from headers
-                return true; // Continue streaming
-            });
-        });
-        
-        // Wait a bit for connection to establish
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
-        
-        // Get session ID from a POST request (it will be in the headers)
-        auto res = http_client->Get("/mcp");
-        if (res) {
-            session_id = extract_session_id(res);
-        }
-        
-        return {session_id, std::move(sse_thread)};
     }
     
     // Helper: Send request and get response
