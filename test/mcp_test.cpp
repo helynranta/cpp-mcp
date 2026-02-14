@@ -1108,6 +1108,81 @@ TEST_F(BatchIntegrationTest, BatchRequestValidation) {
     EXPECT_TRUE(response["tools"].is_array());
 }
 
+// Test JSON-RPC validation integration with server
+class JsonRpcServerValidationTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Set up test server
+        server::configuration config;
+        config.host = "localhost";
+        config.port = 8095;
+        config.name = "ValidationTestServer";
+        config.version = "1.0.0";
+        server_ = std::make_unique<server>(config);
+        
+        // Register a simple test tool
+        tool test_tool = tool_builder("echo")
+            .with_description("Echo tool for validation testing")
+            .with_string_param("text", "Text to echo", "")
+            .build();
+        
+        server_->register_tool(test_tool, [](const json& params, const std::string&) -> json {
+            return {{"echo", params["text"].get<std::string>()}};
+        });
+        
+        json server_capabilities = {
+            {"tools", {{"listChanged", true}}}
+        };
+        server_->set_capabilities(server_capabilities);
+        
+        server_->start(false);
+        
+        // Give server time to start
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // Create client
+        json client_capabilities = {
+            {"roots", {{"listChanged", true}}},
+            {"sampling", json::object()}
+        };
+        client_ = std::make_unique<sse_client>("http://localhost:8095");
+        client_->set_capabilities(client_capabilities);
+        
+        // Initialize
+        bool init_result = client_->initialize("ValidationTestClient", "1.0.0");
+        ASSERT_TRUE(init_result) << "Client initialization failed";
+    }
+
+    void TearDown() override {
+        client_.reset();
+        server_->stop();
+        server_.reset();
+    }
+
+    std::unique_ptr<server> server_;
+    std::unique_ptr<sse_client> client_;
+};
+
+// Test that server accepts valid requests
+TEST_F(JsonRpcServerValidationTest, AcceptsValidRequest) {
+    // Send a valid request
+    json result = client_->send_request("tools/list").result;
+    
+    // Should succeed
+    EXPECT_TRUE(result.contains("tools"));
+}
+
+// Test that notification structure is validated
+TEST_F(JsonRpcServerValidationTest, NotificationStructureValid) {
+    // Create a valid notification (no ID field)
+    request notif = request::create_notification("test", {{"key", "value"}});
+    json notif_json = notif.to_json();
+    
+    // Verify it doesn't have ID field
+    EXPECT_FALSE(notif_json.contains("id"));
+    EXPECT_TRUE(notif.is_notification());
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     
