@@ -3,7 +3,7 @@
  * @brief Core definitions for the Model Context Protocol (MCP) framework
  * 
  * This file contains the core structures and definitions for the MCP protocol.
- * Implements the 2024-11-05 basic protocol specification.
+ * Implements the 2025-03-26 basic protocol specification.
  */
 
 #ifndef MCP_MESSAGE_H
@@ -25,7 +25,7 @@ namespace mcp {
 using json = nlohmann::ordered_json;
 
 // MCP version
-constexpr const char* MCP_VERSION = "2024-11-05";
+constexpr const char* MCP_VERSION = "2025-03-26";
 
 // MCP error codes (JSON-RPC 2.0 standard codes)
 enum class error_code {
