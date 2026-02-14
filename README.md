@@ -56,6 +56,42 @@ cmake -B build -DMCP_SSL=ON
 cmake --build build --config Release
 ```
 
+## MCP 2025-03-26 Conformance
+
+This implementation is **fully conformant** with all REQUIRED (MUST) features of the MCP 2025-03-26 specification.
+
+### Conformance Testing
+
+The project includes a comprehensive conformance test suite that validates all MUST requirements:
+
+- **JSON-RPC 2.0**: Message validation, request/response format, batch processing
+- **MCP Lifecycle**: Initialization sequence, state management, capability negotiation
+- **Streamable HTTP Transport**: Unified `/mcp` endpoint, session management, HTTP semantics
+- **Security**: Origin validation, CORS headers, session isolation
+- **Tool System**: Registration, listing, execution, metadata annotations
+
+**Run conformance tests:**
+```bash
+cd build && ctest -V
+```
+
+**View detailed conformance status:**
+See [CONFORMANCE.md](CONFORMANCE.md) for a complete requirements matrix mapping all MCP 2025-03-26 requirements to test coverage.
+
+### Unsupported Optional Features
+
+The following optional MCP features are not currently implemented:
+
+- **Resources API** (`resources/*` methods) - Optional per specification
+- **Prompts API** (`prompts/*` methods) - Optional per specification  
+- **Sampling/LLM Integration** (`sampling/*` methods) - Client-side feature
+
+Clients should check server capabilities before attempting to use optional features.
+
+### CI/CD Conformance Gate
+
+All pull requests must pass the conformance test suite on Linux, Windows, and macOS. The CI pipeline generates conformance reports that can be reviewed in the GitHub Actions artifacts.
+
 ## HTTP Transport
 
 This framework implements the MCP 2025-03-26 Streamable HTTP transport specification with a unified `/mcp` endpoint.

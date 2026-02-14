@@ -111,7 +111,7 @@ private:
         tool slow_tool = tool_builder("slow_operation")
             .with_description("A slow operation for testing progress notifications")
             .with_number_param("duration_ms", "Duration in milliseconds", 1000)
-            .with_latency("high")
+            .with_latency(1000) // 1000ms latency
             .build();
         
         server_->register_tool(slow_tool, [](const json& params, const std::string&) -> json {
