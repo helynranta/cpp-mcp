@@ -370,3 +370,80 @@ TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
     EXPECT_NE(endpoint.find("/message"), std::string::npos) 
         << "Should return /message endpoint for backward compatibility";
 }
+
+// Test: POST with unsupported Accept header returns 406
+TEST_F(StreamableHttpTransportTest, PostMcpWithUnsupportedAcceptReturns406) {
+    // Establish a session
+    std::string endpoint = establish_sse_session_simple();
+    
+    std::regex session_regex("session_id=([^&]+)");
+    std::smatch match;
+    std::string session_id;
+    if (std::regex_search(endpoint, match, session_regex)) {
+        session_id = match[1].str();
+    }
+    
+    ASSERT_FALSE(session_id.empty()) << "Should have a session ID";
+    
+    // POST with unsupported Accept header (e.g., only text/html)
+    json test_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "tools/list"}
+    };
+    
+    httplib::Headers headers = {
+        {"Mcp-Session-Id", session_id},
+        {"Accept", "text/html"}  // Unsupported media type
+    };
+    
+    auto res = http_client->Post("/mcp", headers, test_request.dump(), "application/json");
+    
+    ASSERT_TRUE(res) << "POST /mcp should return a response";
+    EXPECT_EQ(406, res->status) << "Should return 406 Not Acceptable for unsupported Accept header";
+}
+
+// Test: POST with valid Accept headers (application/json and text/event-stream) succeeds
+TEST_F(StreamableHttpTransportTest, PostMcpWithValidAcceptHeaderSucceeds) {
+    // Establish a session
+    std::string endpoint = establish_sse_session_simple();
+    
+    std::regex session_regex("session_id=([^&]+)");
+    std::smatch match;
+    std::string session_id;
+    if (std::regex_search(endpoint, match, session_regex)) {
+        session_id = match[1].str();
+    }
+    
+    ASSERT_FALSE(session_id.empty()) << "Should have a session ID";
+    
+    // POST with proper Accept header
+    json test_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "ping"}
+    };
+    
+    httplib::Headers headers = {
+        {"Mcp-Session-Id", session_id},
+        {"Accept", "application/json, text/event-stream"}  // Both supported types
+    };
+    
+    auto res = http_client->Post("/mcp", headers, test_request.dump(), "application/json");
+    
+    ASSERT_TRUE(res) << "POST /mcp should succeed";
+    EXPECT_EQ(202, res->status) << "Should return 202 Accepted with valid Accept header";
+}
+
+// Test: CORS headers include Accept in allowed headers
+TEST_F(StreamableHttpTransportTest, CorsHeadersIncludeAccept) {
+    auto res = http_client->Options("/mcp");
+    
+    ASSERT_TRUE(res) << "OPTIONS /mcp should succeed";
+    EXPECT_EQ(204, res->status) << "Should return 204 No Content";
+    
+    auto allow_headers = res->headers.find("Access-Control-Allow-Headers");
+    ASSERT_NE(allow_headers, res->headers.end()) << "Should have Allow-Headers header";
+    EXPECT_NE(allow_headers->second.find("Accept"), std::string::npos) 
+        << "Should allow Accept header";
+}

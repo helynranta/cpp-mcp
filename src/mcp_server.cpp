@@ -58,7 +58,7 @@ bool server::start(bool blocking) {
     http_server_->Options(".*", [](const httplib::Request& req, httplib::Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
         res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept");
         res.status = 204; // No Content
     });
     
@@ -1044,13 +1044,33 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
     // Setup response headers
     res.set_header("Access-Control-Allow-Origin", "*");
     res.set_header("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id");
+    res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept");
     res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
     
     // Handle OPTIONS request (CORS pre-flight)
     if (req.method == "OPTIONS") {
         res.status = 204; // No Content
         return;
+    }
+    
+    // Validate Accept header per MCP 2025-03-26 Streamable HTTP specification
+    // The Accept header should include application/json and/or text/event-stream
+    auto accept_it = req.headers.find("Accept");
+    if (accept_it != req.headers.end()) {
+        std::string accept = accept_it->second;
+        // Check if Accept header includes supported types
+        bool accepts_json = accept.find("application/json") != std::string::npos || 
+                           accept.find("*/*") != std::string::npos;
+        bool accepts_sse = accept.find("text/event-stream") != std::string::npos || 
+                          accept.find("*/*") != std::string::npos;
+        
+        if (!accepts_json && !accepts_sse) {
+            LOG_WARNING("POST /mcp received unsupported Accept header: ", accept);
+            res.status = 406; // Not Acceptable
+            res.set_header("Content-Type", "application/json");
+            res.set_content("{\"error\":\"Not Acceptable. Accept header must include application/json or text/event-stream\"}", "application/json");
+            return;
+        }
     }
     
     // Extract session ID from header or query parameter

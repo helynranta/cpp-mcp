@@ -61,7 +61,9 @@ The server exposes a single `/mcp` endpoint that supports:
 
 - **POST** - Sends JSON-RPC requests or notifications
   - Requires `Mcp-Session-Id` header or `session_id` query parameter
+  - Requires `Accept` header with `application/json` and/or `text/event-stream`
   - Returns HTTP 202 Accepted for async processing
+  - Returns HTTP 406 Not Acceptable if Accept header missing or invalid
   - Responses delivered via SSE connection
   - Notifications (no ID) return 202 immediately
   - Requests (with ID) process asynchronously with SSE response
@@ -93,6 +95,7 @@ POST /mcp HTTP/1.1
 Host: localhost:8080
 Mcp-Session-Id: abc123-session-id
 Content-Type: application/json
+Accept: application/json, text/event-stream
 
 {"jsonrpc":"2.0","id":1,"method":"tools/list"}
 ```
@@ -113,7 +116,8 @@ To migrate from legacy endpoints to Streamable HTTP transport:
 1. **Update SSE connection**: Change `GET /sse` to `GET /mcp`
 2. **Update POST endpoint**: Change `POST /message` to `POST /mcp`
 3. **Use header-based sessions**: Add `Mcp-Session-Id` header instead of query parameter
-4. **Handle DELETE**: Implement session cleanup using `DELETE /mcp` with `Mcp-Session-Id` header
+4. **Add Accept header**: Include `Accept: application/json, text/event-stream` in POST requests
+5. **Handle DELETE**: Implement session cleanup using `DELETE /mcp` with `Mcp-Session-Id` header
 
 Example migration:
 
@@ -121,6 +125,7 @@ Example migration:
 // Old (legacy)
 GET /sse                                    // Establish SSE
 POST /message?session_id=abc123 HTTP/1.1   // Send request
+Content-Type: application/json
 
 // New (Streamable HTTP)
 GET /mcp HTTP/1.1                           // Establish SSE
@@ -128,6 +133,7 @@ GET /mcp HTTP/1.1                           // Establish SSE
   
 POST /mcp HTTP/1.1                          // Send request
 Mcp-Session-Id: abc123
+Accept: application/json, text/event-stream
 
 DELETE /mcp HTTP/1.1                        // Terminate session
 Mcp-Session-Id: abc123
