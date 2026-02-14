@@ -122,6 +122,11 @@ tool_builder& tool_builder::with_latency(int value) {
     return *this;
 }
 
+tool_builder& tool_builder::with_confirmation_required(bool value) {
+    requires_confirmation_ = value;
+    return *this;
+}
+
 tool tool_builder::build() const {
     tool t;
     t.name = name_;
@@ -149,6 +154,9 @@ tool tool_builder::build() const {
     
     t.has_latency = has_latency_;
     t.latency_value = latency_value_;
+    
+    // Set security flags (MCP 2025-03-26)
+    t.requires_confirmation = requires_confirmation_;
     
     return t;
 }

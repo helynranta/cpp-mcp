@@ -13,6 +13,16 @@ For the full specification and protocol details, see the [MCP GitHub repository]
   - `Mcp-Session-Id` header-based session management
   - SSE (Server-Sent Events) streaming for real-time responses
   - Backward compatible with legacy `/sse` and `/message` endpoints
+- **HTTP Transport Security (MCP 2025-03-26)**:
+  - Origin header validation for DNS rebinding mitigation
+  - Configurable allowed origins with localhost defaults
+  - Secure CORS handling with origin reflection
+  - See [SECURITY.md](SECURITY.md) for details
+- **Tool Execution Safety (MCP 2025-03-26)**:
+  - Optional user confirmation hooks for sensitive tools
+  - Configurable tool execution policies
+  - Trust model for tool annotations as untrusted metadata
+  - See [SECURITY.md](SECURITY.md) for details
 - **Lifecycle Management**: Strict initialization lifecycle with state transitions (uninitialized → initializing → ready)
 - **Batch Initialization Protection**: Rejects initialize requests in batches per MCP 2025-03-26 specification
 - **Capability Negotiation**: Store and respect client capabilities negotiated during initialization

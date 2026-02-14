@@ -54,6 +54,17 @@ using auth_handler = std::function<bool(const std::string&, const std::string&)>
 using session_cleanup_handler = std::function<void(const std::string&)>;
 using cancellation_handler = std::function<void(const json& request_id, const std::string& reason, const std::string& session_id)>;
 
+/**
+ * @brief Tool confirmation handler type
+ * 
+ * Called before executing a tool that requires confirmation.
+ * @param tool_name The name of the tool to be executed
+ * @param arguments The arguments to be passed to the tool
+ * @param session_id The session ID of the client requesting the tool
+ * @return true if the tool should be executed, false to deny execution
+ */
+using tool_confirmation_handler = std::function<bool(const std::string& tool_name, const json& arguments, const std::string& session_id)>;
+
 class event_dispatcher {
 public:
     event_dispatcher() {
@@ -223,6 +234,36 @@ public:
         /** Request timeout in seconds (0 = no timeout) */
         unsigned int request_timeout_seconds{ 0 };
 
+        /**
+         * @brief Security configuration for HTTP transport (MCP 2025-03-26)
+         */
+        struct {
+            /** 
+             * Enable Origin header validation (DNS rebinding mitigation).
+             * When enabled, validates Origin header against allowed_origins list.
+             * Default: true for localhost bindings, false for 0.0.0.0
+             */
+            bool validate_origin{ true };
+            
+            /** 
+             * List of allowed origins for Origin header validation.
+             * Default: localhost origins (http://localhost, https://localhost, etc.)
+             * Use empty vector to allow all origins (not recommended for production)
+             */
+            std::vector<std::string> allowed_origins{
+                "http://localhost",
+                "https://localhost",
+                "http://127.0.0.1",
+                "https://127.0.0.1"
+            };
+            
+            /**
+             * Enable tool execution confirmation hooks.
+             * When enabled, tools can be marked for user confirmation before execution.
+             */
+            bool enable_tool_confirmation{ false };
+        } security;
+
         #ifdef MCP_SSL        
         /**
          * @brief SSL configuration settings.
@@ -339,6 +380,14 @@ public:
     void set_cancellation_handler(cancellation_handler handler);
 
     /**
+     * @brief Set tool confirmation handler (MCP 2025-03-26 safety)
+     * @param handler Function to call before executing tools that require confirmation
+     * @note Handler receives tool_name, arguments, and session_id; returns true to allow execution
+     * @note Only called for tools marked as requiring confirmation (destructive tools, etc.)
+     */
+    void set_tool_confirmation_handler(tool_confirmation_handler handler);
+
+    /**
      * @brief Send a request (or notification) to a client
      * @param session_id The session ID of the client
      * @param req The request to send
@@ -407,6 +456,9 @@ private:
     
     // Cancellation handler
     cancellation_handler cancellation_handler_;
+    
+    // Tool confirmation handler (MCP 2025-03-26 safety)
+    tool_confirmation_handler tool_confirmation_handler_;
     
     // Request timeout in seconds
     unsigned int request_timeout_seconds_;
@@ -516,6 +568,17 @@ private:
 
     // Close session
     void close_session(const std::string& session_id);
+
+    // Security configuration (MCP 2025-03-26)
+    bool validate_origin_;
+    std::vector<std::string> allowed_origins_;
+    bool enable_tool_confirmation_;
+    
+    // Validate Origin header for DNS rebinding mitigation
+    bool is_origin_allowed(const std::string& origin) const;
+    
+    // Check if origin validation should be performed for this request
+    bool should_validate_origin(const httplib::Request& req) const;
 };
 
 } // namespace mcp

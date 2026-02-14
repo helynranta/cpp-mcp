@@ -21,6 +21,9 @@ server::server(const server::configuration& conf)
     , mcp_endpoint_(conf.mcp_endpoint)
     , request_timeout_seconds_(conf.request_timeout_seconds)
     , thread_pool_(conf.threadpool_size)
+    , validate_origin_(conf.security.validate_origin)
+    , allowed_origins_(conf.security.allowed_origins)
+    , enable_tool_confirmation_(conf.security.enable_tool_confirmation)
 {
     #ifdef MCP_SSL
     if (conf.ssl.server_cert_path && conf.ssl.server_private_key_path) {
@@ -54,11 +57,23 @@ bool server::start(bool blocking) {
     
     LOG_INFO("Starting MCP server on ", host_, ":", port_);
     
-    // Setup CORS handling
-    http_server_->Options(".*", [](const httplib::Request& req, httplib::Response& res) {
-        res.set_header("Access-Control-Allow-Origin", "*");
+    // Setup CORS handling with Origin validation (MCP 2025-03-26 security)
+    http_server_->Options(".*", [this](const httplib::Request& req, httplib::Response& res) {
+        // Handle Origin validation for OPTIONS requests
+        auto origin_it = req.headers.find("Origin");
+        if (origin_it != req.headers.end() && is_origin_allowed(origin_it->second)) {
+            res.set_header("Access-Control-Allow-Origin", origin_it->second);
+            res.set_header("Access-Control-Allow-Credentials", "true");
+        } else if (!validate_origin_) {
+            // Only use wildcard if Origin validation is disabled
+            res.set_header("Access-Control-Allow-Origin", "*");
+        } else {
+            // Origin not allowed
+            res.status = 403;
+            return;
+        }
         res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept, Origin");
         res.status = 204; // No Content
     });
     
@@ -399,6 +414,8 @@ void server::register_tool(const tool& tool, tool_handler handler) {
                 throw mcp_exception(error_code::invalid_params, "Tool not found: " + tool_name);
             }
             
+            const mcp::tool& tool_def = it->second.first;
+            
             json tool_args = params.contains("arguments") ? params["arguments"] : json::array();
 
             if (tool_args.is_string()) {
@@ -414,6 +431,22 @@ void server::register_tool(const tool& tool, tool_handler handler) {
             };
 
             try {
+                // Check if tool requires confirmation (MCP 2025-03-26 safety)
+                if (enable_tool_confirmation_ && tool_def.requires_confirmation) {
+                    if (tool_confirmation_handler_) {
+                        bool confirmed = tool_confirmation_handler_(tool_name, tool_args, session_id);
+                        if (!confirmed) {
+                            throw mcp_exception(error_code::invalid_request, 
+                                "Tool execution denied: User confirmation required but not granted");
+                        }
+                    } else {
+                        // If no confirmation handler is set but tool requires confirmation, deny execution
+                        LOG_WARNING("Tool '", tool_name, "' requires confirmation but no handler is set");
+                        throw mcp_exception(error_code::invalid_request, 
+                            "Tool execution denied: Confirmation required but no handler configured");
+                    }
+                }
+                
                 tool_result["content"] = it->second.second(tool_args, session_id);
             } catch (const std::exception& e) {
                 tool_result["isError"] = true;
@@ -933,7 +966,16 @@ void server::handle_mcp_get(const httplib::Request& req, httplib::Response& res)
     res.set_header("Content-Type", "text/event-stream");
     res.set_header("Cache-Control", "no-cache");
     res.set_header("Connection", "keep-alive");
-    res.set_header("Access-Control-Allow-Origin", "*");
+    
+    // Set CORS headers based on Origin validation (MCP 2025-03-26 security)
+    auto origin_it = req.headers.find("Origin");
+    if (origin_it != req.headers.end() && is_origin_allowed(origin_it->second)) {
+        res.set_header("Access-Control-Allow-Origin", origin_it->second);
+        res.set_header("Access-Control-Allow-Credentials", "true");
+    } else if (!validate_origin_) {
+        // Only use wildcard if Origin validation is disabled
+        res.set_header("Access-Control-Allow-Origin", "*");
+    }
     res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
     
     // Create or retrieve session-specific event dispatcher
@@ -1041,8 +1083,29 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
     // POST request sends JSON-RPC messages (requests or notifications)
     // This is similar to the legacy /message endpoint but with enhanced header support
     
+    // Validate Origin header for DNS rebinding mitigation (MCP 2025-03-26 security)
+    if (should_validate_origin(req)) {
+        auto origin_it = req.headers.find("Origin");
+        if (origin_it != req.headers.end()) {
+            if (!is_origin_allowed(origin_it->second)) {
+                LOG_WARNING("POST /mcp rejected due to invalid Origin: ", origin_it->second);
+                res.status = 403; // Forbidden
+                res.set_header("Content-Type", "application/json");
+                res.set_content("{\"error\":\"Origin not allowed\"}", "application/json");
+                return;
+            }
+        }
+    }
+    
     // Setup response headers
-    res.set_header("Access-Control-Allow-Origin", "*");
+    // Set CORS headers based on Origin validation
+    auto origin_it = req.headers.find("Origin");
+    if (origin_it != req.headers.end() && is_origin_allowed(origin_it->second)) {
+        res.set_header("Access-Control-Allow-Origin", origin_it->second);
+    } else if (!validate_origin_) {
+        // Only use wildcard if Origin validation is disabled
+        res.set_header("Access-Control-Allow-Origin", "*");
+    }
     res.set_header("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept");
     res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
@@ -1274,8 +1337,29 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
 void server::handle_mcp_delete(const httplib::Request& req, httplib::Response& res) {
     // DELETE request terminates a session
     
+    // Validate Origin header for DNS rebinding mitigation (MCP 2025-03-26 security)
+    if (should_validate_origin(req)) {
+        auto origin_it = req.headers.find("Origin");
+        if (origin_it != req.headers.end()) {
+            if (!is_origin_allowed(origin_it->second)) {
+                LOG_WARNING("DELETE /mcp rejected due to invalid Origin: ", origin_it->second);
+                res.status = 403; // Forbidden
+                res.set_header("Content-Type", "application/json");
+                res.set_content("{\"error\":\"Origin not allowed\"}", "application/json");
+                return;
+            }
+        }
+    }
+    
     // Setup response headers
-    res.set_header("Access-Control-Allow-Origin", "*");
+    // Set CORS headers based on Origin validation
+    auto origin_it = req.headers.find("Origin");
+    if (origin_it != req.headers.end() && is_origin_allowed(origin_it->second)) {
+        res.set_header("Access-Control-Allow-Origin", origin_it->second);
+    } else if (!validate_origin_) {
+        // Only use wildcard if Origin validation is disabled
+        res.set_header("Access-Control-Allow-Origin", "*");
+    }
     res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
     
     // Extract session ID from header or query parameter
@@ -1783,6 +1867,84 @@ void server::close_session(const std::string& session_id) {
     } catch (...) {
         LOG_WARNING("Unknown exception while cleaning up session resources: ", session_id);
     }
+}
+
+// Security helper functions (MCP 2025-03-26)
+
+bool server::is_origin_allowed(const std::string& origin) const {
+    // Empty origin is not allowed
+    if (origin.empty()) {
+        return false;
+    }
+    
+    // If allowed_origins is empty, allow all origins (not recommended for production)
+    if (allowed_origins_.empty()) {
+        return true;
+    }
+    
+    // Check if the origin matches any allowed origin
+    for (const auto& allowed : allowed_origins_) {
+        if (origin == allowed) {
+            return true;
+        }
+        
+        // Also check with port variations for localhost
+        // e.g., "http://localhost:8080" should match "http://localhost"
+        if (allowed.find("localhost") != std::string::npos || 
+            allowed.find("127.0.0.1") != std::string::npos) {
+            
+            // Extract scheme and host from allowed origin
+            size_t scheme_end = allowed.find("://");
+            if (scheme_end != std::string::npos) {
+                std::string allowed_scheme = allowed.substr(0, scheme_end);
+                std::string allowed_rest = allowed.substr(scheme_end + 3);
+                
+                // Extract scheme from request origin
+                size_t origin_scheme_end = origin.find("://");
+                if (origin_scheme_end != std::string::npos) {
+                    std::string origin_scheme = origin.substr(0, origin_scheme_end);
+                    std::string origin_rest = origin.substr(origin_scheme_end + 3);
+                    
+                    // Match scheme
+                    if (origin_scheme == allowed_scheme) {
+                        // Check if origin starts with allowed host (ignoring port)
+                        size_t origin_port_pos = origin_rest.find(':');
+                        std::string origin_host = origin_port_pos != std::string::npos 
+                            ? origin_rest.substr(0, origin_port_pos) 
+                            : origin_rest;
+                        
+                        if (origin_host == allowed_rest || 
+                            (allowed_rest == "localhost" && origin_host == "localhost") ||
+                            (allowed_rest == "127.0.0.1" && origin_host == "127.0.0.1")) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    return false;
+}
+
+bool server::should_validate_origin(const httplib::Request& req) const {
+    // Only validate if validation is enabled
+    if (!validate_origin_) {
+        return false;
+    }
+    
+    // Only validate POST and DELETE requests (state-changing operations)
+    // GET requests for SSE don't need Origin validation
+    if (req.method == "POST" || req.method == "DELETE") {
+        return true;
+    }
+    
+    return false;
+}
+
+void server::set_tool_confirmation_handler(tool_confirmation_handler handler) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    tool_confirmation_handler_ = handler;
 }
 
 } // namespace mcp
