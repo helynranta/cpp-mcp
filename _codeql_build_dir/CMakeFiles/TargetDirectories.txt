@@ -1,0 +1,11 @@
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/CMakeFiles/edit_cache.dir
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/CMakeFiles/rebuild_cache.dir
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/src/CMakeFiles/mcp.dir
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/src/CMakeFiles/edit_cache.dir
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/src/CMakeFiles/rebuild_cache.dir
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/examples/CMakeFiles/sse_client_example.dir
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/examples/CMakeFiles/stdio_client_example.dir
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/examples/CMakeFiles/server_example.dir
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/examples/CMakeFiles/agent_example.dir
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/examples/CMakeFiles/edit_cache.dir
+/home/runner/work/cpp-mcp/cpp-mcp/_codeql_build_dir/examples/CMakeFiles/rebuild_cache.dir
