@@ -1,1 +1,0 @@
-/home/runner/work/cpp-mcp/.codeql-scratch/dbs/cpp/working/autobuild/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/sse_client_example.dir/link.d CMakeFiles/sse_client_example.dir/sse_client_example.cpp.o -o sse_client_example  ../src/libmcp.a
