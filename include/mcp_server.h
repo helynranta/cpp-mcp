@@ -394,6 +394,9 @@ private:
     // Handle incoming JSON-RPC requests
     void handle_jsonrpc(const httplib::Request& req, httplib::Response& res);
 
+    // Handle batch JSON-RPC requests
+    void handle_batch_jsonrpc(const json& batch_json, const std::string& session_id, httplib::Response& res);
+
     // Send a JSON-RPC message to a client
     void send_jsonrpc(const std::string& session_id, const json& message);
     

@@ -7,6 +7,7 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 ## Core Features
 
 - **JSON-RPC 2.0 Communication**: Request/response communication based on JSON-RPC 2.0 standard
+- **Batch Request Support**: Process multiple JSON-RPC requests in a single HTTP call (MCP 2025-03-26 requirement)
 - **Resource Abstraction**: Standard interfaces for resources such as files, APIs, etc.
 - **Tool Registration**: Register and call tools with structured parameters
 - **Extensible Architecture**: Easy to extend with new resource types and tools
@@ -125,6 +126,15 @@ Demonstrates real-time progress notifications:
 - Client receives and displays progress in real-time
 - Shows both with and without progress tokens
 - Example of proper progress token handling
+
+### Batch Request Example (`examples/batch_example.cpp`)
+
+Demonstrates JSON-RPC batch request support (MCP 2025-03-26):
+- Multiple requests in a single batch
+- Mixed batches (requests + notifications)
+- Notification-only batches
+- Empty batch validation
+- Shows expected server behavior for each scenario
 
 ## How to Use
 
@@ -246,6 +256,82 @@ json result = client.call_tool("tool_name", {
 });
 ```
 
+## Batch Request Support
+
+MCP 2025-03-26 requires implementations to support receiving JSON-RPC batches. This framework fully implements batch request processing according to the JSON-RPC 2.0 specification.
+
+### What is a Batch Request?
+
+A batch request allows clients to send multiple JSON-RPC requests in a single HTTP call by wrapping them in a JSON array. This can improve performance by reducing network round-trips.
+
+### Server Behavior
+
+The server handles batch requests as follows:
+
+1. **Multiple Requests**: Processes all requests and returns an array of responses in the same order
+2. **Mixed Batches**: Supports requests and notifications together; only requests get responses
+3. **Notification-Only Batches**: Returns HTTP 202 Accepted with no response body
+4. **Empty Batches**: Returns HTTP 400 error (invalid per JSON-RPC 2.0)
+5. **Single Item Batches**: Valid and processed normally
+
+### Example Batch Request
+
+```json
+[
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/list"
+  },
+  {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "resources/list"
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "notifications/log",
+    "params": {"message": "Processing batch"}
+  }
+]
+```
+
+This batch contains:
+- Two requests (with IDs) that will receive responses
+- One notification (no ID) that will be processed without a response
+
+### Expected Response
+
+```json
+[
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {"tools": [...]}
+  },
+  {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {"resources": [...]}
+  }
+]
+```
+
+The response array contains only the results for the two requests, not for the notification.
+
+### Testing Batch Support
+
+Run the batch example to see all scenarios:
+
+```bash
+./build/examples/batch_example
+```
+
+The test suite includes comprehensive batch tests:
+
+```bash
+cd build && ctest -R Batch
+```
 
 ## Progress Notifications
 

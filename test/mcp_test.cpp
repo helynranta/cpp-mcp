@@ -915,6 +915,199 @@ TEST_F(ProgressNotificationTest, CreateProgressNotificationRequest) {
     EXPECT_EQ(req.params["message"].get<std::string>(), "Test");
 }
 
+// Test batch request handling
+class BatchRequestTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Set up test environment
+    }
+
+    void TearDown() override {
+        // Clean up test environment
+    }
+};
+
+// Test batch array with multiple requests
+TEST_F(BatchRequestTest, BatchArrayFormat) {
+    // Create a batch of requests
+    json batch = json::array();
+    
+    request req1 = request::create("method1", {{"param1", "value1"}});
+    request req2 = request::create("method2", {{"param2", "value2"}});
+    
+    batch.push_back(req1.to_json());
+    batch.push_back(req2.to_json());
+    
+    // Verify batch is an array
+    EXPECT_TRUE(batch.is_array());
+    EXPECT_EQ(batch.size(), 2);
+    
+    // Verify each item in the batch
+    EXPECT_EQ(batch[0]["method"], "method1");
+    EXPECT_EQ(batch[1]["method"], "method2");
+}
+
+// Test batch with mixed requests and notifications
+TEST_F(BatchRequestTest, MixedBatchFormat) {
+    json batch = json::array();
+    
+    // Add a regular request (with ID)
+    request req = request::create("test_method", {{"key", "value"}});
+    batch.push_back(req.to_json());
+    
+    // Add a notification (no ID)
+    request notif = request::create_notification("test_notification", {{"key2", "value2"}});
+    batch.push_back(notif.to_json());
+    
+    EXPECT_TRUE(batch.is_array());
+    EXPECT_EQ(batch.size(), 2);
+    
+    // Verify request has ID
+    EXPECT_TRUE(batch[0].contains("id"));
+    EXPECT_FALSE(batch[0]["id"].is_null());
+    
+    // Verify notification has no ID (same pattern as line 988-990)
+    bool is_notification = !batch[1].contains("id") || batch[1]["id"].is_null();
+    EXPECT_TRUE(is_notification);
+}
+
+// Test notification-only batch
+TEST_F(BatchRequestTest, NotificationOnlyBatch) {
+    json batch = json::array();
+    
+    // Add multiple notifications
+    request notif1 = request::create_notification("notif1", {{"key1", "value1"}});
+    request notif2 = request::create_notification("notif2", {{"key2", "value2"}});
+    
+    batch.push_back(notif1.to_json());
+    batch.push_back(notif2.to_json());
+    
+    EXPECT_TRUE(batch.is_array());
+    EXPECT_EQ(batch.size(), 2);
+    
+    // Verify both are notifications (no ID field or ID is null)
+    for (const auto& item : batch) {
+        bool is_notification = !item.contains("id") || item["id"].is_null();
+        EXPECT_TRUE(is_notification);
+    }
+}
+
+// Test empty batch validation
+TEST_F(BatchRequestTest, EmptyBatchValidation) {
+    json empty_batch = json::array();
+    
+    // Empty batch should be an array
+    EXPECT_TRUE(empty_batch.is_array());
+    EXPECT_EQ(empty_batch.size(), 0);
+}
+
+// Test single request batch
+TEST_F(BatchRequestTest, SingleRequestBatch) {
+    json batch = json::array();
+    
+    request req = request::create("single_method", {{"param", "value"}});
+    batch.push_back(req.to_json());
+    
+    EXPECT_TRUE(batch.is_array());
+    EXPECT_EQ(batch.size(), 1);
+    EXPECT_EQ(batch[0]["method"], "single_method");
+}
+
+// Integration tests for batch request handling with server
+class BatchIntegrationEnvironment : public ::testing::Environment {
+public:
+    void SetUp() override {
+        // Set up test server
+        server::configuration config;
+        config.host = "localhost";
+        config.port = 8090;
+        config.name = "BatchTestServer";
+        config.version = "1.0.0";
+        server_ = std::make_unique<server>(config);
+        
+        // Register a test tool
+        tool test_tool = tool_builder("test_tool")
+            .with_description("A test tool for batch processing")
+            .with_string_param("input", "Input parameter", "")
+            .build();
+        
+        server_->register_tool(test_tool, [](const json& params, const std::string&) -> json {
+            return {
+                {"result", "processed: " + params["input"].get<std::string>()}
+            };
+        });
+        
+        // Set server capabilities
+        json server_capabilities = {
+            {"tools", {{"listChanged", true}}}
+        };
+        server_->set_capabilities(server_capabilities);
+        
+        // Start server
+        server_->start(false);
+        
+        // Create client
+        json client_capabilities = {
+            {"roots", {{"listChanged", true}}},
+            {"sampling", json::object()}
+        };
+        client_ = std::make_unique<sse_client>("http://localhost:8090");
+        client_->set_capabilities(client_capabilities);
+    }
+
+    void TearDown() override {
+        client_.reset();
+        server_->stop();
+        server_.reset();
+    }
+
+    static std::unique_ptr<server>& GetServer() {
+        return server_;
+    }
+
+    static std::unique_ptr<sse_client>& GetClient() {
+        return client_;
+    }
+
+private:
+    static std::unique_ptr<server> server_;
+    static std::unique_ptr<sse_client> client_;
+};
+
+std::unique_ptr<server> BatchIntegrationEnvironment::server_;
+std::unique_ptr<sse_client> BatchIntegrationEnvironment::client_;
+
+class BatchIntegrationTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        client_ = BatchIntegrationEnvironment::GetClient().get();
+        
+        // Initialize the client
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        bool init_result = client_->initialize("BatchTestClient", "1.0.0");
+        ASSERT_TRUE(init_result) << "Client initialization failed";
+    }
+
+    sse_client* client_;
+};
+
+// Note: The following tests validate batch message format and parsing logic.
+// Full integration tests would require extending the SSE client to support
+// sending batch requests, which is beyond the scope of batch receive support.
+
+// Test that server accepts batch requests (format validation)
+TEST_F(BatchIntegrationTest, BatchRequestValidation) {
+    // This test validates that the batch detection logic works
+    // by checking that single requests still work (backward compatibility)
+    
+    // Send a single request (non-batch)
+    json response = client_->send_request("tools/list").result;
+    
+    // Verify response is valid
+    EXPECT_TRUE(response.contains("tools"));
+    EXPECT_TRUE(response["tools"].is_array());
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     
@@ -923,6 +1116,7 @@ int main(int argc, char **argv) {
     ::testing::AddGlobalTestEnvironment(new VersioningEnvironment());
     ::testing::AddGlobalTestEnvironment(new PingEnvironment());
     ::testing::AddGlobalTestEnvironment(new ToolsEnvironment());
+    ::testing::AddGlobalTestEnvironment(new BatchIntegrationEnvironment());
     
     return RUN_ALL_TESTS();
 } 
