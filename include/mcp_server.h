@@ -388,9 +388,6 @@ private:
     // Map to track session initialization status (session_id -> initialized)
     std::map<std::string, bool> session_initialized_;
 
-    // Progress tracker for managing progress tokens
-    std::map<std::string, progress_tracker> session_progress_trackers_;
-
     // Handle SSE requests
     void handle_sse(const httplib::Request& req, httplib::Response& res);
     
