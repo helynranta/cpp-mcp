@@ -115,16 +115,24 @@ inline bool validate_request_message(const json& msg_json, std::string& error_me
         return false;
     }
     
-    // Check if this is a notification (no ID) or request (has ID)
+    // Check if ID field is present
     bool has_id = msg_json.contains("id");
-    bool is_notification = !has_id || msg_json["id"].is_null();
     
-    // If ID is present, validate it
-    if (has_id && !is_notification) {
+    if (has_id) {
+        // If ID is present, it must be valid (not null, and string/number)
+        // Per JSON-RPC 2.0: id MUST contain a String, Number, or NULL value
+        // But MCP 2025-03-26 requires: for requests, ID MUST NOT be null
+        // For notifications, ID MUST NOT be present (not even as null)
+        if (msg_json["id"].is_null()) {
+            error_message = "Request 'id' must not be null (for notifications, omit the 'id' field entirely)";
+            return false;
+        }
+        
         if (!validate_request_id(msg_json["id"], false, error_message)) {
             return false;
         }
     }
+    // If no ID field at all, this is a valid notification
     
     // Params field is optional, but if present must be structured
     if (msg_json.contains("params")) {
