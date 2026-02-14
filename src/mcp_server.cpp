@@ -425,28 +425,28 @@ void server::register_tool(const tool& tool, tool_handler handler) {
                     throw mcp_exception(error_code::invalid_params, "Invalid JSON arguments: " + std::string(e.what()));
                 }
             }
-            
-            // Check if tool requires confirmation (MCP 2025-03-26 safety)
-            if (enable_tool_confirmation_ && tool_def.requires_confirmation) {
-                if (tool_confirmation_handler_) {
-                    bool confirmed = tool_confirmation_handler_(tool_name, tool_args, session_id);
-                    if (!confirmed) {
-                        throw mcp_exception(error_code::invalid_request, 
-                            "Tool execution denied: User confirmation required but not granted");
-                    }
-                } else {
-                    // If no confirmation handler is set but tool requires confirmation, deny execution
-                    LOG_WARNING("Tool '", tool_name, "' requires confirmation but no handler is set");
-                    throw mcp_exception(error_code::invalid_request, 
-                        "Tool execution denied: Confirmation required but no handler configured");
-                }
-            }
 
             json tool_result = {
                 {"isError", false}
             };
 
             try {
+                // Check if tool requires confirmation (MCP 2025-03-26 safety)
+                if (enable_tool_confirmation_ && tool_def.requires_confirmation) {
+                    if (tool_confirmation_handler_) {
+                        bool confirmed = tool_confirmation_handler_(tool_name, tool_args, session_id);
+                        if (!confirmed) {
+                            throw mcp_exception(error_code::invalid_request, 
+                                "Tool execution denied: User confirmation required but not granted");
+                        }
+                    } else {
+                        // If no confirmation handler is set but tool requires confirmation, deny execution
+                        LOG_WARNING("Tool '", tool_name, "' requires confirmation but no handler is set");
+                        throw mcp_exception(error_code::invalid_request, 
+                            "Tool execution denied: Confirmation required but no handler configured");
+                    }
+                }
+                
                 tool_result["content"] = it->second.second(tool_args, session_id);
             } catch (const std::exception& e) {
                 tool_result["isError"] = true;
