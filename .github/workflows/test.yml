@@ -123,40 +123,7 @@ jobs:
     - name: Run MCP 2025-03-26 Conformance Tests (REQUIRED)
       run: |
         cd build
-        # Run tests one suite at a time to identify segfault source
-        echo "=== Running MessageFormatTest ==="
-        ./test/mcp_tests --gtest_filter="MessageFormatTest.*" || echo "MessageFormatTest failed"
-        echo "=== Running LifecycleTest ==="
-        ./test/mcp_tests --gtest_filter="LifecycleTest.*" || echo "LifecycleTest failed"
-        echo "=== Running VersioningTest ==="
-        ./test/mcp_tests --gtest_filter="VersioningTest.*" || echo "VersioningTest failed"
-        echo "=== Running PingTest ==="
-        ./test/mcp_tests --gtest_filter="PingTest.*" || echo "PingTest failed"
-        echo "=== Running ToolsTest ==="
-        ./test/mcp_tests --gtest_filter="ToolsTest.*" || echo "ToolsTest failed"
-        echo "=== Running ToolMetadataTest ==="
-        ./test/mcp_tests --gtest_filter="ToolMetadataTest.*" || echo "ToolMetadataTest failed"
-        echo "=== Running ProgressNotificationTest ==="
-        ./test/mcp_tests --gtest_filter="ProgressNotificationTest.*" || echo "ProgressNotificationTest failed"
-        echo "=== Running BatchRequestTest ==="
-        ./test/mcp_tests --gtest_filter="BatchRequestTest.*" || echo "BatchRequestTest failed"
-        echo "=== Running BatchIntegrationTest ==="
-        ./test/mcp_tests --gtest_filter="BatchIntegrationTest.*" || echo "BatchIntegrationTest failed"
-        echo "=== Running JsonRpcServerValidationTest ==="
-        ./test/mcp_tests --gtest_filter="JsonRpcServerValidationTest.*" || echo "JsonRpcServerValidationTest failed"
-        echo "=== Running JsonRpcValidationTest ==="
-        ./test/mcp_tests --gtest_filter="JsonRpcValidationTest.*" || echo "JsonRpcValidationTest failed"
-        echo "=== Running LifecycleComplianceTest ==="
-        ./test/mcp_tests --gtest_filter="LifecycleComplianceTest.*" || echo "LifecycleComplianceTest failed"
-        echo "=== Running StreamableHttpTransportTest ==="
-        ./test/mcp_tests --gtest_filter="StreamableHttpTransportTest.*" || echo "StreamableHttpTransportTest failed"
-        echo "=== Running HttpSecurityTest ==="
-        ./test/mcp_tests --gtest_filter="HttpSecurityTest.*" || echo "HttpSecurityTest failed"
-        echo "=== Running ToolSafetyTest ==="
-        ./test/mcp_tests --gtest_filter="ToolSafetyTest.*" || echo "ToolSafetyTest failed"
-        echo "=== Running McpConformanceTest ==="
-        ./test/mcp_tests --gtest_filter="McpConformanceTest.*" || echo "McpConformanceTest failed"
-        echo "=== All test suites completed ==="
+        ctest --output-on-failure -C Release -R mcp_tests --verbose
     
     - name: Generate Conformance Report
       if: always()
