@@ -6,7 +6,7 @@
  * according to the MCP 2025-03-26 specification.
  */
 
-#include <gtest/gtest.h>
+#include <boost/test/unit_test.hpp>
 #include "mcp_server.h"
 #include "mcp_message.h"
 #include "mcp_http_factory.h"
@@ -17,9 +17,18 @@ using namespace mcp;
 using json = nlohmann::ordered_json;
 
 // Test fixture for lifecycle compliance tests - each test gets isolated server
-class LifecycleComplianceTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+struct LifecycleComplianceTest {
+    int port_;
+    std::unique_ptr<server> server_;
+    std::unique_ptr<http::client_interface> http_client;
+    std::thread sse_thread;
+    std::atomic<http::client_interface*> sse_client_ptr{nullptr};
+    std::string message_endpoint;
+    std::mutex endpoint_mutex;
+    std::condition_variable endpoint_cv;
+    bool endpoint_ready = false;
+
+    LifecycleComplianceTest() {
         // Create server on unique port for this test (avoid conflicts)
         static std::atomic<int> port_counter{16000};
         port_ = port_counter.fetch_add(1);
@@ -62,7 +71,7 @@ protected:
         auto sse_client = http::create_client(base_url);
         
         sse_thread = std::thread([this, sse_client = std::move(sse_client)]() mutable {
-            // Store pointer atomically so TearDown can access it
+            // Store pointer atomically so destructor can access it
             sse_client_ptr.store(sse_client.get(), std::memory_order_release);
             
             sse_client->get_stream("/sse", [this](const char* data, size_t len) {
@@ -97,7 +106,7 @@ protected:
         }
     }
 
-    void TearDown() override {
+    ~LifecycleComplianceTest() {
         // Clean up - SSE client will be destroyed when thread exits
         if (sse_thread.joinable()) {
             // Give the thread a moment to exit
@@ -114,20 +123,12 @@ protected:
         }
         server_.reset();
     }
-
-    int port_;
-    std::unique_ptr<server> server_;
-    std::unique_ptr<http::client_interface> http_client;
-    std::thread sse_thread;
-    std::atomic<http::client_interface*> sse_client_ptr{nullptr};
-    std::string message_endpoint;
-    std::mutex endpoint_mutex;
-    std::condition_variable endpoint_cv;
-    bool endpoint_ready = false;
 };
 
+BOOST_FIXTURE_TEST_SUITE(LifecycleComplianceTestSuite, LifecycleComplianceTest)
+
 // Test that initialize in batch is rejected
-TEST_F(LifecycleComplianceTest, RejectInitializeInBatch) {
+BOOST_AUTO_TEST_CASE(RejectInitializeInBatch) {
     // Create a batch with initialize
     json batch = json::array();
     
@@ -149,19 +150,19 @@ TEST_F(LifecycleComplianceTest, RejectInitializeInBatch) {
     auto res = http_client->post(message_endpoint, headers, batch.dump(), "application/json");
     
     // Should return error (400 Bad Request)
-    ASSERT_TRUE(res.success);
-    EXPECT_EQ(400, res.status_code);
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(400, res.status_code);
     
     // Parse error response
     json error_response = json::parse(res.body);
-    EXPECT_TRUE(error_response.contains("error"));
-    EXPECT_EQ(-32600, error_response["error"]["code"]);
-    EXPECT_NE(std::string::npos, 
+    BOOST_CHECK(error_response.contains("error"));
+    BOOST_CHECK_EQUAL(-32600, error_response["error"]["code"]);
+    BOOST_CHECK_NE(std::string::npos, 
               error_response["error"]["message"].get<std::string>().find("batch"));
 }
 
 // Test that requests before initialize are rejected (except ping)
-TEST_F(LifecycleComplianceTest, RejectRequestsBeforeInitialize) {
+BOOST_AUTO_TEST_CASE(RejectRequestsBeforeInitialize) {
     // Try to call a tool before initialize
     json tool_request = {
         {"jsonrpc", "2.0"},
@@ -177,8 +178,8 @@ TEST_F(LifecycleComplianceTest, RejectRequestsBeforeInitialize) {
     auto res = http_client->post(message_endpoint, headers, tool_request.dump(), "application/json");
     
     // Request should be accepted (202) but response should indicate error
-    ASSERT_TRUE(res.success);
-    EXPECT_EQ(202, res.status_code);
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(202, res.status_code);
     
     // Wait a bit for async processing
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -188,7 +189,7 @@ TEST_F(LifecycleComplianceTest, RejectRequestsBeforeInitialize) {
 }
 
 // Test that ping is allowed before initialize
-TEST_F(LifecycleComplianceTest, AllowPingBeforeInitialize) {
+BOOST_AUTO_TEST_CASE(AllowPingBeforeInitialize) {
     // Send ping request before initialize
     json ping_request = {
         {"jsonrpc", "2.0"},
@@ -200,12 +201,12 @@ TEST_F(LifecycleComplianceTest, AllowPingBeforeInitialize) {
     auto res = http_client->post(message_endpoint, headers, ping_request.dump(), "application/json");
     
     // Request should be accepted
-    ASSERT_TRUE(res.success);
-    EXPECT_EQ(202, res.status_code);
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(202, res.status_code);
 }
 
 // Test that initialize can only be called once
-TEST_F(LifecycleComplianceTest, RejectDuplicateInitialize) {
+BOOST_AUTO_TEST_CASE(RejectDuplicateInitialize) {
     // First initialize
     json init_request = {
         {"jsonrpc", "2.0"},
@@ -220,8 +221,8 @@ TEST_F(LifecycleComplianceTest, RejectDuplicateInitialize) {
     
     http::headers_map headers;
     auto res1 = http_client->post(message_endpoint, headers, init_request.dump(), "application/json");
-    ASSERT_TRUE(res1.success);
-    EXPECT_EQ(202, res1.status_code);
+    BOOST_REQUIRE(res1.success);
+    BOOST_CHECK_EQUAL(202, res1.status_code);
     
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
@@ -230,15 +231,15 @@ TEST_F(LifecycleComplianceTest, RejectDuplicateInitialize) {
     init_request2["id"] = 2;
     
     auto res2 = http_client->post(message_endpoint, headers, init_request2.dump(), "application/json");
-    ASSERT_TRUE(res2.success);
-    EXPECT_EQ(202, res2.status_code);
+    BOOST_REQUIRE(res2.success);
+    BOOST_CHECK_EQUAL(202, res2.status_code);
     
     // Wait for async processing - error response will come via SSE
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 // Test that requests require initialized notification
-TEST_F(LifecycleComplianceTest, RequireInitializedNotification) {
+BOOST_AUTO_TEST_CASE(RequireInitializedNotification) {
     // Send initialize
     json init_request = {
         {"jsonrpc", "2.0"},
@@ -253,8 +254,8 @@ TEST_F(LifecycleComplianceTest, RequireInitializedNotification) {
     
     http::headers_map headers;
     auto res = http_client->post(message_endpoint, headers, init_request.dump(), "application/json");
-    ASSERT_TRUE(res.success);
-    EXPECT_EQ(202, res.status_code);
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(202, res.status_code);
     
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
@@ -270,15 +271,15 @@ TEST_F(LifecycleComplianceTest, RequireInitializedNotification) {
     };
     
     auto res2 = http_client->post(message_endpoint, headers, tool_request.dump(), "application/json");
-    ASSERT_TRUE(res2.success);
-    EXPECT_EQ(202, res2.status_code);
+    BOOST_REQUIRE(res2.success);
+    BOOST_CHECK_EQUAL(202, res2.status_code);
     
     // Error response will come via SSE indicating session not ready
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 // Test complete lifecycle sequence (success path)
-TEST_F(LifecycleComplianceTest, SuccessfulLifecycleSequence) {
+BOOST_AUTO_TEST_CASE(SuccessfulLifecycleSequence) {
     // 1. Initialize
     json init_request = {
         {"jsonrpc", "2.0"},
@@ -293,8 +294,8 @@ TEST_F(LifecycleComplianceTest, SuccessfulLifecycleSequence) {
     
     http::headers_map headers;
     auto res1 = http_client->post(message_endpoint, headers, init_request.dump(), "application/json");
-    ASSERT_TRUE(res1.success);
-    EXPECT_EQ(202, res1.status_code);
+    BOOST_REQUIRE(res1.success);
+    BOOST_CHECK_EQUAL(202, res1.status_code);
     
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
@@ -305,8 +306,8 @@ TEST_F(LifecycleComplianceTest, SuccessfulLifecycleSequence) {
     };
     
     auto res2 = http_client->post(message_endpoint, headers, initialized_notif.dump(), "application/json");
-    ASSERT_TRUE(res2.success);
-    EXPECT_EQ(202, res2.status_code);
+    BOOST_REQUIRE(res2.success);
+    BOOST_CHECK_EQUAL(202, res2.status_code);
     
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
@@ -322,15 +323,15 @@ TEST_F(LifecycleComplianceTest, SuccessfulLifecycleSequence) {
     };
     
     auto res3 = http_client->post(message_endpoint, headers, tool_request.dump(), "application/json");
-    ASSERT_TRUE(res3.success);
-    EXPECT_EQ(202, res3.status_code);
+    BOOST_REQUIRE(res3.success);
+    BOOST_CHECK_EQUAL(202, res3.status_code);
     
     // Request should succeed (response via SSE)
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 // Test cancellation notification handling
-TEST_F(LifecycleComplianceTest, CancellationNotificationHandling) {
+BOOST_AUTO_TEST_CASE(CancellationNotificationHandling) {
     // Set up cancellation handler to track calls
     std::atomic<bool> cancellation_received{false};
     json cancelled_request_id;
@@ -377,14 +378,16 @@ TEST_F(LifecycleComplianceTest, CancellationNotificationHandling) {
     };
     
     auto res = http_client->post(message_endpoint, headers, cancel_notif.dump(), "application/json");
-    ASSERT_TRUE(res.success);
-    EXPECT_EQ(202, res.status_code);
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(202, res.status_code);
     
     // Wait for notification to be processed
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     // Verify cancellation handler was called
-    EXPECT_TRUE(cancellation_received.load());
-    EXPECT_EQ(42, cancelled_request_id);
-    EXPECT_EQ("User requested cancellation", cancellation_reason);
+    BOOST_CHECK(cancellation_received.load());
+    BOOST_CHECK_EQUAL(42, cancelled_request_id);
+    BOOST_CHECK_EQUAL("User requested cancellation", cancellation_reason);
 }
+
+BOOST_AUTO_TEST_SUITE_END()

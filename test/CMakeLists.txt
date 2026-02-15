@@ -12,8 +12,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Find required packages
 find_package(Threads REQUIRED)
 
-# Find GTest from vcpkg
-find_package(GTest REQUIRED)
+# Find Boost.Test from vcpkg
+find_package(Boost REQUIRED COMPONENTS unit_test_framework)
 
 # Include header directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../include)
@@ -47,12 +47,9 @@ else()
     set(MCP_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../build/src/libmcp.a")
 endif()
 
-# Link Google Test and MCP library
+# Link Boost.Test and MCP library
 target_link_libraries(${TEST_PROJECT_NAME} PRIVATE
-    GTest::gtest
-    GTest::gtest_main
-    GTest::gmock
-    GTest::gmock_main
+    Boost::unit_test_framework
     mcp
     Threads::Threads
 )

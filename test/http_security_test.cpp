@@ -6,7 +6,7 @@
  * and other HTTP transport security features.
  */
 
-#include <gtest/gtest.h>
+#include <boost/test/unit_test.hpp>
 #include "mcp_server.h"
 #include "mcp_http_factory.h"
 #include <thread>
@@ -14,14 +14,13 @@
 
 using namespace mcp;
 
-class HttpSecurityTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+struct HttpSecurityTest {
+    HttpSecurityTest() {
         // Port for this test suite
         test_port = 9100;
     }
 
-    void TearDown() override {
+    ~HttpSecurityTest() {
         if (server) {
             server->stop();
             server.reset();
@@ -34,8 +33,10 @@ protected:
     std::unique_ptr<mcp::server> server;
 };
 
+BOOST_FIXTURE_TEST_SUITE(HttpSecurityTest, HttpSecurityTest)
+
 // Test: Origin validation enabled by default for localhost
-TEST_F(HttpSecurityTest, OriginValidationEnabledByDefault) {
+BOOST_AUTO_TEST_CASE(OriginValidationEnabledByDefault) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -55,12 +56,12 @@ TEST_F(HttpSecurityTest, OriginValidationEnabledByDefault) {
     };
     
     auto res = client->post("/mcp", headers, "{}", "application/json");
-    ASSERT_TRUE(res.success) << "POST with valid localhost origin should succeed";
-    EXPECT_NE(403, res.status_code) << "Should not be forbidden with valid origin";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_NE(403, res.status_code);
 }
 
 // Test: Origin validation rejects invalid origins
-TEST_F(HttpSecurityTest, InvalidOriginRejected) {
+BOOST_AUTO_TEST_CASE(InvalidOriginRejected) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -81,12 +82,12 @@ TEST_F(HttpSecurityTest, InvalidOriginRejected) {
     };
     
     auto res = client->post("/mcp", headers, "{}", "application/json");
-    ASSERT_TRUE(res.success) << "POST should return a response";
-    EXPECT_EQ(403, res.status_code) << "Should be forbidden with invalid origin";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(403, res.status_code);
 }
 
 // Test: Origin validation with port numbers
-TEST_F(HttpSecurityTest, OriginValidationWithPort) {
+BOOST_AUTO_TEST_CASE(OriginValidationWithPort) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -107,12 +108,12 @@ TEST_F(HttpSecurityTest, OriginValidationWithPort) {
     };
     
     auto res = client->post("/mcp", headers, "{}", "application/json");
-    ASSERT_TRUE(res.success) << "POST should return a response";
-    EXPECT_NE(403, res.status_code) << "Should accept localhost with different port";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_NE(403, res.status_code);
 }
 
 // Test: Origin validation disabled
-TEST_F(HttpSecurityTest, OriginValidationDisabled) {
+BOOST_AUTO_TEST_CASE(OriginValidationDisabled) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -132,23 +133,23 @@ TEST_F(HttpSecurityTest, OriginValidationDisabled) {
     };
     
     auto res = client->post("/mcp", headers, "{}", "application/json");
-    ASSERT_TRUE(res.success) << "POST should return a response";
-    EXPECT_NE(403, res.status_code) << "Should not be forbidden when validation is disabled";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_NE(403, res.status_code);
 }
 
 // Test: DELETE endpoint validates Origin
 // DISABLED: DELETE method not yet implemented in Beast client
-TEST_F(HttpSecurityTest, DISABLED_DeleteValidatesOrigin) {
+BOOST_AUTO_TEST_CASE(DISABLED_DeleteValidatesOrigin) {
     // TODO: Re-enable when DELETE method is implemented
 }
 
 // DISABLED: OPTIONS method not yet implemented in Beast client
-TEST_F(HttpSecurityTest, DISABLED_CorsHeadersReflectAllowedOrigin) {
+BOOST_AUTO_TEST_CASE(DISABLED_CorsHeadersReflectAllowedOrigin) {
     // TODO: Re-enable when OPTIONS method is implemented
 }
 
 // Test: 127.0.0.1 origin is allowed by default
-TEST_F(HttpSecurityTest, LocalhostIpAllowedByDefault) {
+BOOST_AUTO_TEST_CASE(LocalhostIpAllowedByDefault) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -169,12 +170,12 @@ TEST_F(HttpSecurityTest, LocalhostIpAllowedByDefault) {
     };
     
     auto res = client->post("/mcp", headers, "{}", "application/json");
-    ASSERT_TRUE(res.success) << "POST should return a response";
-    EXPECT_NE(403, res.status_code) << "Should accept 127.0.0.1 origin by default";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_NE(403, res.status_code);
 }
 
 // Test: Custom allowed origins
-TEST_F(HttpSecurityTest, CustomAllowedOrigins) {
+BOOST_AUTO_TEST_CASE(CustomAllowedOrigins) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -195,8 +196,8 @@ TEST_F(HttpSecurityTest, CustomAllowedOrigins) {
     };
     
     auto res_valid = client->post("/mcp", headers_valid, "{}", "application/json");
-    ASSERT_TRUE(res_valid.success) << "POST should return a response";
-    EXPECT_NE(403, res_valid.status_code) << "Should accept custom allowed origin";
+    BOOST_REQUIRE(res_valid.success);
+    BOOST_CHECK_NE(403, res_valid.status_code);
     
     // Test POST with non-allowed origin
     http::headers_map headers_invalid = {
@@ -205,6 +206,8 @@ TEST_F(HttpSecurityTest, CustomAllowedOrigins) {
     };
     
     auto res_invalid = client->post("/mcp", headers_invalid, "{}", "application/json");
-    ASSERT_TRUE(res_invalid.success) << "POST should return a response";
-    EXPECT_EQ(403, res_invalid.status_code) << "Should reject localhost when not in allowed list";
+    BOOST_REQUIRE(res_invalid.success);
+    BOOST_CHECK_EQUAL(403, res_invalid.status_code);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
