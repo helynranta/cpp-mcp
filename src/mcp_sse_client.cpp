@@ -490,7 +490,8 @@ void sse_client::close_sse_connection() {
         sse_client_->stop();
     }
     
-    // Give the stream a moment to detect the shutdown
+    // Give the stream time to detect the shutdown and return from get_stream()
+    // This allows the thread's blocking I/O to complete cleanly
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     // jthread automatically requests stop and joins when destroyed

@@ -93,11 +93,12 @@ protected:
         std::string sse_url = "http://localhost:" + std::to_string(port_);
         auto sse_client = http::create_client(sse_url);
         std::atomic<http::client_interface*> client_ptr{nullptr};
+        auto* sse_client_ptr = sse_client.get();  // Capture raw pointer for thread safety
         
-        std::thread sse_thread([&]() {
-            client_ptr.store(sse_client.get(), std::memory_order_release);
+        std::thread sse_thread([&, sse_client_ptr]() {
+            client_ptr.store(sse_client_ptr, std::memory_order_release);
             
-            auto res = sse_client->get_stream("/mcp", 
+            auto res = sse_client_ptr->get_stream("/mcp", 
                 [&](const char* data, size_t len) {
                     std::string response(data, len);
                     
@@ -347,13 +348,14 @@ TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
     std::mutex mtx;
     std::condition_variable cv;
     std::string sse_url = "http://localhost:" + std::to_string(port_);
-        auto sse_client = http::create_client(sse_url);
+    auto sse_client = http::create_client(sse_url);
     std::atomic<http::client_interface*> client_ptr{nullptr};
+    auto* sse_client_ptr = sse_client.get();  // Capture raw pointer for thread safety
     
-    std::thread sse_thread([&]() {
-        client_ptr.store(sse_client.get(), std::memory_order_release);
+    std::thread sse_thread([&, sse_client_ptr]() {
+        client_ptr.store(sse_client_ptr, std::memory_order_release);
         
-        sse_client->get_stream("/sse", [&](const char* data, size_t len) {
+        sse_client_ptr->get_stream("/sse", [&](const char* data, size_t len) {
             std::string response(data, len);
             
             if (response.find("endpoint") != std::string::npos) {
