@@ -3,7 +3,9 @@
   "name": "cpp-mcp",
   "version": "2024.11.5",
   "dependencies": [
-    "boost-beast"
+    "boost-beast",
+    "boost-asio",
+    "boost-system"
   ],
   "features": {
     "tests": {
