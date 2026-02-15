@@ -41,8 +41,7 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 This project uses vcpkg for dependency management. The following dependencies are automatically fetched via vcpkg:
 
 - **Boost.Beast** (`boost-beast`) - HTTP and WebSocket networking library
-- **Boost.Asio** (`boost-asio`) - Asynchronous I/O library (required by Beast)
-- **Boost.System** (`boost-system`) - System error handling (required by Beast and Asio)
+  - Automatically includes Boost.Asio (asynchronous I/O) and Boost.System (error handling) as transitive dependencies
 
 All Boost components are version 1.90.0 and managed through vcpkg manifest mode (`vcpkg.json`).
 
@@ -103,17 +102,15 @@ This project uses vcpkg's manifest mode for dependency management. Dependencies 
 ```json
 {
   "dependencies": [
-    "boost-beast",
-    "boost-asio",
-    "boost-system"
+    "boost-beast"
   ]
 }
 ```
 
 When you configure CMake with the vcpkg toolchain file, vcpkg automatically:
 - Downloads and builds the specified Boost components
+- Resolves and installs all transitive dependencies (Boost.Asio, Boost.System, etc.)
 - Makes them available to CMake via `find_package()`
-- Handles all transitive dependencies
 
 #### CMake Integration
 
