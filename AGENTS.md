@@ -70,8 +70,9 @@ cd build && ctest -R mcp_tests -V
 **Running Tests:**
 
 ```bash
-# Configure with tests enabled
+# Configure with tests enabled (vcpkg will automatically install GoogleTest)
 cmake -B build -DMCP_BUILD_TESTS=ON \
+  -DVCPKG_MANIFEST_FEATURES="tests" \
   -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
 
 # Build
@@ -130,7 +131,7 @@ cpp-mcp/
 │   └── ...
 ├── test/             # Test files
 │   ├── mcp_test.cpp         # GoogleTest tests
-│   └── googletest/          # GoogleTest submodule
+│   └── ...                  # Other test files
 ├── examples/         # Example applications
 │   ├── server_example.cpp
 │   ├── stdio_client_example.cpp
