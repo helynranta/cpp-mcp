@@ -7,9 +7,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-permissions:
-  packages: write
-
 jobs:
   test-linux:
     name: Test on Linux
@@ -56,11 +53,19 @@ jobs:
     runs-on: windows-latest
     
     env:
-      VCPKG_BINARY_SOURCES: 'clear;nuget,https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json,readwrite'
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/vcpkg-cache,readwrite'
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+    
+    - name: Restore vcpkg cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg-cache
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+        restore-keys: |
+          vcpkg-${{ runner.os }}-
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
