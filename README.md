@@ -41,8 +41,7 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 This project uses vcpkg for dependency management. The following dependencies are automatically fetched via vcpkg:
 
 - **Boost.Beast** (boost-beast) - HTTP and WebSocket networking library
-- **Boost.Asio** (boost-asio) - Asynchronous I/O library
-- **Boost.System** (boost-system) - System error handling
+  - Includes Boost.Asio and Boost.System as transitive dependencies
 
 ### Build Instructions
 
