@@ -324,6 +324,12 @@ void sse_client::open_sse_connection() {
                 
                 retry_count = 0;
                 LOG_INFO("SSE thread: Connection successful");
+                
+                // Check if we should exit before retrying connection
+                if (!sse_running_) {
+                    LOG_INFO("SSE connection actively closed after stream ended");
+                    break;
+                }
             } catch (const std::exception& e) {                
                 if (!sse_running_) {
                     LOG_INFO("SSE connection actively closed, no retry needed");
