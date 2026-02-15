@@ -127,7 +127,7 @@ public:
     {
         // SSL support will be added later
         if (use_ssl) {
-            throw std::runtime_error("SSL not yet implemented for beast_server");
+            throw std::runtime_error("SSL/TLS support not yet implemented for beast_server. Use create_httplib_server() for SSL support or disable SSL for now.");
         }
     }
     
@@ -178,6 +178,8 @@ public:
         if (io_context_) {
             io_context_->stop();
         }
+        // Give active connections time to finish
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         if (server_thread_.joinable()) {
             server_thread_.join();
         }
@@ -346,7 +348,7 @@ public:
         }
         
         if (scheme_ == "https") {
-            throw std::runtime_error("HTTPS not yet implemented for beast_client");
+            throw std::runtime_error("HTTPS support not yet implemented for beast_client. Use create_httplib_client() for HTTPS support or use HTTP for now.");
         }
     }
     
