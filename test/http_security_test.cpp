@@ -33,7 +33,7 @@ struct HttpSecurityTest {
     std::unique_ptr<mcp::server> server;
 };
 
-BOOST_FIXTURE_TEST_SUITE(HttpSecurityTest, HttpSecurityTest)
+BOOST_FIXTURE_TEST_SUITE(HttpSecurityTestSuite, HttpSecurityTest)
 
 // Test: Origin validation enabled by default for localhost
 BOOST_AUTO_TEST_CASE(OriginValidationEnabledByDefault) {

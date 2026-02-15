@@ -26,7 +26,7 @@ struct JsonRpcValidationTest {
 
 // ===== Request ID Validation Tests =====
 
-BOOST_FIXTURE_TEST_SUITE(JsonRpcValidationTest, JsonRpcValidationTest)
+BOOST_FIXTURE_TEST_SUITE(JsonRpcValidationTestSuite, JsonRpcValidationTest)
 
 BOOST_AUTO_TEST_CASE(ValidRequestIdString) {
     json id = "request-123";

@@ -162,7 +162,7 @@ BOOST_AUTO_TEST_CASE(HeadersInResult) {
     BOOST_CHECK_EQUAL(2, result.headers.size());
     
     auto it = result.headers.find("Content-Type");
-    BOOST_REQUIRE_NE(it, result.headers.end());
+    BOOST_REQUIRE(it != result.headers.end());
     BOOST_CHECK_EQUAL("application/json", it->second);
 }
 
@@ -330,11 +330,11 @@ BOOST_AUTO_TEST_CASE(CaseSensitivity) {
     BOOST_CHECK_EQUAL(2, headers.size());
     
     auto it1 = headers.find("Content-Type");
-    BOOST_REQUIRE_NE(it1, headers.end());
+    BOOST_REQUIRE(it1 != headers.end());
     BOOST_CHECK_EQUAL("text/html", it1->second);
     
     auto it2 = headers.find("content-type");
-    BOOST_REQUIRE_NE(it2, headers.end());
+    BOOST_REQUIRE(it2 != headers.end());
     BOOST_CHECK_EQUAL("application/json", it2->second);
 }
 

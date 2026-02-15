@@ -381,7 +381,7 @@ BOOST_AUTO_TEST_CASE(GetRequest) {
     BOOST_CHECK_EQUAL(result.body, "{\"status\":\"ok\"}");
     
     auto header_it = result.headers.find("X-Test-Header");
-    BOOST_CHECK_NE(header_it, result.headers.end());
+    BOOST_CHECK(header_it != result.headers.end());
     if (header_it != result.headers.end()) {
         BOOST_CHECK_EQUAL(header_it->second, "test-value");
     }

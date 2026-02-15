@@ -5,6 +5,7 @@
  * This file contains tests for the message format, lifecycle, version control, ping, and tool functionality of the MCP framework.
  */
 
+#define BOOST_TEST_MODULE MCP_Tests
 #include <boost/test/unit_test.hpp>
 #include "mcp_message.h"
 #include "mcp_client.h"

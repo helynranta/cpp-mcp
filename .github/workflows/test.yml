@@ -32,7 +32,7 @@ jobs:
     - name: Build
       run: cmake --build build --config Release -j$(nproc)
     
-    - name: Run GoogleTest tests
+    - name: Run Boost.Test tests
       run: |
         cd build
         ctest --output-on-failure -C Release -R mcp_tests
@@ -61,7 +61,7 @@ jobs:
     - name: Build
       run: cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
     
-    - name: Run GoogleTest tests
+    - name: Run Boost.Test tests
       run: |
         cd build
         ctest --output-on-failure -C Release -R mcp_tests
