@@ -23,23 +23,32 @@ sse_client::~sse_client() {
 
 
 void sse_client::init_client(const std::string& scheme_host_port, bool validate_certificates, const std::string& ca_cert_path) {
-    http_client_ = std::make_unique<httplib::Client>(scheme_host_port.c_str());
-    sse_client_ = std::make_unique<httplib::Client>(scheme_host_port.c_str());
+    // Create two separate clients using HTTP factory (Beast by default)
+    // One for regular JSON-RPC POST requests, one for SSE GET streaming
+    http_client_ = http::create_client(scheme_host_port);
+    sse_client_ = http::create_client(scheme_host_port);
 
-    http_client_->set_connection_timeout(timeout_seconds_, 0);
-    http_client_->set_read_timeout(timeout_seconds_, 0);
-    http_client_->set_write_timeout(timeout_seconds_, 0);
+    // Configure timeouts for HTTP client
+    http_client_->set_connection_timeout(timeout_seconds_);
+    http_client_->set_read_timeout(timeout_seconds_);
+    http_client_->set_write_timeout(timeout_seconds_);
     
-    sse_client_->set_connection_timeout(timeout_seconds_ * 2, 0);
-    sse_client_->set_write_timeout(timeout_seconds_, 0);
+    // Configure timeouts for SSE client (longer connection timeout for streaming)
+    sse_client_->set_connection_timeout(timeout_seconds_ * 2);
+    sse_client_->set_write_timeout(timeout_seconds_);
 
     #ifdef MCP_SSL
-    http_client_->enable_server_certificate_verification(validate_certificates);
-    sse_client_->enable_server_certificate_verification(validate_certificates);
+    // Configure SSL/TLS if enabled
+    http_client_->set_certificate_verification(validate_certificates);
+    sse_client_->set_certificate_verification(validate_certificates);
     if (!ca_cert_path.empty()) {
-        http_client_->set_ca_cert_path(ca_cert_path.c_str());
-        sse_client_->set_ca_cert_path(ca_cert_path.c_str());
+        http_client_->set_ca_cert_path(ca_cert_path);
+        sse_client_->set_ca_cert_path(ca_cert_path);
     }
+    #else
+    // Suppress unused parameter warnings
+    (void)validate_certificates;
+    (void)ca_cert_path;
     #endif
 }
 
@@ -129,11 +138,20 @@ void sse_client::set_header(const std::string& key, const std::string& value) {
     std::lock_guard<std::mutex> lock(mutex_);
     default_headers_[key] = value;
     
+    // Update default headers on both clients
     if (http_client_) {
-        http_client_->set_default_headers({{key, value}});
+        http::headers_map headers;
+        for (const auto& [k, v] : default_headers_) {
+            headers.emplace(k, v);
+        }
+        http_client_->set_default_headers(headers);
     }
     if (sse_client_) {
-        sse_client_->set_default_headers({{key, value}});
+        http::headers_map headers;
+        for (const auto& [k, v] : default_headers_) {
+            headers.emplace(k, v);
+        }
+        sse_client_->set_default_headers(headers);
     }
 }
 
@@ -142,13 +160,15 @@ void sse_client::set_timeout(int timeout_seconds) {
     timeout_seconds_ = timeout_seconds;
     
     if (http_client_) {
-        http_client_->set_connection_timeout(timeout_seconds_, 0);
-        http_client_->set_write_timeout(timeout_seconds_, 0);
+        http_client_->set_connection_timeout(timeout_seconds_);
+        http_client_->set_write_timeout(timeout_seconds_);
+        http_client_->set_read_timeout(timeout_seconds_);
     }
     
     if (sse_client_) {
-        sse_client_->set_connection_timeout(timeout_seconds_ * 2, 0);
-        sse_client_->set_write_timeout(timeout_seconds_, 0);
+        sse_client_->set_connection_timeout(timeout_seconds_ * 2);
+        sse_client_->set_write_timeout(timeout_seconds_);
+        sse_client_->set_read_timeout(timeout_seconds_);
     }
 }
 
@@ -263,8 +283,9 @@ void sse_client::open_sse_connection() {
                 LOG_INFO("SSE thread: Attempting to connect to ", sse_endpoint_);
                 
                 std::string buffer;
-                auto res = sse_client_->Get(sse_endpoint_, 
-                    [&,this](const char *data, size_t data_length) {
+                // Use client_interface::get_stream() instead of httplib::Client::Get()
+                auto res = sse_client_->get_stream(sse_endpoint_, 
+                    [&,this](const char *data, size_t data_length) -> bool {
                         buffer.append(data, data_length);
                         
                         // Normalize CRLF to LF
@@ -290,9 +311,14 @@ void sse_client::open_sse_connection() {
                         return sse_running_.load();
                     });
                 
-                if (!res || res->status / 100 != 2) {
+                // Check client_result instead of httplib::Result
+                if (!res || res.status_code / 100 != 2) {
                     std::string error_msg = "SSE connection failed: ";
-                    error_msg += httplib::to_string(res.error());
+                    if (!res.success) {
+                        error_msg += res.error_message;
+                    } else {
+                        error_msg += "HTTP " + std::to_string(res.status_code);
+                    }
                     throw std::runtime_error(error_msg);
                 }
                 
@@ -509,7 +535,8 @@ json sse_client::send_jsonrpc(const request& req) {
     json req_json = req.to_json();
     std::string req_body = req_json.dump();
     
-    httplib::Headers headers;
+    // Build headers map for abstraction layer
+    http::headers_map headers;
     headers.emplace("Content-Type", "application/json");
     
     for (const auto& [key, value] : default_headers_) {
@@ -517,13 +544,12 @@ json sse_client::send_jsonrpc(const request& req) {
     }
     
     if (req.is_notification()) {
-        auto result = http_client_->Post(msg_endpoint_, headers, req_body, "application/json");
+        // Use client_interface::post() instead of httplib::Client::Post()
+        auto result = http_client_->post(msg_endpoint_, headers, req_body, "application/json");
         
-        if (!result) {
-            auto err = result.error();
-            std::string error_msg = httplib::to_string(err);
-            LOG_ERROR("JSON-RPC request failed: ", error_msg);
-            throw mcp_exception(error_code::internal_error, error_msg);
+        if (!result.success) {
+            LOG_ERROR("JSON-RPC request failed: ", result.error_message);
+            throw mcp_exception(error_code::internal_error, result.error_message);
         }
         
         return json::object();
@@ -537,24 +563,22 @@ json sse_client::send_jsonrpc(const request& req) {
         pending_requests_[req.id] = std::move(response_promise);
     }
     
-    auto result = http_client_->Post(msg_endpoint_, headers, req_body, "application/json");
+    // Use client_interface::post() instead of httplib::Client::Post()
+    auto result = http_client_->post(msg_endpoint_, headers, req_body, "application/json");
     
-    if (!result) {
-        auto err = result.error();
-        std::string error_msg = httplib::to_string(err);
-        
+    if (!result.success) {
         {
             std::lock_guard<std::mutex> response_lock(response_mutex_);
             pending_requests_.erase(req.id);
         }
         
-        LOG_ERROR("JSON-RPC request failed: ", error_msg);
-        throw mcp_exception(error_code::internal_error, error_msg);
+        LOG_ERROR("JSON-RPC request failed: ", result.error_message);
+        throw mcp_exception(error_code::internal_error, result.error_message);
     }
     
-    if (result->status / 100 != 2) {
+    if (result.status_code / 100 != 2) {
         try {
-            json res_json = json::parse(result->body);
+            json res_json = json::parse(result.body);
             
             {
                 std::lock_guard<std::mutex> response_lock(response_mutex_);
