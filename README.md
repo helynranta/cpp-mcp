@@ -106,6 +106,27 @@ cmake -B build
 cmake --build build --config Release
 ```
 
+#### Running Tests
+
+Build and run the test suite to verify the installation:
+
+```bash
+# Configure with tests enabled
+cmake -B build \
+  -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+  -DMCP_BUILD_TESTS=ON \
+  -DVCPKG_MANIFEST_FEATURES="tests"
+
+# Build tests
+cmake --build build --config Release
+
+# Run all tests
+cd build && ctest -V
+
+# Run specific test suite
+./test/mcp_tests --gtest_filter="BeastClientTest.*"
+```
+
 ### Boost Integration Details
 
 #### vcpkg Manifest Mode
@@ -396,7 +417,16 @@ cmake --build build --target server_example
 ./build/examples/server_example
 ```
 
-The server listens on `http://localhost:8888` by default.
+The server listens on `http://localhost:8888` by default. You can verify it's working by connecting with the SSE client example in another terminal.
+
+**Testing:**
+```bash
+# Terminal 1: Start the server
+./build/examples/server_example
+
+# Terminal 2: Connect with the client
+./build/examples/sse_client_example
+```
 
 ### SSE Client Example ([`examples/sse_client_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/sse_client_example.cpp))
 
