@@ -214,8 +214,8 @@ private:
     // SSE HTTP client (for SSE GET streaming)
     std::unique_ptr<http::client_interface> sse_client_;
     
-    // SSE thread
-    std::unique_ptr<std::thread> sse_thread_;
+    // SSE thread - using C++20 jthread for automatic joining and cooperative cancellation
+    std::unique_ptr<std::jthread> sse_thread_;
     
     // SSE running status
     std::atomic<bool> sse_running_{false};

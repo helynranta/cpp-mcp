@@ -273,12 +273,12 @@ void sse_client::open_sse_connection() {
     std::string connection_info = "Base URL: " + scheme_host_port_ + ", SSE Endpoint: " + sse_endpoint_;    
     LOG_INFO("Attempting to establish SSE connection: ", connection_info);
     
-    sse_thread_ = std::make_unique<std::thread>([this]() {
+    sse_thread_ = std::make_unique<std::jthread>([this](std::stop_token stoken) {
         int retry_count = 0;
         const int max_retries = 5;
         const int retry_delay_base = 1000;
         
-        while (sse_running_) {
+        while (sse_running_ && !stoken.stop_requested()) {
             try {
                 LOG_INFO("SSE thread: Attempting to connect to ", sse_endpoint_);
                 
@@ -482,19 +482,22 @@ void sse_client::close_sse_connection() {
     
     // Stop the SSE client to interrupt the blocking Get() call
     // This is thread-safe and will shutdown the socket
+    // Signal the thread to stop
+    sse_running_ = false;
+    
+    // Stop the SSE client connection to unblock any pending reads
     if (sse_client_) {
         sse_client_->stop();
     }
     
-    // Signal the thread to stop
-    sse_running_ = false;
+    // Give the stream a moment to detect the shutdown
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
-    // Give the thread a moment to detect the socket shutdown
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
-    if (sse_thread_ && sse_thread_->joinable()) {
+    // jthread automatically requests stop and joins when destroyed
+    if (sse_thread_) {
         LOG_INFO("Waiting for SSE thread to end...");
-        sse_thread_->join();  // Join exactly once - never retry
+        sse_thread_->request_stop();  // Request cooperative cancellation
+        sse_thread_.reset();  // jthread destructor will join automatically
         LOG_INFO("SSE thread successfully ended");
     }
     
