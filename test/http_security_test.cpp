@@ -195,8 +195,8 @@ TEST_F(HttpSecurityTest, CustomAllowedOrigins) {
     };
     
     auto res_valid = client->post("/mcp", headers_valid, "{}", "application/json");
-    ASSERT_TRUE(res_valid) << "POST should return a response";
-    EXPECT_NE(403, res_valid->status) << "Should accept custom allowed origin";
+    ASSERT_TRUE(res_valid.success) << "POST should return a response";
+    EXPECT_NE(403, res_valid.status_code) << "Should accept custom allowed origin";
     
     // Test POST with non-allowed origin
     http::headers_map headers_invalid = {
@@ -205,6 +205,6 @@ TEST_F(HttpSecurityTest, CustomAllowedOrigins) {
     };
     
     auto res_invalid = client->post("/mcp", headers_invalid, "{}", "application/json");
-    ASSERT_TRUE(res_invalid) << "POST should return a response";
-    EXPECT_EQ(403, res_invalid->status) << "Should reject localhost when not in allowed list";
+    ASSERT_TRUE(res_invalid.success) << "POST should return a response";
+    EXPECT_EQ(403, res_invalid.status_code) << "Should reject localhost when not in allowed list";
 }
