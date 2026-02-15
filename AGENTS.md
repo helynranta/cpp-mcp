@@ -203,6 +203,16 @@ Dependencies are managed via vcpkg:
 3. **Update CI workflow** if needed (.github/workflows/test.yml)
 4. **Document changes** in commit message
 
+#### Current Dependencies
+
+The project currently depends on:
+
+- **Boost.Beast** (`boost-beast`) - HTTP and WebSocket networking library
+- **Boost.Asio** (`boost-asio`) - Asynchronous I/O library  
+- **Boost.System** (`boost-system`) - System error handling
+
+These are automatically fetched and built by vcpkg when using the vcpkg toolchain file.
+
 ## CI/CD Pipeline
 
 The project uses GitHub Actions for continuous integration:

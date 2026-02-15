@@ -36,25 +36,62 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 
 ## How to Build
 
-Example of building with CMake:
+### Dependencies
+
+This project uses vcpkg for dependency management. The following dependencies are automatically fetched via vcpkg:
+
+- **Boost.Beast** (boost-beast) - HTTP and WebSocket networking library
+- **Boost.Asio** (boost-asio) - Asynchronous I/O library
+- **Boost.System** (boost-system) - System error handling
+
+### Build Instructions
+
+#### Using vcpkg (Recommended)
+
+Building with vcpkg ensures all dependencies are automatically installed:
+
+```bash
+# Configure with vcpkg toolchain
+cmake -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
+
+# Build
+cmake --build build --config Release
+```
+
+On Linux, you can typically use:
+```bash
+cmake -B build -DCMAKE_TOOLCHAIN_FILE=/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build build --config Release
+```
+
+#### Build with tests:
+```bash
+git submodule update --init --recursive # Get GoogleTest
+
+cmake -B build \
+  -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+  -DMCP_BUILD_TESTS=ON
+
+cmake --build build --config Release
+```
+
+#### Build with SSL support:
+```bash
+git submodule update --init --recursive # Get GoogleTest
+
+cmake -B build \
+  -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+  -DMCP_SSL=ON
+
+cmake --build build --config Release
+```
+
+#### Without vcpkg (Manual dependency installation)
+
+If you prefer to install Boost manually, ensure Boost (version 1.70+) is installed on your system and build without the vcpkg toolchain file:
+
 ```bash
 cmake -B build
-cmake --build build --config Release
-```
-
-Build with tests:
-```
-git submodule update --init --recursive # Get GoogleTest
-
-cmake -B build -DMCP_BUILD_TESTS=ON
-cmake --build build --config Release
-```
-
-Build with SSL support:
-```
-git submodule update --init --recursive # Get GoogleTest
-
-cmake -B build -DMCP_SSL=ON
 cmake --build build --config Release
 ```
 
