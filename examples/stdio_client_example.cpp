@@ -1,9 +1,20 @@
 /**
  * @file stdio_client_example.cpp
- * @brief Example of using the MCP stdio client
+ * @brief MCP stdio (standard input/output) client example
  * 
  * This example demonstrates how to use the MCP stdio client to connect to a server
- * using standard input/output as the transport mechanism.
+ * using standard input/output as the transport mechanism (e.g., for subprocess communication).
+ * 
+ * Demonstrates:
+ * - Launching an MCP server as a subprocess
+ * - Communicating via stdin/stdout
+ * - Passing environment variables
+ * - Listing tools and resources
+ * - Reading resource contents
+ * 
+ * Source code: https://github.com/helynranta/cpp-mcp/blob/main/examples/stdio_client_example.cpp
+ * Related APIs:
+ * - Stdio Client: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_stdio_client.h
  */
 
 #include "mcp_stdio_client.h"

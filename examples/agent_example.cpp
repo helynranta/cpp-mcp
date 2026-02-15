@@ -1,6 +1,22 @@
-#include "httplib.h"
+/**
+ * @file agent_example.cpp
+ * @brief AI Agent example using MCP server and LLM integration
+ * 
+ * This example demonstrates how to create an AI agent that:
+ * - Runs an MCP server with tools (e.g., calculator)
+ * - Connects to an external LLM API (OpenAI, OpenRouter, etc.) using Boost.Beast HTTP client
+ * - Allows the LLM to call MCP tools to answer user queries
+ * - Implements a simple chat loop with tool execution
+ * 
+ * Source code: https://github.com/helynranta/cpp-mcp/blob/main/examples/agent_example.cpp
+ * Related APIs:
+ * - MCP Server: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_server.h
+ * - MCP SSE Client: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_sse_client.h
+ * - HTTP Client (Boost.Beast): https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_http_factory.h
+ */
 #include "mcp_server.h"
 #include "mcp_sse_client.h"
+#include "mcp_http_factory.h"
 
 struct Config {
     // LLM Config
@@ -170,10 +186,13 @@ static bool readline_utf8(std::string & line, bool multiline_input) {
 }
 
 static mcp::json ask_tool(const mcp::json& messages, const mcp::json& tools, int max_retries = 3) {
-    static httplib::Client client(config.base_url);
-    client.set_default_headers({
-        {"Authorization", "Bearer " + config.api_key}
-    });
+    // Create HTTP client using Boost.Beast
+    static auto client = mcp::http::create_client(config.base_url);
+    
+    // Set default headers
+    mcp::http::headers_map headers;
+    headers.emplace("Authorization", "Bearer " + config.api_key);
+    client->set_default_headers(headers);
 
     mcp::json body = {
         {"model", config.model},
@@ -189,21 +208,22 @@ static mcp::json ask_tool(const mcp::json& messages, const mcp::json& tools, int
     int retry = 0;
 
     while (retry <= max_retries) {
-        // send request
-        auto res = client.Post(config.endpoint, body_str, "application/json");
+        // Send request using Beast client
+        mcp::http::headers_map request_headers;
+        auto res = client->post(config.endpoint, request_headers, body_str, "application/json");
 
-        if (!res) {
-            std::cerr << std::string(__func__) << ": Failed to send request: " << httplib::to_string(res.error());
-        } else if (res->status == 200) {
+        if (!res.success) {
+            std::cerr << std::string(__func__) << ": Failed to send request: " << res.error_message << std::endl;
+        } else if (res.status_code == 200) {
             try {
-                mcp::json json_data = mcp::json::parse(res->body);
+                mcp::json json_data = mcp::json::parse(res.body);
                 mcp::json message = json_data["choices"][0]["message"];
                 return message;
             } catch (const std::exception& e) {
-                std::cerr << std::string(__func__) << ": Failed to parse response: error=" << std::string(e.what()) << ", body=" << res->body;
+                std::cerr << std::string(__func__) << ": Failed to parse response: error=" << std::string(e.what()) << ", body=" << res.body << std::endl;
             }
         } else {
-            std::cerr << std::string(__func__) << ": Failed to send request: status=" << std::to_string(res->status) << ", body=" << res->body;
+            std::cerr << std::string(__func__) << ": Failed to send request: status=" << std::to_string(res.status_code) << ", body=" << res.body << std::endl;
         }
 
         retry++;

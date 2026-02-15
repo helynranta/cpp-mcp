@@ -1,10 +1,19 @@
 /**
  * @file progress_example.cpp
- * @brief Example demonstrating progress notifications in MCP
+ * @brief Progress notification example
  * 
- * This example shows how to:
+ * This example demonstrates MCP's real-time progress notification system.
+ * Shows how to:
  * - Send progress notifications from a server during long-running operations
  * - Handle progress notifications on the client side
+ * - Use progress tokens to track operations
+ * 
+ * Demonstrates both with and without progress tokens to show the difference.
+ * 
+ * Source code: https://github.com/helynranta/cpp-mcp/blob/main/examples/progress_example.cpp
+ * Related APIs:
+ * - Progress API: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_progress.h
+ * - MCP Server: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_server.h
  */
 
 #include "mcp_server.h"

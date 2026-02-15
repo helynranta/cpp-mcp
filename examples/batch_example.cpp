@@ -1,13 +1,21 @@
 /**
  * @file batch_example.cpp
- * @brief Example demonstrating JSON-RPC batch request support
+ * @brief JSON-RPC batch request example
  * 
- * This example shows how the MCP server handles batch requests according to
- * the JSON-RPC 2.0 specification. It demonstrates:
+ * This example demonstrates JSON-RPC batch request support (MCP 2025-03-26 requirement).
+ * Shows how the MCP server handles batch requests according to the JSON-RPC 2.0 specification.
+ * 
+ * Demonstrates:
  * - Batch requests with multiple operations
  * - Mixed batches (requests + notifications)
  * - Notification-only batches
  * - Empty batch validation
+ * - Expected server behavior for each scenario
+ * 
+ * Source code: https://github.com/helynranta/cpp-mcp/blob/main/examples/batch_example.cpp
+ * Related APIs:
+ * - MCP Server: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_server.h
+ * - Message API: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_message.h
  */
 
 #include "mcp_server.h"
