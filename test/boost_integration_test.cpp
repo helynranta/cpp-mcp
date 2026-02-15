@@ -16,6 +16,9 @@ namespace beast = boost::beast;
 namespace http = beast::http;
 namespace net = boost::asio;
 
+// HTTP version constant for HTTP/1.1
+constexpr int HTTP_1_1 = 11;
+
 /**
  * Test that Boost.Beast headers can be included
  */
@@ -33,16 +36,16 @@ TEST(BoostIntegrationTest, HeadersAvailable) {
  */
 TEST(BoostIntegrationTest, BasicHttpTypes) {
     // Create an HTTP request
-    http::request<http::string_body> req{http::verb::get, "/", 11};
+    http::request<http::string_body> req{http::verb::get, "/", HTTP_1_1};
     req.set(http::field::host, "localhost");
     req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
     
     EXPECT_EQ(req.method(), http::verb::get);
     EXPECT_EQ(req.target(), "/");
-    EXPECT_EQ(req.version(), 11);
+    EXPECT_EQ(req.version(), HTTP_1_1);
     
     // Create an HTTP response
-    http::response<http::string_body> res{http::status::ok, 11};
+    http::response<http::string_body> res{http::status::ok, HTTP_1_1};
     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(http::field::content_type, "text/html");
     res.body() = "Hello, World!";

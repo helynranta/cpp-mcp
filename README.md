@@ -87,7 +87,7 @@ cmake --build build --config Release
 
 #### Without vcpkg (Manual dependency installation)
 
-If you prefer to install Boost manually, ensure Boost (version 1.70+) is installed on your system and build without the vcpkg toolchain file:
+If you prefer to install Boost manually, ensure Boost (version 1.70 or later, tested with 1.90.0) is installed on your system and build without the vcpkg toolchain file:
 
 ```bash
 cmake -B build
