@@ -94,6 +94,72 @@ cmake -B build
 cmake --build build --config Release
 ```
 
+### Boost Integration Details
+
+#### vcpkg Manifest Mode
+
+This project uses vcpkg's manifest mode for dependency management. Dependencies are declared in `vcpkg.json`:
+
+```json
+{
+  "dependencies": [
+    "boost-beast",
+    "boost-asio",
+    "boost-system"
+  ]
+}
+```
+
+When you configure CMake with the vcpkg toolchain file, vcpkg automatically:
+- Downloads and builds the specified Boost components
+- Makes them available to CMake via `find_package()`
+- Handles all transitive dependencies
+
+#### CMake Integration
+
+The project uses standard CMake `find_package()` to locate Boost:
+
+```cmake
+find_package(Boost REQUIRED COMPONENTS system)
+target_link_libraries(mcp PUBLIC Boost::system)
+```
+
+- **Boost.Beast** is header-only and included through Boost headers
+- **Boost.System** provides compiled components for error handling
+- **Boost.Asio** is header-only but depends on Boost.System
+
+#### Verifying Boost Integration
+
+Run the Boost integration tests to verify the installation:
+
+```bash
+cd build
+./test/mcp_tests --gtest_filter="BoostIntegrationTest.*"
+```
+
+These tests verify:
+- Boost.Beast headers are accessible
+- HTTP request/response types work correctly
+- Boost.Asio I/O context can be created
+
+#### Platform-Specific Notes
+
+**Linux:**
+- vcpkg typically installs to `/usr/local/share/vcpkg`
+- Use `VCPKG_ROOT` environment variable or specify the full path
+
+**Windows:**
+- vcpkg installs to `C:\vcpkg` by default
+- Use PowerShell syntax: `$env:VCPKG_ROOT`
+
+**macOS:**
+- vcpkg installs to `/usr/local/share/vcpkg`
+- Same instructions as Linux
+
+For more information, see:
+- [Boost.Beast Documentation](https://www.boost.org/doc/libs/release/libs/beast/doc/html/index.html)
+- [vcpkg Documentation](https://vcpkg.io/en/docs/)
+
 ## HTTP Transport
 
 This framework implements the MCP 2025-03-26 Streamable HTTP transport specification with a unified `/mcp` endpoint.
