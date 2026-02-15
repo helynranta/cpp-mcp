@@ -440,11 +440,11 @@ private:
     // The HTTP server
     std::unique_ptr<http::server_interface> http_server_;
     
-    // Server thread (for non-blocking mode)
-    std::unique_ptr<std::thread> server_thread_;
+    // Server thread (for non-blocking mode) - using jthread for automatic joining
+    std::unique_ptr<std::jthread> server_thread_;
 
-    // SSE thread
-    std::map<std::string, std::unique_ptr<std::thread>> sse_threads_;
+    // SSE threads - using jthread for automatic joining and cooperative cancellation
+    std::map<std::string, std::unique_ptr<std::jthread>> sse_threads_;
 
     // Event dispatcher for server-sent events
     event_dispatcher sse_dispatcher_;
@@ -585,7 +585,7 @@ private:
 
     std::mutex maintenance_mutex_;
     std::condition_variable maintenance_cond_;
-    std::unique_ptr<std::thread> maintenance_thread_;
+    std::unique_ptr<std::jthread> maintenance_thread_;
     bool maintenance_thread_run_ = false;
 
     // Session cleanup handler

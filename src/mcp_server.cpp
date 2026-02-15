@@ -124,14 +124,15 @@ bool server::start(bool blocking) {
     // Start resource check thread (only start in non-blocking mode)
     if (!blocking) {
         maintenance_thread_run_ = true;
-        maintenance_thread_ = std::make_unique<std::thread>([this]() {
-            while (true) {
+        // Use jthread with stop_token for cooperative cancellation
+        maintenance_thread_ = std::make_unique<std::jthread>([this](std::stop_token stoken) {
+            while (!stoken.stop_requested()) {
                 // Check inactive sessions every 60 seconds
                 std::unique_lock<std::mutex> lock(maintenance_mutex_);
-                auto should_exit = maintenance_cond_.wait_for(lock, std::chrono::seconds(60), [this] {
-                    return !maintenance_thread_run_;
+                auto should_exit = maintenance_cond_.wait_for(lock, std::chrono::seconds(60), [this, &stoken] {
+                    return !maintenance_thread_run_ || stoken.stop_requested();
                 });
-                if (should_exit) {
+                if (should_exit || stoken.stop_requested()) {
                     LOG_INFO("Maintenance thread exiting");
                     return;
                 }
@@ -159,8 +160,8 @@ bool server::start(bool blocking) {
         }
         return true;
     } else {
-        // Start server in a separate thread
-        server_thread_ = std::make_unique<std::thread>([this]() {
+        // Start server in a separate thread - jthread for automatic joining
+        server_thread_ = std::make_unique<std::jthread>([this](std::stop_token /* stoken */) {
             LOG_INFO("Starting server in separate thread");
             if (!http_server_->listen(host_.c_str(), port_)) {
                 LOG_ERROR("Failed to start server on ", host_, ":", port_);
@@ -181,25 +182,20 @@ void server::stop() {
     LOG_INFO("Stopping MCP server on ", host_, ":", port_);
     running_ = false;
 
-    // Close maintenance thread
-    if (maintenance_thread_ && maintenance_thread_->joinable()) {
+    // Stop maintenance thread - jthread will request stop and join automatically on reset
+    if (maintenance_thread_) {
         {
             std::unique_lock<std::mutex> lock(maintenance_mutex_);
             maintenance_thread_run_ = false;
         }
-
         maintenance_cond_.notify_one();
-
-        try {
-            maintenance_thread_->join();
-        } catch (...) {
-            maintenance_thread_->detach();
-        }
+        maintenance_thread_->request_stop();
+        maintenance_thread_.reset();  // jthread joins automatically on destruction
     }
     
     // Copy all dispatchers and threads to avoid holding the lock for too long
     std::vector<std::shared_ptr<event_dispatcher>> dispatchers_to_close;
-    std::vector<std::unique_ptr<std::thread>> threads_to_join;
+    std::vector<std::unique_ptr<std::jthread>> threads_to_stop;
     
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -210,11 +206,11 @@ void server::stop() {
             dispatchers_to_close.push_back(dispatcher);
         }
         
-        // Copy all threads
-        threads_to_join.reserve(sse_threads_.size());
+        // Move all threads (jthread will request_stop and join on destruction)
+        threads_to_stop.reserve(sse_threads_.size());
         for (auto& [_, thread] : sse_threads_) {
-            if (thread && thread->joinable()) {
-                threads_to_join.push_back(std::move(thread));
+            if (thread) {
+                threads_to_stop.push_back(std::move(thread));
             }
         }
         
@@ -232,87 +228,25 @@ void server::stop() {
         }
     }
     
-    // Give threads some time to handle close events
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-    
-    // Wait for threads to finish outside the lock (with timeout limit)
-    const auto timeout_point = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    
-    for (auto& thread : threads_to_join) {
-        if (!thread || !thread->joinable()) {
-            continue;
-        }
-        
-        if (std::chrono::steady_clock::now() >= timeout_point) {
-            // If timeout reached, detach remaining threads
-            LOG_WARNING("Thread join timeout reached, detaching remaining threads");
-            thread->detach();
-            continue;
-        }
-        
-        // Try using timeout join
-        bool joined = false;
-        try {
-            // Create shared pointers to avoid dangling references
-            auto thread_ptr = thread.get();  // Get raw pointer before moving
-            std::shared_ptr<std::promise<void>> thread_done_ptr = std::make_shared<std::promise<void>>();
-            auto future = thread_done_ptr->get_future();
-            
-            // Try join in another thread - capture by value to avoid dangling references
-            std::thread join_helper([thread_ptr, thread_done_ptr]() {
-                try {
-                    if (thread_ptr && thread_ptr->joinable()) {
-                        thread_ptr->join();
-                        thread_done_ptr->set_value();
-                    }
-                } catch (...) {
-                    try {
-                        thread_done_ptr->set_exception(std::current_exception());
-                    } catch (...) {}
-                }
-            });
-            
-            // Wait for join to complete or timeout
-            if (future.wait_for(std::chrono::milliseconds(100)) == std::future_status::ready) {
-                try {
-                    future.get(); // Get possible exception
-                    joined = true;
-                } catch (...) {
-                    joined = false;
-                }
-            }
-            
-            // Process join_helper thread
-            if (join_helper.joinable()) {
-                if (joined) {
-                    join_helper.join();
-                } else {
-                    join_helper.detach();
-                }
-            }
-        } catch (...) {
-            joined = false;
-        }
-        
-        // If join fails, then detach
-        if (!joined) {
-            try {
-                if (thread && thread->joinable()) {
-                    thread->detach();
-                }
-            } catch (...) {
-                // Ignore exceptions
-            }
+    // Request stop on all SSE threads - they will exit their loops
+    for (auto& thread : threads_to_stop) {
+        if (thread) {
+            thread->request_stop();
         }
     }
     
-    if (server_thread_ && server_thread_->joinable()) {
+    // jthread automatically joins on destruction when threads_to_stop goes out of scope
+    // The threads will exit cleanly because:
+    // 1. Dispatchers are closed (wait_event returns false)
+    // 2. stop_requested() returns true
+    // 3. alive_ is set to false (checked in lambdas)
+    threads_to_stop.clear();  // Joins all threads automatically
+    
+    // Stop server thread - jthread joins automatically
+    if (server_thread_) {
         http_server_->stop();
-        try {
-            server_thread_->join();
-        } catch (...) {
-            server_thread_->detach();
-        }
+        server_thread_->request_stop();
+        server_thread_.reset();  // jthread joins automatically on destruction
     } else {
         http_server_->stop();
     }
@@ -540,16 +474,16 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
         session_lifecycle_[session_id] = lifecycle_state::uninitialized;
     }
     
-    // Create session thread
+    // Create session thread - use jthread with stop_token for cooperative cancellation
     // Capture alive_ for safe access in the thread
     auto alive = alive_;
-    auto thread = std::make_unique<std::thread>([this, alive, session_id, session_uri, session_dispatcher]() {
+    auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri, session_dispatcher](std::stop_token stoken) {
         try {
             // Send initial session URI
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             
-            // Check if server is still alive
-            if (!alive || !alive->load(std::memory_order_acquire)) {
+            // Check if server is still alive or stop requested
+            if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire)) {
                 return;
             }
             
@@ -562,11 +496,12 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
             
             // Send periodic heartbeats to detect connection status
             int heartbeat_count = 0;
-            while (alive && alive->load(std::memory_order_acquire) && 
+            while (!stoken.stop_requested() && 
+                   alive && alive->load(std::memory_order_acquire) && 
                    running_ && !session_dispatcher->is_closed()) {
                std::this_thread::sleep_for(std::chrono::seconds(5) + std::chrono::milliseconds(rand() % 500)); // NOTE: DO NOT set it the same as the timeout of wait_event
                 
-                if (!alive || !alive->load(std::memory_order_acquire) ||
+                if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire) ||
                     session_dispatcher->is_closed() || !running_) {
                     break;
                 }
@@ -1047,15 +982,15 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
             session_lifecycle_[session_id] = lifecycle_state::uninitialized;
         }
         
-        // Create session thread for heartbeats - capture alive_ for safe access
+        // Create session thread for heartbeats - use jthread for automatic joining
         auto alive = alive_;
-        auto thread = std::make_unique<std::thread>([this, alive, session_id, session_uri, session_dispatcher]() {
+        auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri, session_dispatcher](std::stop_token stoken) {
             try {
                 // Send initial session endpoint
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
                 
-                // Check if server is still alive
-                if (!alive || !alive->load(std::memory_order_acquire)) {
+                // Check if server is still alive or stop requested
+                if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire)) {
                     return;
                 }
                 
@@ -1066,11 +1001,12 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
                 
                 // Send periodic heartbeats
                 int heartbeat_count = 0;
-                while (alive && alive->load(std::memory_order_acquire) && 
+                while (!stoken.stop_requested() &&
+                       alive && alive->load(std::memory_order_acquire) && 
                        running_ && !session_dispatcher->is_closed()) {
                     std::this_thread::sleep_for(std::chrono::seconds(5) + std::chrono::milliseconds(rand() % 500));
                     
-                    if (!alive || !alive->load(std::memory_order_acquire) ||
+                    if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire) ||
                         session_dispatcher->is_closed() || !running_) {
                         break;
                     }
@@ -1927,7 +1863,7 @@ void server::close_session(const std::string& session_id) {
 
         // Copy resources to be processed
         std::shared_ptr<event_dispatcher> dispatcher_to_close;
-        std::unique_ptr<std::thread> thread_to_release;
+        std::unique_ptr<std::jthread> thread_to_release;
         
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -1961,8 +1897,20 @@ void server::close_session(const std::string& session_id) {
         }
         
         // Release thread resources
+        // NOTE: Don't try to join if called from the same thread (would cause deadlock)
         if (thread_to_release) {
-            thread_to_release.release();
+            auto thread_id = thread_to_release->get_id();
+            if (thread_id == std::this_thread::get_id()) {
+                // We're being called from within the thread itself
+                // Just request stop and let the thread exit naturally
+                thread_to_release->request_stop();
+                // Release ownership without joining (thread will clean up on exit)
+                thread_to_release.release();
+            } else {
+                // Safe to request stop and join
+                thread_to_release->request_stop();
+                thread_to_release.reset();  // jthread joins automatically
+            }
         }
     } catch (const std::exception& e) {
         LOG_WARNING("Exception while cleaning up session resources: ", session_id, ", ", e.what());
