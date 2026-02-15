@@ -208,9 +208,10 @@ Dependencies are managed via vcpkg:
 
 The project currently depends on:
 
-- **Boost.Beast** (`boost-beast`) - HTTP and WebSocket networking library (includes boost-asio and boost-system as transitive dependencies)
+- **Boost.Beast** (`boost-beast`) - HTTP and WebSocket networking library
+  - Automatically includes Boost.Asio and Boost.System as transitive dependencies
 
-These are automatically fetched and built by vcpkg when using the vcpkg toolchain file.
+All dependencies are managed through vcpkg manifest mode and automatically installed when using the vcpkg toolchain file.
 
 ## CI/CD Pipeline
 
