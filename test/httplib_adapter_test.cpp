@@ -358,6 +358,8 @@ protected:
             res.set_chunked_content_provider(
                 "text/event-stream",
                 [](size_t, httplib::DataSink& sink) -> bool {
+                    // TODO: This static counter can cause test flakiness between runs
+                    // Should be refactored to use instance state when test is enabled
                     static std::atomic<int> count{0};
                     int current = count.fetch_add(1);
                     if (current == 0) {
