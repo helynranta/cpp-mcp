@@ -31,6 +31,7 @@ set(TEST_SOURCES
     http_abstraction_test.cpp
     httplib_adapter_test.cpp
     beast_adapter_test.cpp
+    sse_client_beast_test.cpp
 )
 
 # Create test executable
