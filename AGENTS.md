@@ -214,8 +214,6 @@ The project currently depends on:
 
 All dependencies are managed through vcpkg manifest mode and automatically installed when using the vcpkg toolchain file.
 
-These are automatically fetched and built by vcpkg when using the vcpkg toolchain file.
-
 ## CI/CD Pipeline
 
 The project uses GitHub Actions for continuous integration:
