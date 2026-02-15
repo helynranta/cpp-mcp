@@ -36,8 +36,8 @@ inline std::unique_ptr<server_interface> create_server(
     const std::string& cert_path,
     const std::string& key_path
 ) {
-    // Phase 3: Temporarily use httplib adapter to verify no behavior changes
-    return create_httplib_server(use_ssl, cert_path, key_path);
+    // Phase 3: Now testing with Beast adapter
+    return create_beast_server(use_ssl, cert_path, key_path);
 }
 
 /**
