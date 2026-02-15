@@ -14,8 +14,9 @@
 #include "mcp_tool.h"
 #include "mcp_logger.h"
 
-// Include the HTTP library
-#include "httplib.h"
+// Include HTTP abstraction layer and factory
+#include "mcp_http_abstraction.h"
+#include "mcp_http_factory.h"
 
 #include <string>
 #include <map>
@@ -207,11 +208,11 @@ private:
     // Message endpoint
     std::string msg_endpoint_;
     
-    // HTTP client
-    std::unique_ptr<httplib::Client> http_client_;
+    // HTTP client (for JSON-RPC POST requests)
+    std::unique_ptr<http::client_interface> http_client_;
     
-    // SSE HTTP client
-    std::unique_ptr<httplib::Client> sse_client_;
+    // SSE HTTP client (for SSE GET streaming)
+    std::unique_ptr<http::client_interface> sse_client_;
     
     // SSE thread
     std::unique_ptr<std::thread> sse_thread_;

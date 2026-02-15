@@ -55,8 +55,9 @@ protected:
         // Start server
         server_->start(false);
         
-        // Give server time to start
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        // Give Beast server significant time to start, bind port, and begin accepting
+        // Beast server.listen() starts a thread that then creates acceptor
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
     
     void TearDown() override {
