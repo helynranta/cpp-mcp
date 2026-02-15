@@ -15,6 +15,7 @@
 #include <functional>
 #include <memory>
 #include <stdexcept>
+#include <atomic>
 
 // Include the JSON library for parsing and generating JSON
 #include "json.hpp"
@@ -122,8 +123,8 @@ struct request {
 private:
     // Generate a unique ID
     static json generate_id() {
-        static int next_id = 1;
-        return next_id++;
+        static std::atomic<int> next_id{1};
+        return next_id.fetch_add(1);
     }
 };
 
