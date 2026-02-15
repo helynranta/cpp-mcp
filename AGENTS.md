@@ -49,7 +49,7 @@ cd build && ctest -R mcp_tests -V
 
 ### 2. Code Quality Standards
 
-- **Follow C++17 standards** - The project uses C++17 features
+- **Follow C++23 standards** - The project uses C++23 features and requires C++23-compliant compilers
 - **Use meaningful names** - Variables, functions, and classes should have descriptive names
 - **Document public APIs** - All public functions and classes must have documentation comments
 - **Keep functions focused** - Each function should do one thing well

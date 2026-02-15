@@ -26,9 +26,11 @@ if (MSVC)
     add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/bigobj>")
 endif()
 
-# Set C++ standard to C++23 for latest features
+# C++23 required - no backwards compatibility with older standards
+# Minimum compiler versions: GCC 11+, Clang 12+, MSVC 2019+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Find required packages
 find_package(Threads REQUIRED)
