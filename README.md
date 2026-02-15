@@ -65,19 +65,16 @@ cmake --build build --config Release
 
 #### Build with tests:
 ```bash
-git submodule update --init --recursive # Get GoogleTest
-
 cmake -B build \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
-  -DMCP_BUILD_TESTS=ON
+  -DMCP_BUILD_TESTS=ON \
+  -DVCPKG_MANIFEST_FEATURES="tests"
 
 cmake --build build --config Release
 ```
 
 #### Build with SSL support:
 ```bash
-git submodule update --init --recursive # Get GoogleTest
-
 cmake -B build \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
   -DMCP_SSL=ON
