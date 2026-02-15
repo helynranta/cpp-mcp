@@ -18,7 +18,7 @@ This document outlines the remaining tasks to complete the testing infrastructur
 
 3. **CI/CD Pipeline**
    - Created `.github/workflows/test.yml`
-   - Supports Linux (Ubuntu), Windows, and macOS
+   - Supports Linux (Ubuntu) and Windows
    - Uses vcpkg for dependency management with caching enabled
    - Runs GoogleTest tests automatically
    - Triggers only on main branch (PRs and pushes)
@@ -92,7 +92,6 @@ Test the GitHub Actions workflow and fix any platform-specific issues. Ensure te
 - [ ] Trigger workflow manually to test
 - [ ] Fix any Linux build/test failures
 - [ ] Fix any Windows build/test failures
-- [ ] Fix any macOS build/test failures
 - [ ] Ensure vcpkg dependency installation works on all platforms
 - [ ] Verify GoogleTest tests run in CI
 - [ ] Add test result reporting/badges
@@ -101,7 +100,7 @@ Test the GitHub Actions workflow and fix any platform-specific issues. Ensure te
 - `.github/workflows/test.yml`
 
 **Acceptance criteria:**
-- Workflow runs successfully on Linux, Windows, and macOS
+- Workflow runs successfully on Linux and Windows
 - GoogleTest tests execute successfully
 - Clear pass/fail status visible in GitHub Actions
 
@@ -171,7 +170,7 @@ cd build && ctest -R mcp_catch2_tests -V
 
 **CI Testing:**
 - Automated on every PR
-- Runs on Linux, Windows, macOS
+- Runs on Linux and Windows
 - Must pass before merge
 
 ## Dependencies

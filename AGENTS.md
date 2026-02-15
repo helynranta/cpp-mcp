@@ -112,7 +112,7 @@ Tasks are organized as GitHub issues with specific labels:
 
 All code changes must be reviewed:
 - **Self-review** - Review your own changes before submitting
-- **Automated checks** - CI/CD pipeline must pass (builds on Linux, Windows, macOS)
+- **Automated checks** - CI/CD pipeline must pass (builds on Linux and Windows)
 - **Peer review** - At least one approval required from another contributor
 - **Test validation** - All tests must pass in CI
 
@@ -217,7 +217,7 @@ All dependencies are managed through vcpkg manifest mode and automatically insta
 
 The project uses GitHub Actions for continuous integration:
 
-- **Platforms tested:** Ubuntu, Windows, macOS
+- **Platforms tested:** Ubuntu, Windows
 - **Build configurations:** Release
 - **Test framework:** GoogleTest
 - **Dependency management:** vcpkg

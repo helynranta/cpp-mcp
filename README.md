@@ -149,10 +149,6 @@ These tests verify:
 - vcpkg installs to `C:\vcpkg` by default
 - Use PowerShell syntax: `$env:VCPKG_ROOT`
 
-**macOS:**
-- vcpkg installs to `/usr/local/share/vcpkg`
-- Same instructions as Linux
-
 For more information, see:
 - [Boost.Beast Documentation](https://www.boost.org/doc/libs/release/libs/beast/doc/html/index.html)
 - [vcpkg Documentation](https://vcpkg.io/en/docs/)

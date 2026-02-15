@@ -61,10 +61,6 @@ if(OPENSSL_FOUND)
     target_link_libraries(${TEST_PROJECT_NAME} PRIVATE ${OPENSSL_LIBRARIES})
 endif()
 
-if(APPLE)
-    set_target_properties(${TEST_PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,-no_warn_duplicate_libraries")
-endif()
-
 # Enable testing
 enable_testing()
 
