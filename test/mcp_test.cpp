@@ -133,11 +133,14 @@ struct LifecycleTest {
     }
 
     ~LifecycleTest() {
-        // Clean up - no need to wait since each test has isolated server
-        client_.reset();
+        // IMPORTANT: Stop the server FIRST to ensure all connection handlers complete
+        // before destroying the client. The server's SSE handlers capture `this` and
+        // must finish before the server is destroyed.
         if (server_) {
             server_->stop();
         }
+        // Now it's safe to destroy the client - the server's handlers have completed
+        client_.reset();
         server_.reset();
     }
 
@@ -196,11 +199,14 @@ struct VersioningTest {
     }
 
     ~VersioningTest() {
-        // Clean up - isolated server means no shared resource conflicts
-        client_.reset();
+        // IMPORTANT: Stop the server FIRST to ensure all connection handlers complete
+        // before destroying the client. The server's SSE handlers capture `this` and
+        // must finish before the server is destroyed.
         if (server_) {
             server_->stop();
         }
+        // Now it's safe to destroy the client - the server's handlers have completed
+        client_.reset();
         server_.reset();
     }
 
@@ -382,11 +388,14 @@ struct PingTest {
     }
 
     ~PingTest() {
-        // Clean up - isolated server means no shared resource conflicts
-        client_.reset();
+        // IMPORTANT: Stop the server FIRST to ensure all connection handlers complete
+        // before destroying the client. The server's SSE handlers capture `this` and
+        // must finish before the server is destroyed.
         if (server_) {
             server_->stop();
         }
+        // Now it's safe to destroy the client - the server's handlers have completed
+        client_.reset();
         server_.reset();
     }
 
@@ -623,18 +632,15 @@ struct ToolsTest {
     }
 
     ~ToolsTest() {
-        // Clean up - each test has isolated resources
-        // Important: client must be destroyed FIRST to close connection gracefully
-        // Then server can stop cleanly without active connections
-        client_.reset();
-        
+        // IMPORTANT: Stop the server FIRST to ensure all connection handlers complete
+        // before destroying the client. The server's SSE handlers capture `this` and
+        // must finish before the server is destroyed.
         if (server_) {
             server_->stop();
         }
+        // Now it's safe to destroy the client - the server's handlers have completed
+        client_.reset();
         server_.reset();
-        
-        // Small delay to ensure resources are fully released
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     int port_;
@@ -1072,11 +1078,14 @@ struct BatchIntegrationTest {
     }
 
     ~BatchIntegrationTest() {
-        // Clean up - each test has isolated resources
-        client_.reset();
+        // IMPORTANT: Stop the server FIRST to ensure all connection handlers complete
+        // before destroying the client. The server's SSE handlers capture `this` and
+        // must finish before the server is destroyed.
         if (server_) {
             server_->stop();
         }
+        // Now it's safe to destroy the client - the server's handlers have completed
+        client_.reset();
         server_.reset();
     }
 
@@ -1157,11 +1166,14 @@ struct JsonRpcServerValidationTest {
     }
 
     ~JsonRpcServerValidationTest() {
-        // Clean up - each test has isolated resources
-        client_.reset();
+        // IMPORTANT: Stop the server FIRST to ensure all connection handlers complete
+        // before destroying the client. The server's SSE handlers capture `this` and
+        // must finish before the server is destroyed.
         if (server_) {
             server_->stop();
         }
+        // Now it's safe to destroy the client - the server's handlers have completed
+        client_.reset();
         server_.reset();
     }
 

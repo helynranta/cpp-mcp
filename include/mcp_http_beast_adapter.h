@@ -122,6 +122,8 @@ public:
         , key_path_(key_path)
         , server_ready_(false)
         , server_failed_(false)
+        , stopping_(false)
+        , active_connections_(0)
     {
         // SSL support will be added later
         if (use_ssl) {
@@ -189,6 +191,9 @@ public:
     }
     
     void stop() override {
+        // Signal to connection handlers that we're stopping
+        stopping_.store(true, std::memory_order_release);
+        
         // Request cooperative cancellation via stop token
         if (server_thread_.get_stop_token().stop_possible()) {
             server_thread_.request_stop();
@@ -205,9 +210,25 @@ public:
             server_thread_.join();
         }
         
-        // Give detached connection handler threads sufficient time to complete
+        LOG_INFO("Beast server: Stop requested, exiting gracefully");
+        
+        // Wait for all active connection handlers to complete
         // This is critical to prevent them from accessing freed member variables
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        {
+            std::unique_lock<std::mutex> lock(connections_mutex_);
+            auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+            while (active_connections_.load(std::memory_order_acquire) > 0) {
+                if (connections_cv_.wait_until(lock, timeout) == std::cv_status::timeout) {
+                    LOG_WARNING("Beast server: Timeout waiting for ", active_connections_.load(), " connection(s) to complete");
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Check if server is stopping (for connection handlers to check)
+    bool is_stopping() const {
+        return stopping_.load(std::memory_order_acquire);
     }
     
 private:
@@ -247,9 +268,20 @@ private:
                 acceptor.accept(socket, ec);
                 
                 if (!ec) {
+                    // Increment active connection count
+                    active_connections_.fetch_add(1, std::memory_order_acq_rel);
+                    
                     // Handle connection in a new thread
                     std::thread([this, socket = std::move(socket)]() mutable {
                         this->handle_connection(std::move(socket));
+                        
+                        // Decrement active connection count and notify when reaching 0
+                        auto prev_count = active_connections_.fetch_sub(1, std::memory_order_acq_rel);
+                        if (prev_count == 1) {
+                            // Was 1, now 0 - notify waiters under lock to avoid race
+                            std::lock_guard<std::mutex> lock(connections_mutex_);
+                            connections_cv_.notify_all();
+                        }
                     }).detach();
                 } else if (ec == boost::asio::error::would_block) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -380,7 +412,9 @@ private:
             // Create data sink and call provider
             beast_data_sink sink(socket);
             size_t offset = 0;
-            while (builder.get_chunked_provider()(offset, sink)) {
+            // Check stopping_ flag to exit quickly during server shutdown
+            while (!stopping_.load(std::memory_order_acquire) && 
+                   builder.get_chunked_provider()(offset, sink)) {
                 offset++;
             }
             
@@ -398,11 +432,15 @@ private:
     std::string key_path_;
     std::atomic<bool> server_ready_;
     std::atomic<bool> server_failed_;
+    std::atomic<bool> stopping_;  // Flag to signal connection handlers to exit
+    std::atomic<int> active_connections_;  // Count of active connection handlers
     std::jthread server_thread_;  // C++20 jthread for automatic joining
     std::unique_ptr<net::io_context> io_context_;
     std::map<std::string, request_handler> routes_;
     std::mutex ready_mutex_;
     std::condition_variable ready_cv_;
+    std::mutex connections_mutex_;  // Mutex for waiting on connection handlers
+    std::condition_variable connections_cv_;  // CV for waiting on connection handlers
 };
 
 /**
