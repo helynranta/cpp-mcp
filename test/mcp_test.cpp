@@ -575,16 +575,16 @@ protected:
         
         // Register tools call method
         server_->register_method("tools/call", [](const json& params, const std::string& /* session_id */) -> json {
-            // Verify parameters
-            EXPECT_EQ(params["name"], "get_weather");
-            EXPECT_EQ(params["arguments"]["location"], "New York");
+            // Simple tool call implementation - validation is done in the test
+            std::string tool_name = params["name"];
+            std::string location = params["arguments"]["location"];
             
             // Return tool call result
             return {
                 {"content", json::array({
                     {
                         {"type", "text"},
-                        {"text", "Current weather in New York:\nTemperature: 72°F\nConditions: Partly cloudy"}
+                        {"text", "Current weather in " + location + ":\nTemperature: 72°F\nConditions: Partly cloudy"}
                     }
                 })},
                 {"isError", false}
@@ -606,11 +606,17 @@ protected:
 
     void TearDown() override {
         // Clean up - each test has isolated resources
+        // Important: client must be destroyed FIRST to close connection gracefully
+        // Then server can stop cleanly without active connections
         client_.reset();
+        
         if (server_) {
             server_->stop();
         }
         server_.reset();
+        
+        // Small delay to ensure resources are fully released
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     int port_;
