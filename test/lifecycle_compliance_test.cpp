@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 #include "mcp_server.h"
 #include "mcp_message.h"
-#include "httplib.h"
+#include "mcp_http_factory.h"
 #include <thread>
 #include <chrono>
 
@@ -54,17 +54,18 @@ protected:
         // Give server time to start
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
-        // Create HTTP client
-        http_client = std::make_unique<httplib::Client>("localhost", port_);
+        // Create HTTP client using Beast
+        std::string base_url = "http://localhost:" + std::to_string(port_);
+        http_client = http::create_client(base_url);
         
         // Establish SSE connection and get session endpoint
-        auto sse_client = std::make_shared<httplib::Client>("localhost", port_);
+        auto sse_client = http::create_client(base_url);
         
-        sse_thread = std::thread([this, sse_client]() {
+        sse_thread = std::thread([this, sse_client = std::move(sse_client)]() mutable {
             // Store pointer atomically so TearDown can access it
             sse_client_ptr.store(sse_client.get(), std::memory_order_release);
             
-            sse_client->Get("/sse", [this](const char* data, size_t len) {
+            sse_client->get_stream("/sse", [this](const char* data, size_t len) {
                 std::string response(data, len);
                 
                 // Extract message endpoint
@@ -97,13 +98,9 @@ protected:
     }
 
     void TearDown() override {
-        // Clean up - stop SSE client before detaching
-        auto client = sse_client_ptr.load(std::memory_order_acquire);
-        if (client) {
-            client->stop();
-        }
+        // Clean up - SSE client will be destroyed when thread exits
         if (sse_thread.joinable()) {
-            // Give the thread a moment to exit after stop() is called
+            // Give the thread a moment to exit
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             if (sse_thread.joinable()) {
                 sse_thread.detach();
@@ -120,9 +117,9 @@ protected:
 
     int port_;
     std::unique_ptr<server> server_;
-    std::unique_ptr<httplib::Client> http_client;
+    std::unique_ptr<http::client_interface> http_client;
     std::thread sse_thread;
-    std::atomic<httplib::Client*> sse_client_ptr{nullptr};
+    std::atomic<http::client_interface*> sse_client_ptr{nullptr};
     std::string message_endpoint;
     std::mutex endpoint_mutex;
     std::condition_variable endpoint_cv;

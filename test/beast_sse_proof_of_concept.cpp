@@ -244,10 +244,10 @@ TEST(BeastSSEProofOfConcept, CanStreamSSE) {
 /**
  * @brief Test that demonstrates the DataSink pattern with Beast
  * 
- * This shows how to adapt httplib's DataSink pattern to Beast.
+ * This shows how to implement the DataSink pattern with Beast.
  */
 TEST(BeastSSEProofOfConcept, DataSinkPattern) {
-    // Abstract data sink interface (like httplib::DataSink)
+    // Abstract data sink interface
     class DataSink {
     public:
         virtual ~DataSink() = default;
@@ -281,8 +281,8 @@ TEST(BeastSSEProofOfConcept, DataSinkPattern) {
         bool valid_;
     };
     
-    // This demonstrates that we CAN adapt the httplib::DataSink pattern to Beast
-    // The actual implementation would be similar but integrated into the server
+    // This demonstrates that we can implement the DataSink pattern with Beast
+    // The actual implementation is integrated into the beast_server
     
     SUCCEED() << "DataSink pattern is compatible with Beast";
 }

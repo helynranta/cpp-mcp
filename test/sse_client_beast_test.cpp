@@ -7,8 +7,6 @@
  * 1. Write failing test
  * 2. Implement minimal code to pass
  * 3. Refactor
- * 
- * These tests will fail initially since sse_client still uses httplib.
  */
 
 #include <gtest/gtest.h>
@@ -87,11 +85,8 @@ protected:
 /**
  * Test: sse_client can initialize with Beast backend
  * 
- * This test verifies that after migration, sse_client uses the
- * HTTP abstraction layer (which uses Beast by default) instead
- * of httplib directly.
- * 
- * EXPECTED TO FAIL: sse_client still uses httplib::Client directly
+ * This test verifies that sse_client uses the
+ * HTTP abstraction layer (which uses Beast by default).
  */
 TEST_F(SseClientBeastTest, CanInitializeWithBeastBackend) {
     // Create client (should use Beast via factory after migration)
