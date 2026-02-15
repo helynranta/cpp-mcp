@@ -35,13 +35,14 @@ server::server(const server::configuration& conf)
             LOG_ERROR("SSL key file '", *conf.ssl.server_private_key_path, "' not found");
         }
 
-        http_server_ = std::make_unique<httplib::SSLServer>(conf.ssl.server_cert_path->c_str(),
-            conf.ssl.server_private_key_path->c_str());
+        http_server_ = http::create_server(true,
+            *conf.ssl.server_cert_path,
+            *conf.ssl.server_private_key_path);
     } else {
-        http_server_ = std::make_unique<httplib::Server>();
+        http_server_ = http::create_server();
     }
     #else
-     http_server_ = std::make_unique<httplib::Server>();
+     http_server_ = http::create_server();
     #endif
 }
 
@@ -58,19 +59,19 @@ bool server::start(bool blocking) {
     LOG_INFO("Starting MCP server on ", host_, ":", port_);
     
     // Setup CORS handling with Origin validation (MCP 2025-03-26 security)
-    http_server_->Options(".*", [this](const httplib::Request& req, httplib::Response& res) {
+    http_server_->register_options(".*", [this](const http::request_data& req, http::response_builder& res) {
         // Handle Origin validation for OPTIONS requests
         // Note: OPTIONS requests are CORS preflight requests and should be allowed
         // even without an Origin header, as they don't carry sensitive data
-        auto origin_it = req.headers.find("Origin");
-        if (origin_it != req.headers.end()) {
+        auto origin_opt = req.get_header("Origin");
+        if (origin_opt.has_value()) {
             // If Origin header is present, validate it
-            if (is_origin_allowed(origin_it->second)) {
-                res.set_header("Access-Control-Allow-Origin", origin_it->second);
+            if (is_origin_allowed(*origin_opt)) {
+                res.set_header("Access-Control-Allow-Origin", *origin_opt);
                 res.set_header("Access-Control-Allow-Credentials", "true");
             } else if (validate_origin_) {
                 // Origin validation enabled and origin not allowed
-                res.status = 403;
+                res.set_status(403);
                 return;
             } else {
                 // Origin validation disabled
@@ -82,35 +83,35 @@ bool server::start(bool blocking) {
         }
         res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
         res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept, Origin");
-        res.status = 204; // No Content
+        res.set_status(204); // No Content
     });
     
     // Setup unified MCP endpoint (Streamable HTTP transport - MCP 2025-03-26)
-    http_server_->Get(mcp_endpoint_.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
+    http_server_->register_get(mcp_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
         this->handle_mcp(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"GET ", req.path, " HTTP/1.1\" ", res.status);
+        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"GET ", req.path, " HTTP/1.1\"");
     });
     
-    http_server_->Post(mcp_endpoint_.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
+    http_server_->register_post(mcp_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
         this->handle_mcp(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"POST ", req.path, " HTTP/1.1\" ", res.status);
+        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"POST ", req.path, " HTTP/1.1\"");
     });
     
-    http_server_->Delete(mcp_endpoint_.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
+    http_server_->register_delete(mcp_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
         this->handle_mcp(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"DELETE ", req.path, " HTTP/1.1\" ", res.status);
+        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"DELETE ", req.path, " HTTP/1.1\"");
     });
     
     // Setup legacy JSON-RPC endpoint (deprecated)
-    http_server_->Post(msg_endpoint_.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
+    http_server_->register_post(msg_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
         this->handle_jsonrpc(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"POST ", req.path, " HTTP/1.1\" ", res.status);
+        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"POST ", req.path, " HTTP/1.1\"");
     });
 
     // Setup legacy SSE endpoint (deprecated)
-    http_server_->Get(sse_endpoint_.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
+    http_server_->register_get(sse_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
         this->handle_sse(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"GET ", req.path, " HTTP/1.1\" ", res.status);
+        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"GET ", req.path, " HTTP/1.1\"");
     });
     
     // Start resource check thread (only start in non-blocking mode)
@@ -508,7 +509,7 @@ void server::set_cancellation_handler(cancellation_handler handler) {
     cancellation_handler_ = handler;
 }
 
-void server::handle_sse(const httplib::Request& req, httplib::Response& res) {
+void server::handle_sse(const http::request_data& req, http::response_builder& res) {
     std::string session_id = generate_session_id();
     std::string session_uri = msg_endpoint_ + "?session_id=" + session_id;
     
@@ -533,7 +534,7 @@ void server::handle_sse(const httplib::Request& req, httplib::Response& res) {
     }
     
     // Create session thread
-    auto thread = std::make_unique<std::thread>([this, res, session_id, session_uri, session_dispatcher]() {
+    auto thread = std::make_unique<std::thread>([this, session_id, session_uri, session_dispatcher]() {
         try {
             // Send initial session URI
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -584,7 +585,7 @@ void server::handle_sse(const httplib::Request& req, httplib::Response& res) {
     }
     
     // Setup chunked content provider
-    res.set_chunked_content_provider("text/event-stream", [this, session_id, session_dispatcher](size_t /* offset */, httplib::DataSink& sink) {
+    res.set_chunked_content_provider("text/event-stream", [this, session_id, session_dispatcher](size_t /* offset */, http::streaming_data_sink& sink) {
         try {
             // Check if session is closed - directly get status from dispatcher, reduce lock contention
             if (session_dispatcher->is_closed()) {
@@ -618,7 +619,7 @@ void server::handle_sse(const httplib::Request& req, httplib::Response& res) {
     });
 }
 
-void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res) {
+void server::handle_jsonrpc(const http::request_data& req, http::response_builder& res) {
     // Setup response headers
     res.set_header("Content-Type", "application/json");
     res.set_header("Access-Control-Allow-Origin", "*");
@@ -627,7 +628,7 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
     
     // Handle OPTIONS request (CORS pre-flight)
     if (req.method == "OPTIONS") {
-        res.status = 204; // No Content
+        res.set_status(204); // No Content
         return;
     }
     
@@ -657,7 +658,7 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
         req_json = json::parse(req.body);
     } catch (const json::exception& e) {
         LOG_ERROR("Failed to parse JSON request: ", e.what());
-        res.status = 400;
+        res.set_status(400);
         res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
         return;
     }
@@ -669,7 +670,7 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
             if (item.is_object() && item.contains("method") && 
                 item["method"].is_string() && item["method"] == "initialize") {
                 LOG_ERROR("Initialize method not allowed in batch requests per MCP 2025-03-26");
-                res.status = 400;
+                res.set_status(400);
                 json error_response = response::create_error(
                     nullptr,
                     error_code::invalid_request,
@@ -694,12 +695,12 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
         if (disp_it == session_dispatchers_.end()) {
             // Handle ping request
             if (req_json["method"] == "ping") {
-                res.status = 202;
+                res.set_status(202);
                 res.set_content("Accepted", "text/plain");
                 return;
             }
             LOG_ERROR("Session not found: ", session_id);
-            res.status = 404;
+            res.set_status(404);
             res.set_content("{\"error\":\"Session not found\"}", "application/json");
             return;
         }
@@ -713,7 +714,7 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
         std::string validation_error;
         if (!validate_request_message(req_json, validation_error)) {
             LOG_ERROR("Invalid JSON-RPC request: ", validation_error);
-            res.status = 400;
+            res.set_status(400);
             json error_response = response::create_error(
                 req_json.contains("id") ? req_json["id"] : nullptr,
                 error_code::invalid_request,
@@ -730,7 +731,7 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
             // Check for duplicate request ID
             if (!request_id_tracker_.add_request_id(session_id, mcp_req.id)) {
                 LOG_ERROR("Duplicate request ID: ", mcp_req.id.dump());
-                res.status = 400;
+                res.set_status(400);
                 json error_response = response::create_error(
                     mcp_req.id,
                     error_code::invalid_request,
@@ -746,7 +747,7 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
         }
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to create request object: ", e.what());
-        res.status = 400;
+        res.set_status(400);
         res.set_content("{\"error\":\"Invalid request format\"}", "application/json");
         return;
     }
@@ -759,7 +760,7 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
         });
         
         // Return 202 Accepted
-        res.status = 202;
+        res.set_status(202);
         res.set_content("Accepted", "text/plain");
         return;
     }
@@ -785,15 +786,15 @@ void server::handle_jsonrpc(const httplib::Request& req, httplib::Response& res)
     });
     
     // Return 202 Accepted
-    res.status = 202;
+    res.set_status(202);
     res.set_content("Accepted", "text/plain");
 }
 
-void server::handle_batch_jsonrpc(const json& batch_json, const std::string& session_id, httplib::Response& res) {
+void server::handle_batch_jsonrpc(const json& batch_json, const std::string& session_id, http::response_builder& res) {
     // Validate batch is not empty (per JSON-RPC 2.0 spec)
     if (batch_json.empty()) {
         LOG_ERROR("Received empty batch array");
-        res.status = 400;
+        res.set_status(400);
         json error_response = response::create_error(
             nullptr,
             error_code::invalid_request,
@@ -810,7 +811,7 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
         auto disp_it = session_dispatchers_.find(session_id);
         if (disp_it == session_dispatchers_.end()) {
             LOG_ERROR("Session not found for batch request: ", session_id);
-            res.status = 404;
+            res.set_status(404);
             res.set_content("{\"error\":\"Session not found\"}", "application/json");
             return;
         }
@@ -871,7 +872,7 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
     
     // If there was a parse error, return error response
     if (parse_error) {
-        res.status = 400;
+        res.set_status(400);
         json error_response = response::create_error(
             nullptr,
             error_code::invalid_request,
@@ -893,7 +894,7 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
         }
         
         // Return 202 Accepted for notification-only batch
-        res.status = 202;
+        res.set_status(202);
         res.set_content("Accepted", "text/plain");
         return;
     }
@@ -933,11 +934,11 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
     });
     
     // Return 202 Accepted
-    res.status = 202;
+    res.set_status(202);
     res.set_content("Accepted", "text/plain");
 }
 
-void server::handle_mcp(const httplib::Request& req, httplib::Response& res) {
+void server::handle_mcp(const http::request_data& req, http::response_builder& res) {
     // Route to appropriate handler based on HTTP method
     if (req.method == "GET") {
         handle_mcp_get(req, res);
@@ -947,13 +948,13 @@ void server::handle_mcp(const httplib::Request& req, httplib::Response& res) {
         handle_mcp_delete(req, res);
     } else {
         // Method not allowed
-        res.status = 405;
+        res.set_status(405);
         res.set_header("Allow", "GET, POST, DELETE");
         res.set_content("{\"error\":\"Method not allowed\"}", "application/json");
     }
 }
 
-void server::handle_mcp_get(const httplib::Request& req, httplib::Response& res) {
+void server::handle_mcp_get(const http::request_data& req, http::response_builder& res) {
     // GET request establishes SSE connection for receiving responses
     // This is the same as the legacy /sse endpoint but with Mcp-Session-Id header support
     
@@ -987,9 +988,9 @@ void server::handle_mcp_get(const httplib::Request& req, httplib::Response& res)
     res.set_header("Connection", "keep-alive");
     
     // Set CORS headers based on Origin validation (MCP 2025-03-26 security)
-    auto origin_it = req.headers.find("Origin");
-    if (origin_it != req.headers.end() && is_origin_allowed(origin_it->second)) {
-        res.set_header("Access-Control-Allow-Origin", origin_it->second);
+    auto origin = req.get_header("Origin");
+    if (origin && is_origin_allowed(*origin)) {
+        res.set_header("Access-Control-Allow-Origin", *origin);
         res.set_header("Access-Control-Allow-Credentials", "true");
     } else if (!validate_origin_) {
         // Only use wildcard if Origin validation is disabled
@@ -1066,14 +1067,14 @@ void server::handle_mcp_get(const httplib::Request& req, httplib::Response& res)
             session_dispatcher = disp_it->second;
         } else {
             // Session no longer exists
-            res.status = 404;
+            res.set_status(404);
             res.set_content("{\"error\":\"Session not found\"}", "application/json");
             return;
         }
     }
     
     // Setup chunked content provider for SSE
-    res.set_chunked_content_provider("text/event-stream", [this, session_id, session_dispatcher](size_t /* offset */, httplib::DataSink& sink) {
+    res.set_chunked_content_provider("text/event-stream", [this, session_id, session_dispatcher](size_t /* offset */, http::streaming_data_sink& sink) {
         try {
             if (session_dispatcher->is_closed()) {
                 return false;
@@ -1098,17 +1099,17 @@ void server::handle_mcp_get(const httplib::Request& req, httplib::Response& res)
     });
 }
 
-void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res) {
+void server::handle_mcp_post(const http::request_data& req, http::response_builder& res) {
     // POST request sends JSON-RPC messages (requests or notifications)
     // This is similar to the legacy /message endpoint but with enhanced header support
     
     // Validate Origin header for DNS rebinding mitigation (MCP 2025-03-26 security)
     if (should_validate_origin(req)) {
-        auto origin_it = req.headers.find("Origin");
-        if (origin_it != req.headers.end()) {
-            if (!is_origin_allowed(origin_it->second)) {
-                LOG_WARNING("POST /mcp rejected due to invalid Origin: ", origin_it->second);
-                res.status = 403; // Forbidden
+        auto origin = req.get_header("Origin");
+        if (origin) {
+            if (!is_origin_allowed(*origin)) {
+                LOG_WARNING("POST /mcp rejected due to invalid Origin: ", *origin);
+                res.set_status(403); // Forbidden
                 res.set_header("Content-Type", "application/json");
                 res.set_content("{\"error\":\"Origin not allowed\"}", "application/json");
                 return;
@@ -1118,9 +1119,9 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
     
     // Setup response headers
     // Set CORS headers based on Origin validation
-    auto origin_it = req.headers.find("Origin");
-    if (origin_it != req.headers.end() && is_origin_allowed(origin_it->second)) {
-        res.set_header("Access-Control-Allow-Origin", origin_it->second);
+    auto origin = req.get_header("Origin");
+    if (origin && is_origin_allowed(*origin)) {
+        res.set_header("Access-Control-Allow-Origin", *origin);
     } else if (!validate_origin_) {
         // Only use wildcard if Origin validation is disabled
         res.set_header("Access-Control-Allow-Origin", "*");
@@ -1131,24 +1132,23 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
     
     // Handle OPTIONS request (CORS pre-flight)
     if (req.method == "OPTIONS") {
-        res.status = 204; // No Content
+        res.set_status(204); // No Content
         return;
     }
     
     // Validate Accept header per MCP 2025-03-26 Streamable HTTP specification
     // The Accept header should include application/json and/or text/event-stream
-    auto accept_it = req.headers.find("Accept");
-    if (accept_it != req.headers.end()) {
-        std::string accept = accept_it->second;
+    auto accept = req.get_header("Accept");
+    if (accept) {
         // Check if Accept header includes supported types
-        bool accepts_json = accept.find("application/json") != std::string::npos || 
-                           accept.find("*/*") != std::string::npos;
-        bool accepts_sse = accept.find("text/event-stream") != std::string::npos || 
-                          accept.find("*/*") != std::string::npos;
+        bool accepts_json = accept->find("application/json") != std::string::npos || 
+                           accept->find("*/*") != std::string::npos;
+        bool accepts_sse = accept->find("text/event-stream") != std::string::npos || 
+                          accept->find("*/*") != std::string::npos;
         
         if (!accepts_json && !accepts_sse) {
-            LOG_WARNING("POST /mcp received unsupported Accept header: ", accept);
-            res.status = 406; // Not Acceptable
+            LOG_WARNING("POST /mcp received unsupported Accept header: ", *accept);
+            res.set_status(406); // Not Acceptable
             res.set_header("Content-Type", "application/json");
             res.set_content("{\"error\":\"Not Acceptable. Accept header must include application/json or text/event-stream\"}", "application/json");
             return;
@@ -1180,7 +1180,7 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
         req_json = json::parse(req.body);
     } catch (const json::exception& e) {
         LOG_ERROR("Failed to parse JSON request: ", e.what());
-        res.status = 400;
+        res.set_status(400);
         res.set_header("Content-Type", "application/json");
         res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
         return;
@@ -1193,7 +1193,7 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
             if (item.is_object() && item.contains("method") && 
                 item["method"].is_string() && item["method"] == "initialize") {
                 LOG_ERROR("Initialize method not allowed in batch requests per MCP 2025-03-26");
-                res.status = 400;
+                res.set_status(400);
                 res.set_header("Content-Type", "application/json");
                 json error_response = response::create_error(
                     nullptr,
@@ -1223,7 +1223,7 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
         if (disp_it == session_dispatchers_.end()) {
             // Handle ping request (allowed without session)
             if (req_json.contains("method") && req_json["method"] == "ping") {
-                res.status = 202;
+                res.set_status(202);
                 res.set_header("Content-Type", "text/plain");
                 res.set_content("Accepted", "text/plain");
                 return;
@@ -1231,7 +1231,7 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
             
             // Session not found - return 404
             LOG_ERROR("Session not found: ", session_id);
-            res.status = 404;
+            res.set_status(404);
             res.set_header("Content-Type", "application/json");
             res.set_content("{\"error\":\"Session not found\"}", "application/json");
             return;
@@ -1249,7 +1249,7 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
         std::string validation_error;
         if (!validate_request_message(req_json, validation_error)) {
             LOG_ERROR("Invalid JSON-RPC request: ", validation_error);
-            res.status = 400;
+            res.set_status(400);
             res.set_header("Content-Type", "application/json");
             json error_response = response::create_error(
                 req_json.contains("id") ? req_json["id"] : nullptr,
@@ -1267,7 +1267,7 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
             // Check for duplicate request ID
             if (!request_id_tracker_.add_request_id(session_id, mcp_req.id)) {
                 LOG_ERROR("Duplicate request ID: ", mcp_req.id.dump());
-                res.status = 400;
+                res.set_status(400);
                 res.set_header("Content-Type", "application/json");
                 json error_response = response::create_error(
                     mcp_req.id,
@@ -1284,7 +1284,7 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
         }
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to create request object: ", e.what());
-        res.status = 400;
+        res.set_status(400);
         res.set_header("Content-Type", "application/json");
         res.set_content("{\"error\":\"Invalid request\"}", "application/json");
         return;
@@ -1302,7 +1302,7 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
         });
         
         // Return 202 Accepted for notifications
-        res.status = 202;
+        res.set_status(202);
         res.set_header("Content-Type", "text/plain");
         res.set_content("Accepted", "text/plain");
         return;
@@ -1348,21 +1348,21 @@ void server::handle_mcp_post(const httplib::Request& req, httplib::Response& res
     });
     
     // Return 202 Accepted (response will be sent via SSE)
-    res.status = 202;
+    res.set_status(202);
     res.set_header("Content-Type", "text/plain");
     res.set_content("Accepted", "text/plain");
 }
 
-void server::handle_mcp_delete(const httplib::Request& req, httplib::Response& res) {
+void server::handle_mcp_delete(const http::request_data& req, http::response_builder& res) {
     // DELETE request terminates a session
     
     // Validate Origin header for DNS rebinding mitigation (MCP 2025-03-26 security)
     if (should_validate_origin(req)) {
-        auto origin_it = req.headers.find("Origin");
-        if (origin_it != req.headers.end()) {
-            if (!is_origin_allowed(origin_it->second)) {
-                LOG_WARNING("DELETE /mcp rejected due to invalid Origin: ", origin_it->second);
-                res.status = 403; // Forbidden
+        auto origin = req.get_header("Origin");
+        if (origin) {
+            if (!is_origin_allowed(*origin)) {
+                LOG_WARNING("DELETE /mcp rejected due to invalid Origin: ", *origin);
+                res.set_status(403); // Forbidden
                 res.set_header("Content-Type", "application/json");
                 res.set_content("{\"error\":\"Origin not allowed\"}", "application/json");
                 return;
@@ -1372,9 +1372,9 @@ void server::handle_mcp_delete(const httplib::Request& req, httplib::Response& r
     
     // Setup response headers
     // Set CORS headers based on Origin validation
-    auto origin_it = req.headers.find("Origin");
-    if (origin_it != req.headers.end() && is_origin_allowed(origin_it->second)) {
-        res.set_header("Access-Control-Allow-Origin", origin_it->second);
+    auto origin = req.get_header("Origin");
+    if (origin && is_origin_allowed(*origin)) {
+        res.set_header("Access-Control-Allow-Origin", *origin);
     } else if (!validate_origin_) {
         // Only use wildcard if Origin validation is disabled
         res.set_header("Access-Control-Allow-Origin", "*");
@@ -1386,7 +1386,7 @@ void server::handle_mcp_delete(const httplib::Request& req, httplib::Response& r
     
     if (session_id.empty()) {
         // No session ID provided
-        res.status = 400;
+        res.set_status(400);
         res.set_header("Content-Type", "application/json");
         res.set_content("{\"error\":\"Session ID required\"}", "application/json");
         return;
@@ -1404,7 +1404,7 @@ void server::handle_mcp_delete(const httplib::Request& req, httplib::Response& r
     
     if (!session_exists) {
         // Session not found
-        res.status = 404;
+        res.set_status(404);
         res.set_header("Content-Type", "application/json");
         res.set_content("{\"error\":\"Session not found\"}", "application/json");
         return;
@@ -1417,7 +1417,7 @@ void server::handle_mcp_delete(const httplib::Request& req, httplib::Response& r
     close_session(session_id);
     
     // Return 204 No Content on success
-    res.status = 204;
+    res.set_status(204);
 }
 
 json server::process_request(const request& req, const std::string& session_id) {
@@ -1784,11 +1784,11 @@ std::string server::generate_session_id() const {
     return ss.str();
 }
 
-std::string server::extract_session_id(const httplib::Request& req) const {
+std::string server::extract_session_id(const http::request_data& req) const {
     // First, try to get from Mcp-Session-Id header (Streamable HTTP transport)
-    auto header_it = req.headers.find("Mcp-Session-Id");
-    if (header_it != req.headers.end() && !header_it->second.empty()) {
-        return header_it->second;
+    auto header = req.get_header("Mcp-Session-Id");
+    if (header && !header->empty()) {
+        return *header;
     }
     
     // Fallback to query parameter for backward compatibility
@@ -1800,7 +1800,7 @@ std::string server::extract_session_id(const httplib::Request& req) const {
     return "";
 }
 
-void server::set_session_id_header(httplib::Response& res, const std::string& session_id) const {
+void server::set_session_id_header(http::response_builder& res, const std::string& session_id) const {
     if (!session_id.empty()) {
         res.set_header("Mcp-Session-Id", session_id);
     }
@@ -1832,7 +1832,7 @@ void server::check_inactive_sessions() {
     }
 }
 
-bool server::set_mount_point(const std::string& mount_point, const std::string& dir, httplib::Headers headers) {
+bool server::set_mount_point(const std::string& mount_point, const std::string& dir, http::headers_map headers) {
     return http_server_->set_mount_point(mount_point, dir, headers);
 }
 
@@ -1946,7 +1946,7 @@ bool server::is_origin_allowed(const std::string& origin) const {
     return false;
 }
 
-bool server::should_validate_origin(const httplib::Request& req) const {
+bool server::should_validate_origin(const http::request_data& req) const {
     // Only validate if validation is enabled
     if (!validate_origin_) {
         return false;

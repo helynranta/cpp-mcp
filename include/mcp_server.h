@@ -17,8 +17,8 @@
 #include "mcp_progress.h"
 #include "mcp_jsonrpc_validation.h"
 
-// Include the HTTP library
-#include "httplib.h"
+// Include the HTTP abstraction layer
+#include "mcp_http_factory.h"
 
 #include <string>
 #include <map>
@@ -75,7 +75,7 @@ public:
         close();
     }
 
-    bool wait_event(httplib::DataSink* sink, const std::chrono::milliseconds& timeout = std::chrono::milliseconds(10000)) {
+    bool wait_event(http::streaming_data_sink* sink, const std::chrono::milliseconds& timeout = std::chrono::milliseconds(10000)) {
         if (!sink || closed_.load(std::memory_order_acquire)) {
             return false;
         }
@@ -408,7 +408,7 @@ public:
      * @param headers Optional headers to include in the response
      * @return True if the mount point was set successfully
      */
-    bool set_mount_point(const std::string& mount_point, const std::string& dir, httplib::Headers headers = httplib::Headers());
+    bool set_mount_point(const std::string& mount_point, const std::string& dir, http::headers_map headers = http::headers_map());
 
 private:
     std::string host_;
@@ -418,7 +418,7 @@ private:
     json capabilities_;
     
     // The HTTP server
-    std::unique_ptr<httplib::Server> http_server_;
+    std::unique_ptr<http::server_interface> http_server_;
     
     // Server thread (for non-blocking mode)
     std::unique_ptr<std::thread> server_thread_;
@@ -479,25 +479,25 @@ private:
     std::map<std::string, json> session_client_capabilities_;
 
     // Handle SSE requests (legacy)
-    void handle_sse(const httplib::Request& req, httplib::Response& res);
+    void handle_sse(const http::request_data& req, http::response_builder& res);
     
     // Handle incoming JSON-RPC requests (legacy)
-    void handle_jsonrpc(const httplib::Request& req, httplib::Response& res);
+    void handle_jsonrpc(const http::request_data& req, http::response_builder& res);
 
     // Handle unified MCP endpoint (Streamable HTTP transport)
-    void handle_mcp(const httplib::Request& req, httplib::Response& res);
+    void handle_mcp(const http::request_data& req, http::response_builder& res);
     
     // Handle MCP GET request (SSE connection establishment)
-    void handle_mcp_get(const httplib::Request& req, httplib::Response& res);
+    void handle_mcp_get(const http::request_data& req, http::response_builder& res);
     
     // Handle MCP POST request (JSON-RPC messages)
-    void handle_mcp_post(const httplib::Request& req, httplib::Response& res);
+    void handle_mcp_post(const http::request_data& req, http::response_builder& res);
     
     // Handle MCP DELETE request (session termination)
-    void handle_mcp_delete(const httplib::Request& req, httplib::Response& res);
+    void handle_mcp_delete(const http::request_data& req, http::response_builder& res);
 
     // Handle batch JSON-RPC requests
-    void handle_batch_jsonrpc(const json& batch_json, const std::string& session_id, httplib::Response& res);
+    void handle_batch_jsonrpc(const json& batch_json, const std::string& session_id, http::response_builder& res);
 
     // Send a JSON-RPC message to a client
     void send_jsonrpc(const std::string& session_id, const json& message);
@@ -524,10 +524,10 @@ private:
     std::string generate_session_id() const;
     
     // Extract session ID from request (Mcp-Session-Id header or query parameter)
-    std::string extract_session_id(const httplib::Request& req) const;
+    std::string extract_session_id(const http::request_data& req) const;
     
     // Set session ID in response header
-    void set_session_id_header(httplib::Response& res, const std::string& session_id) const;
+    void set_session_id_header(http::response_builder& res, const std::string& session_id) const;
     
     // Auxiliary function to create an async handler from a regular handler
     template<typename F>
@@ -578,7 +578,7 @@ private:
     bool is_origin_allowed(const std::string& origin) const;
     
     // Check if origin validation should be performed for this request
-    bool should_validate_origin(const httplib::Request& req) const;
+    bool should_validate_origin(const http::request_data& req) const;
 };
 
 } // namespace mcp
