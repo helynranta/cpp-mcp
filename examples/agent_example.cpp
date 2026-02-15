@@ -18,6 +18,11 @@
 #include "mcp_sse_client.h"
 #include "mcp_http_factory.h"
 
+#if defined(_WIN32)
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 struct Config {
     // LLM Config
     std::string base_url;
