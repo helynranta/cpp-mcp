@@ -265,8 +265,9 @@ private:
 
 } // namespace httplib_adapter
 
-// Factory implementations (temporary - using httplib adapter)
-inline std::unique_ptr<server_interface> create_server(
+// LEGACY: Factory implementations using httplib adapter
+// These are kept for backward compatibility but Beast is now the default
+inline std::unique_ptr<server_interface> create_httplib_server(
     bool use_ssl,
     const std::string& cert_path,
     const std::string& key_path
@@ -274,7 +275,7 @@ inline std::unique_ptr<server_interface> create_server(
     return std::make_unique<httplib_adapter::httplib_server>(use_ssl, cert_path, key_path);
 }
 
-inline std::unique_ptr<client_interface> create_client(const std::string& scheme_host_port) {
+inline std::unique_ptr<client_interface> create_httplib_client(const std::string& scheme_host_port) {
     return std::make_unique<httplib_adapter::httplib_client>(scheme_host_port);
 }
 

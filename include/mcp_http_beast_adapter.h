@@ -583,8 +583,22 @@ private:
 
 } // namespace beast_adapter
 
-// TODO: Update factory functions to use beast adapter instead of httplib
-// This will be done in Phase 3/4 of migration
+/**
+ * @brief Factory functions using Beast adapter
+ * 
+ * These can be used to create server and client instances using Boost.Beast.
+ */
+inline std::unique_ptr<server_interface> create_beast_server(
+    bool use_ssl = false,
+    const std::string& cert_path = "",
+    const std::string& key_path = ""
+) {
+    return std::make_unique<beast_adapter::beast_server>(use_ssl, cert_path, key_path);
+}
+
+inline std::unique_ptr<client_interface> create_beast_client(const std::string& scheme_host_port) {
+    return std::make_unique<beast_adapter::beast_client>(scheme_host_port);
+}
 
 } // namespace http
 } // namespace mcp
