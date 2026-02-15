@@ -245,26 +245,33 @@ void server::stop() {
         // Try using timeout join
         bool joined = false;
         try {
-            // Create future and promise for timeout join
-            std::promise<void> thread_done;
-            auto future = thread_done.get_future();
+            // Create shared pointers to avoid dangling references
+            auto thread_ptr = thread.get();  // Get raw pointer before moving
+            std::shared_ptr<std::promise<void>> thread_done_ptr = std::make_shared<std::promise<void>>();
+            auto future = thread_done_ptr->get_future();
             
-            // Try join in another thread
-            std::thread join_helper([&thread, &thread_done]() {
+            // Try join in another thread - capture by value to avoid dangling references
+            std::thread join_helper([thread_ptr, thread_done_ptr]() {
                 try {
-                    thread->join();
-                    thread_done.set_value();
+                    if (thread_ptr && thread_ptr->joinable()) {
+                        thread_ptr->join();
+                        thread_done_ptr->set_value();
+                    }
                 } catch (...) {
                     try {
-                        thread_done.set_exception(std::current_exception());
+                        thread_done_ptr->set_exception(std::current_exception());
                     } catch (...) {}
                 }
             });
             
             // Wait for join to complete or timeout
             if (future.wait_for(std::chrono::milliseconds(100)) == std::future_status::ready) {
-                future.get(); // Get possible exception
-                joined = true;
+                try {
+                    future.get(); // Get possible exception
+                    joined = true;
+                } catch (...) {
+                    joined = false;
+                }
             }
             
             // Process join_helper thread
@@ -282,7 +289,9 @@ void server::stop() {
         // If join fails, then detach
         if (!joined) {
             try {
-                thread->detach();
+                if (thread && thread->joinable()) {
+                    thread->detach();
+                }
             } catch (...) {
                 // Ignore exceptions
             }

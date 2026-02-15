@@ -606,13 +606,17 @@ protected:
 
     void TearDown() override {
         // Clean up - each test has isolated resources
+        // Important: client must be destroyed FIRST to close connection gracefully
+        // Then server can stop cleanly without active connections
         client_.reset();
+        
         if (server_) {
             server_->stop();
-            // Give more time for all server resources to fully clean up
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
         server_.reset();
+        
+        // Small delay to ensure resources are fully released
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     int port_;
