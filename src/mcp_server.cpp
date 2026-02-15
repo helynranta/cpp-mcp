@@ -11,6 +11,24 @@
 
 namespace mcp {
 
+namespace {
+bool interruptible_sleep(const std::stop_token& stoken, std::chrono::milliseconds duration) {
+    constexpr auto kStopCheckInterval = std::chrono::milliseconds(100); // Balance shutdown responsiveness and CPU overhead
+    while (!stoken.stop_requested() && duration > std::chrono::milliseconds::zero()) {
+        auto step = duration > kStopCheckInterval ? kStopCheckInterval : duration;
+        std::this_thread::sleep_for(step);
+        duration -= step;
+    }
+    return !stoken.stop_requested();
+}
+
+int heartbeat_jitter_ms() {
+    thread_local std::mt19937 rng{std::random_device{}()};
+    thread_local std::uniform_int_distribution<int> dist(0, 499);
+    return dist(rng);
+}
+}
+
 
 server::server(const server::configuration& conf)
     : host_(conf.host)
@@ -220,6 +238,9 @@ void server::stop() {
         session_lifecycle_.clear();
         session_client_capabilities_.clear();
     }
+
+    LOG_INFO("Server stop cleanup: dispatchers=", dispatchers_to_close.size(),
+             ", sse_threads=", threads_to_stop.size());
     
     // Close all dispatchers to gracefully disconnect SSE clients
     for (const auto& dispatcher : dispatchers_to_close) {
@@ -240,6 +261,7 @@ void server::stop() {
     // 1. Dispatchers are closed (wait_event returns false)
     // 2. stop_requested() returns true
     // 3. alive_ is set to false (checked in lambdas)
+    LOG_INFO("Server stop cleanup: joining ", threads_to_stop.size(), " SSE threads");
     threads_to_stop.clear();  // Joins all threads automatically
     
     // Stop server thread - jthread joins automatically
@@ -480,7 +502,9 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
     auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri, session_dispatcher](std::stop_token stoken) {
         try {
             // Send initial session URI
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            if (!interruptible_sleep(stoken, std::chrono::milliseconds(500))) {
+                return;
+            }
             
             // Check if server is still alive or stop requested
             if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire)) {
@@ -499,7 +523,10 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
             while (!stoken.stop_requested() && 
                    alive && alive->load(std::memory_order_acquire) && 
                    running_ && !session_dispatcher->is_closed()) {
-               std::this_thread::sleep_for(std::chrono::seconds(5) + std::chrono::milliseconds(rand() % 500)); // NOTE: DO NOT set it the same as the timeout of wait_event
+                auto heartbeat_sleep = std::chrono::seconds(5) + std::chrono::milliseconds(heartbeat_jitter_ms());
+                if (!interruptible_sleep(stoken, std::chrono::duration_cast<std::chrono::milliseconds>(heartbeat_sleep))) {
+                    break;
+                } // NOTE: DO NOT set it the same as the timeout of wait_event
                 
                 if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire) ||
                     session_dispatcher->is_closed() || !running_) {
@@ -987,7 +1014,9 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
         auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri, session_dispatcher](std::stop_token stoken) {
             try {
                 // Send initial session endpoint
-                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                if (!interruptible_sleep(stoken, std::chrono::milliseconds(500))) {
+                    return;
+                }
                 
                 // Check if server is still alive or stop requested
                 if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire)) {
@@ -1004,7 +1033,10 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
                 while (!stoken.stop_requested() &&
                        alive && alive->load(std::memory_order_acquire) && 
                        running_ && !session_dispatcher->is_closed()) {
-                    std::this_thread::sleep_for(std::chrono::seconds(5) + std::chrono::milliseconds(rand() % 500));
+                    auto heartbeat_sleep = std::chrono::seconds(5) + std::chrono::milliseconds(heartbeat_jitter_ms());
+                    if (!interruptible_sleep(stoken, std::chrono::duration_cast<std::chrono::milliseconds>(heartbeat_sleep))) {
+                        break;
+                    }
                     
                     if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire) ||
                         session_dispatcher->is_closed() || !running_) {
@@ -1857,6 +1889,7 @@ void server::clear_session_state(const std::string& session_id) {
 void server::close_session(const std::string& session_id) {
      // Clean up resources safely
     try {
+        LOG_INFO("close_session begin: ", session_id);
         for (const auto& [key, handler] : session_cleanup_handler_) {
             handler(key);
         }
@@ -1901,17 +1934,20 @@ void server::close_session(const std::string& session_id) {
         if (thread_to_release) {
             auto thread_id = thread_to_release->get_id();
             if (thread_id == std::this_thread::get_id()) {
+                LOG_INFO("close_session self-thread cleanup: ", session_id);
                 // We're being called from within the thread itself
                 // Just request stop and let the thread exit naturally
                 thread_to_release->request_stop();
                 // Release ownership without joining (thread will clean up on exit)
                 thread_to_release.release();
             } else {
+                LOG_INFO("close_session joining thread for: ", session_id);
                 // Safe to request stop and join
                 thread_to_release->request_stop();
                 thread_to_release.reset();  // jthread joins automatically
             }
         }
+        LOG_INFO("close_session end: ", session_id);
     } catch (const std::exception& e) {
         LOG_WARNING("Exception while cleaning up session resources: ", session_id, ", ", e.what());
     } catch (...) {

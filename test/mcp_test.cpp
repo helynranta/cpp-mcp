@@ -17,6 +17,11 @@
 using namespace mcp;
 using json = nlohmann::ordered_json;
 
+namespace {
+constexpr auto kServerStartupDelay = std::chrono::milliseconds(100);
+constexpr auto kSseWaitTimeout = std::chrono::seconds(5);
+}
+
 // Test message format
 struct MessageFormatTest {
     MessageFormatTest() {
@@ -194,6 +199,7 @@ struct VersioningTest {
         
         // Start server (non-blocking mode)
         server_->start(false);
+        std::this_thread::sleep_for(kServerStartupDelay);
 
         client_ = std::make_unique<sse_client>("http://localhost:" + std::to_string(port_));
     }
@@ -289,6 +295,19 @@ BOOST_AUTO_TEST_CASE(UnsupportedVersion) {
             sse_client_ptr->store(nullptr, std::memory_order_release);
         });
         
+        BOOST_TEST_MESSAGE("Waiting for SSE endpoint in UnsupportedVersion test");
+        auto endpoint_status = msg_endpoint.wait_for(kSseWaitTimeout);
+        if (endpoint_status != std::future_status::ready) {
+            BOOST_TEST_MESSAGE("Timed out waiting for SSE endpoint in UnsupportedVersion test");
+            auto client = sse_client_ptr->load(std::memory_order_acquire);
+            if (client) {
+                client->stop();
+            }
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
+            BOOST_FAIL("SSE endpoint was not received within timeout");
+        }
         std::string endpoint = msg_endpoint.get();
         BOOST_CHECK(!endpoint.empty());
         
@@ -300,11 +319,24 @@ BOOST_AUTO_TEST_CASE(UnsupportedVersion) {
         BOOST_CHECK(res.success);
         BOOST_CHECK_EQUAL(res.status_code / 100, 2);
         
+        BOOST_TEST_MESSAGE("Waiting for SSE response in UnsupportedVersion test");
+        auto sse_status = sse_response.wait_for(kSseWaitTimeout);
+        if (sse_status != std::future_status::ready) {
+            BOOST_TEST_MESSAGE("Timed out waiting for SSE response in UnsupportedVersion test");
+            auto client = sse_client_ptr->load(std::memory_order_acquire);
+            if (client) {
+                client->stop();
+            }
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
+            BOOST_FAIL("SSE response was not received within timeout");
+        }
         auto mcp_res = json::parse(sse_response.get());
         BOOST_CHECK_EQUAL(mcp_res["error"]["code"].get<int>(), static_cast<int>(error_code::invalid_params));
 
         // Give the callback a moment to finish and return before stopping
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(kServerStartupDelay);
         
         // Stop SSE client to interrupt the blocking Get() call
         auto client = sse_client_ptr->load(std::memory_order_acquire);
@@ -312,23 +344,9 @@ BOOST_AUTO_TEST_CASE(UnsupportedVersion) {
             client->stop();
         }
         
-        // Try to join the thread instead of detaching
+        // Avoid potentially blocking forever on join if transport shutdown stalls
         if (sse_thread.joinable()) {
-            // Wait a bit for the thread to exit after stop()
-            auto start = std::chrono::steady_clock::now();
-            auto timeout = std::chrono::seconds(2);
-            while (sse_thread.joinable() && std::chrono::steady_clock::now() - start < timeout) {
-                try {
-                    sse_thread.join();
-                    break;
-                } catch (...) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                }
-            }
-            // Only detach if we couldn't join
-            if (sse_thread.joinable()) {
-                sse_thread.detach();
-            }
+            sse_thread.detach();
         }
         
         // Clean up resources  
@@ -378,6 +396,7 @@ struct PingTest {
         
         // Start server (non-blocking mode)
         server_->start(false);
+        std::this_thread::sleep_for(kServerStartupDelay);
 
         json client_capabilities = {
             {"roots", {{"listChanged", true}}},
@@ -479,6 +498,19 @@ BOOST_AUTO_TEST_CASE(DirectPing) {
             sse_client_ptr->store(nullptr, std::memory_order_release);
         });
 
+        BOOST_TEST_MESSAGE("Waiting for SSE endpoint in PingOverSSE test");
+        auto endpoint_status = msg_endpoint.wait_for(kSseWaitTimeout);
+        if (endpoint_status != std::future_status::ready) {
+            BOOST_TEST_MESSAGE("Timed out waiting for SSE endpoint in PingOverSSE test");
+            auto client = sse_client_ptr->load(std::memory_order_acquire);
+            if (client) {
+                client->stop();
+            }
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
+            BOOST_FAIL("SSE endpoint was not received within timeout");
+        }
         std::string endpoint = msg_endpoint.get();
         BOOST_CHECK(!endpoint.empty());
 
@@ -489,6 +521,19 @@ BOOST_AUTO_TEST_CASE(DirectPing) {
         BOOST_CHECK(ping_res.success);
         BOOST_CHECK_EQUAL(ping_res.status_code / 100, 2);
 
+        BOOST_TEST_MESSAGE("Waiting for SSE response in PingOverSSE test");
+        auto sse_status = sse_response.wait_for(kSseWaitTimeout);
+        if (sse_status != std::future_status::ready) {
+            BOOST_TEST_MESSAGE("Timed out waiting for SSE response in PingOverSSE test");
+            auto client = sse_client_ptr->load(std::memory_order_acquire);
+            if (client) {
+                client->stop();
+            }
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
+            BOOST_FAIL("SSE response was not received within timeout");
+        }
         auto mcp_res = json::parse(sse_response.get());
         BOOST_CHECK_EQUAL(mcp_res["result"], json::object());
 
@@ -501,23 +546,9 @@ BOOST_AUTO_TEST_CASE(DirectPing) {
             client->stop();
         }
         
-        // Try to join the thread instead of detaching
+        // Avoid potentially blocking forever on join if transport shutdown stalls
         if (sse_thread.joinable()) {
-            // Wait a bit for the thread to exit after stop()
-            auto start = std::chrono::steady_clock::now();
-            auto timeout = std::chrono::seconds(2);
-            while (sse_thread.joinable() && std::chrono::steady_clock::now() - start < timeout) {
-                try {
-                    sse_thread.join();
-                    break;
-                } catch (...) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                }
-            }
-            // Only detach if we couldn't join
-            if (sse_thread.joinable()) {
-                sse_thread.detach();
-            }
+            sse_thread.detach();
         }
         
         // Clean up resources
