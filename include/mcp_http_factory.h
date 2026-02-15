@@ -32,9 +32,9 @@ namespace http {
  * @return Unique pointer to server instance
  */
 inline std::unique_ptr<server_interface> create_server(
-    bool use_ssl = false,
-    const std::string& cert_path = "",
-    const std::string& key_path = ""
+    bool use_ssl,
+    const std::string& cert_path,
+    const std::string& key_path
 ) {
     return create_beast_server(use_ssl, cert_path, key_path);
 }

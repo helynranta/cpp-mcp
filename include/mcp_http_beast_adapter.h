@@ -226,7 +226,34 @@ private:
             // Convert to request_data
             request_data req_data;
             req_data.method = std::string(req.method_string());
-            req_data.path = std::string(req.target());
+            std::string full_target = std::string(req.target());
+            
+            // Parse path and query parameters
+            size_t query_pos = full_target.find('?');
+            if (query_pos != std::string::npos) {
+                req_data.path = full_target.substr(0, query_pos);
+                std::string query_string = full_target.substr(query_pos + 1);
+                
+                // Parse query parameters
+                size_t start = 0;
+                while (start < query_string.length()) {
+                    size_t amp_pos = query_string.find('&', start);
+                    size_t end = (amp_pos != std::string::npos) ? amp_pos : query_string.length();
+                    std::string param = query_string.substr(start, end - start);
+                    
+                    size_t eq_pos = param.find('=');
+                    if (eq_pos != std::string::npos) {
+                        std::string key = param.substr(0, eq_pos);
+                        std::string value = param.substr(eq_pos + 1);
+                        req_data.params[key] = value;
+                    }
+                    
+                    start = (amp_pos != std::string::npos) ? amp_pos + 1 : query_string.length();
+                }
+            } else {
+                req_data.path = full_target;
+            }
+            
             req_data.body = req.body();
             
             // Copy headers

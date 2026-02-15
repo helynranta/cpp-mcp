@@ -157,6 +157,11 @@ private:
             req_data.headers.emplace(name, value);
         }
         
+        // Convert query parameters
+        for (const auto& [name, value] : req.params) {
+            req_data.params.emplace(name, value);
+        }
+        
         // Create response builder
         httplib_response_builder res_builder(res);
         

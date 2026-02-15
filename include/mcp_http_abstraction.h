@@ -39,6 +39,7 @@ struct request_data {
     std::string remote_addr;   ///< Client IP address
     int remote_port = 0;       ///< Client port
     headers_map headers;       ///< HTTP headers
+    std::map<std::string, std::string> params;  ///< Query string parameters
     
     /**
      * @brief Get header value by name
