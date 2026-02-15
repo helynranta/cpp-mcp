@@ -1837,6 +1837,26 @@ bool server::set_mount_point(const std::string& mount_point, const std::string& 
     return http_server_->set_mount_point(mount_point, dir, headers);
 }
 
+void server::set_session_state(const std::string& session_id, const json& state) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    session_state_[session_id] = state;
+}
+
+json server::get_session_state(const std::string& session_id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = session_state_.find(session_id);
+    if (it != session_state_.end()) {
+        return it->second;
+    }
+    return json(); // Return null JSON
+}
+
+void server::clear_session_state(const std::string& session_id) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    session_state_.erase(session_id);
+}
+
+
 void server::close_session(const std::string& session_id) {
      // Clean up resources safely
     try {
@@ -1865,9 +1885,10 @@ void server::close_session(const std::string& session_id) {
                 sse_threads_.erase(thread_it);
             }
             
-            // Clean up lifecycle state and client capabilities
+            // Clean up lifecycle state, client capabilities, and session state
             session_lifecycle_.erase(session_id);
             session_client_capabilities_.erase(session_id);
+            session_state_.erase(session_id);
         }
         
         // Clear request IDs for this session

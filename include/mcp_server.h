@@ -410,6 +410,26 @@ public:
      */
     bool set_mount_point(const std::string& mount_point, const std::string& dir, http::headers_map headers = http::headers_map());
 
+    /**
+     * @brief Set session state data
+     * @param session_id The session ID
+     * @param state The state data to store (arbitrary JSON)
+     */
+    void set_session_state(const std::string& session_id, const json& state);
+    
+    /**
+     * @brief Get session state data
+     * @param session_id The session ID
+     * @return The session state data (empty JSON if session doesn't exist)
+     */
+    json get_session_state(const std::string& session_id) const;
+    
+    /**
+     * @brief Clear session state data
+     * @param session_id The session ID
+     */
+    void clear_session_state(const std::string& session_id);
+
 private:
     std::string host_;
     int port_;
@@ -477,6 +497,9 @@ private:
     
     // Map to track client capabilities per session (session_id -> capabilities)
     std::map<std::string, json> session_client_capabilities_;
+    
+    // Map to track custom session state (session_id -> state data)
+    std::map<std::string, json> session_state_;
 
     // Handle SSE requests (legacy)
     void handle_sse(const http::request_data& req, http::response_builder& res);
