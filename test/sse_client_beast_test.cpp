@@ -25,11 +25,14 @@ using namespace mcp;
  * 
  * Sets up a test server using Beast adapter (already migrated)
  * and tests that sse_client can connect and communicate.
+ * 
+ * Each test gets a unique port to avoid conflicts and ensure isolation.
  */
 class SseClientBeastTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Use unique port for each test
+        // Use unique port for each test to avoid conflicts
+        // Note: This static counter is shared but necessary for port allocation
         static std::atomic<int> port_counter{19000};
         test_port_ = port_counter.fetch_add(1);
         
@@ -52,20 +55,25 @@ protected:
             return {{"echo", params.value("message", "")}};
         });
         
-        // Start server
+        // Start server - Beast server now properly signals when ready
         server_->start(false);
-        
-        // Give Beast server significant time to start, bind port, and begin accepting
-        // Beast server.listen() starts a thread that then creates acceptor
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
     
     void TearDown() override {
+        // Ensure proper cleanup to avoid shared state between tests
         if (server_) {
             server_->stop();
+            server_.reset();
         }
-        server_.reset();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // Allow sufficient time for all threads to complete and resources to be released
+        // This is critical to prevent race conditions and port conflicts when the next test starts
+        // The delay accounts for:
+        // - Server thread termination
+        // - Connection handler threads completion
+        // - Socket TIME_WAIT state
+        // - OS-level resource cleanup
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
     
     std::string get_base_url() {
