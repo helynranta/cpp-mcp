@@ -118,7 +118,8 @@ private:
 /**
  * @brief Boost.Beast implementation of server_interface
  * 
- * Implements HTTP server using Boost.Beast with async I/O
+ * Implements HTTP server using Boost.Beast with async I/O.
+ * Uses C++20 jthread for automatic joining and cooperative cancellation.
  */
 class beast_server : public server_interface {
 public:
@@ -126,7 +127,6 @@ public:
         : use_ssl_(use_ssl)
         , cert_path_(cert_path)
         , key_path_(key_path)
-        , running_(false)
         , server_ready_(false)
         , server_failed_(false)
     {
@@ -138,6 +138,9 @@ public:
     
     ~beast_server() {
         stop();
+        // jthread automatically joins on destruction
+        // Ensure all member variables are cleaned up properly
+        io_context_.reset();
     }
     
     void register_get(const std::string& pattern, request_handler handler) override {
@@ -165,12 +168,12 @@ public:
     
     bool listen(const std::string& host, int port) override {
         try {
-            running_ = true;
             server_ready_ = false;
             server_failed_ = false;
             
-            server_thread_ = std::thread([this, host, port]() {
-                this->run_server(host, port);
+            // Create jthread with stop token support
+            server_thread_ = std::jthread([this, host, port](std::stop_token stoken) {
+                this->run_server(host, port, stoken);
             });
             
             // Wait for server to signal it's ready (acceptor is bound) or failed
@@ -180,34 +183,42 @@ public:
             
             if (!wait_result || server_failed_.load()) {
                 // Timeout or server failed to start
-                running_ = false;
-                if (server_thread_.joinable()) {
-                    server_thread_.join();
-                }
+                // jthread will automatically request stop and join on destruction
+                server_thread_ = std::jthread();  // Reset to trigger auto-join
                 return false;
             }
             
             return true;
         } catch (...) {
-            running_ = false;
+            server_thread_ = std::jthread();  // Reset to trigger auto-join
             return false;
         }
     }
     
     void stop() override {
-        running_ = false;
+        // Request cooperative cancellation via stop token
+        if (server_thread_.get_stop_token().stop_possible()) {
+            server_thread_.request_stop();
+        }
+        
+        // Stop the io_context to break out of any blocking operations
         if (io_context_) {
             io_context_->stop();
         }
-        // Give active connections time to finish
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // jthread automatically joins on destruction, but we'll do it explicitly
+        // to ensure cleanup happens before returning from stop()
         if (server_thread_.joinable()) {
             server_thread_.join();
         }
+        
+        // Give detached connection handler threads sufficient time to complete
+        // This is critical to prevent them from accessing freed member variables
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
     
 private:
-    void run_server(const std::string& host, int port) {
+    void run_server(const std::string& host, int port, std::stop_token stoken) {
         try {
             LOG_INFO("Beast server: Creating io_context and acceptor for ", host, ":", port);
             io_context_ = std::make_unique<net::io_context>(1);
@@ -236,7 +247,8 @@ private:
             }
             ready_cv_.notify_one();
             
-            while (running_) {
+            // Run until stop is requested via stop_token
+            while (!stoken.stop_requested()) {
                 tcp::socket socket{*io_context_};
                 boost::system::error_code ec;
                 acceptor.accept(socket, ec);
@@ -252,6 +264,8 @@ private:
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
             }
+            
+            LOG_INFO("Beast server: Stop requested, exiting gracefully");
         } catch (const std::exception& e) {
             LOG_ERROR("Beast server: Exception during startup: ", e.what());
             // Signal failure (server not ready)
@@ -389,10 +403,9 @@ private:
     bool use_ssl_;
     std::string cert_path_;
     std::string key_path_;
-    std::atomic<bool> running_;
     std::atomic<bool> server_ready_;
     std::atomic<bool> server_failed_;
-    std::thread server_thread_;
+    std::jthread server_thread_;  // C++20 jthread for automatic joining
     std::unique_ptr<net::io_context> io_context_;
     std::map<std::string, request_handler> routes_;
     std::mutex ready_mutex_;
