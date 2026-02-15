@@ -398,6 +398,7 @@ server->run(); // Blocking call
 For more details, see:
 - [Boost.Beast Documentation](https://www.boost.org/doc/libs/release/libs/beast/doc/html/index.html)
 - [Boost.Beast HTTP Examples](https://www.boost.org/doc/libs/release/libs/beast/example/http/)
+- [HTTP Client/Server Example](https://github.com/helynranta/cpp-mcp/blob/main/examples/http_example.cpp) - Complete working example in this repository
 
 ## Examples
 
@@ -456,6 +457,45 @@ Demonstrates how to use the stdio client to communicate with a local server:
 ```bash
 cmake --build build --target stdio_client_example
 ./build/examples/stdio_client_example "npx -y @modelcontextprotocol/server-everything"
+```
+
+### HTTP Client/Server Example ([`examples/http_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/http_example.cpp))
+
+Minimal example demonstrating the low-level Boost.Beast HTTP APIs:
+- Creating an HTTP server with custom route handlers (GET, POST)
+- Creating an HTTP client
+- Making HTTP requests and handling responses
+- JSON request/response handling
+- Error handling and validation
+
+This example showcases the HTTP abstraction layer (`mcp::http::create_server()` and `mcp::http::create_client()`) that powers the higher-level MCP protocol implementations.
+
+**Build and run:**
+```bash
+cmake --build build --target http_example
+./build/examples/http_example
+```
+
+The example will:
+1. Start an HTTP server on `localhost:8890`
+2. Create a client and make several test requests
+3. Demonstrate GET with query parameters, POST with JSON, calculator endpoint, and error handling
+4. Keep the server running (press Ctrl+C to stop)
+
+**Sample output:**
+```
+Creating HTTP server using Boost.Beast...
+Starting HTTP server on localhost:8890...
+
+Creating HTTP client using Boost.Beast...
+
+--- Test 1: GET /hello ---
+Status: 200
+Body: {"message":"Hello, World!","timestamp":1771173000}
+
+--- Test 4: POST /calculate (10 + 5) ---
+Status: 200
+Body: {"operands":[10.0,5.0],"operation":"add","result":15.0}
 ```
 
 ### Agent Example ([`examples/agent_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/agent_example.cpp))
