@@ -28,6 +28,9 @@ set(TEST_SOURCES
     tool_safety_test.cpp
     boost_integration_test.cpp
     beast_sse_proof_of_concept.cpp
+    http_abstraction_test.cpp
+    httplib_adapter_test.cpp
+    beast_adapter_test.cpp
 )
 
 # Create test executable
