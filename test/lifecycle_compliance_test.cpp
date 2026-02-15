@@ -16,14 +16,18 @@
 using namespace mcp;
 using json = nlohmann::ordered_json;
 
-// Test environment for lifecycle tests
-class LifecycleComplianceEnvironment : public ::testing::Environment {
-public:
+// Test fixture for lifecycle compliance tests - each test gets isolated server
+class LifecycleComplianceTest : public ::testing::Test {
+protected:
     void SetUp() override {
+        // Create server on unique port for this test (avoid conflicts)
+        static std::atomic<int> port_counter{16000};
+        port_ = port_counter.fetch_add(1);
+        
         // Set up test server
         server::configuration config;
         config.host = "localhost";
-        config.port = 9091;
+        config.port = port_;
         config.name = "LifecycleTestServer";
         config.version = "1.0.0";
         server_ = std::make_unique<server>(config);
@@ -48,38 +52,19 @@ public:
         server_->start(false);
         
         // Give server time to start
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
-
-    void TearDown() override {
-        // Clean up - no long delays needed with isolated servers
-        if (server_) {
-            server_->stop();
-        }
-        server_.reset();
-    }
-
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
-    }
-
-private:
-    static std::unique_ptr<server> server_;
-};
-
-std::unique_ptr<server> LifecycleComplianceEnvironment::server_;
-
-// Test fixture for lifecycle compliance tests
-class LifecycleComplianceTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
         // Create HTTP client
-        http_client = std::make_unique<httplib::Client>("localhost", 9091);
+        http_client = std::make_unique<httplib::Client>("localhost", port_);
         
         // Establish SSE connection and get session endpoint
-        sse_thread = std::thread([this]() {
-            httplib::Client sse_client("localhost", 9091);
-            sse_client.Get("/sse", [this](const char* data, size_t len) {
+        auto sse_client = std::make_shared<httplib::Client>("localhost", port_);
+        
+        sse_thread = std::thread([this, sse_client]() {
+            // Store pointer atomically so TearDown can access it
+            sse_client_ptr.store(sse_client.get(), std::memory_order_release);
+            
+            sse_client->Get("/sse", [this](const char* data, size_t len) {
                 std::string response(data, len);
                 
                 // Extract message endpoint
@@ -97,6 +82,9 @@ protected:
                 }
                 return true;
             });
+            
+            // Clear pointer when done
+            sse_client_ptr.store(nullptr, std::memory_order_release);
         });
         
         // Wait for endpoint to be ready
@@ -109,16 +97,32 @@ protected:
     }
 
     void TearDown() override {
-        // Clean up
+        // Clean up - stop SSE client before detaching
+        auto client = sse_client_ptr.load(std::memory_order_acquire);
+        if (client) {
+            client->stop();
+        }
         if (sse_thread.joinable()) {
-            // Note: SSE thread will continue running, but that's okay for testing
-            sse_thread.detach();
+            // Give the thread a moment to exit after stop() is called
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
         }
         http_client.reset();
+        
+        // Stop and clean up server
+        if (server_) {
+            server_->stop();
+        }
+        server_.reset();
     }
 
+    int port_;
+    std::unique_ptr<server> server_;
     std::unique_ptr<httplib::Client> http_client;
     std::thread sse_thread;
+    std::atomic<httplib::Client*> sse_client_ptr{nullptr};
     std::string message_endpoint;
     std::mutex endpoint_mutex;
     std::condition_variable endpoint_cv;
@@ -329,8 +333,7 @@ TEST_F(LifecycleComplianceTest, CancellationNotificationHandling) {
     json cancelled_request_id;
     std::string cancellation_reason;
     
-    auto* server = LifecycleComplianceEnvironment::GetServer().get();
-    server->set_cancellation_handler([&](const json& request_id, const std::string& reason, const std::string&) {
+    server_->set_cancellation_handler([&](const json& request_id, const std::string& reason, const std::string&) {
         cancelled_request_id = request_id;
         cancellation_reason = reason;
         cancellation_received.store(true);
@@ -381,7 +384,3 @@ TEST_F(LifecycleComplianceTest, CancellationNotificationHandling) {
     EXPECT_EQ(42, cancelled_request_id);
     EXPECT_EQ("User requested cancellation", cancellation_reason);
 }
-
-// Register environment
-::testing::Environment* const lifecycle_env =
-    ::testing::AddGlobalTestEnvironment(new LifecycleComplianceEnvironment);

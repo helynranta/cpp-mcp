@@ -229,13 +229,16 @@ TEST_F(VersioningTest, UnsupportedVersion) {
 
         // Capture port for use in detached thread
         int test_port = port_;
+        auto sse_client_ptr = std::make_shared<std::atomic<httplib::Client*>>(nullptr);
         
         // Use std::thread with shared state to avoid lifetime issues when detaching
         std::thread sse_thread([msg_endpoint_received, sse_response_received,
-                                msg_endpoint_promise, sse_promise, test_port]() {
+                                msg_endpoint_promise, sse_promise, test_port, sse_client_ptr]() {
             // Create SSE client inside thread so it's owned by the thread
-            httplib::Client sse_client("localhost", test_port);
-            sse_client.Get("/sse", [msg_endpoint_received, sse_response_received,
+            auto sse_client = std::make_shared<httplib::Client>("localhost", test_port);
+            sse_client_ptr->store(sse_client.get(), std::memory_order_release);
+            
+            sse_client->Get("/sse", [msg_endpoint_received, sse_response_received,
                                     msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
                     std::string response(data, len);
@@ -266,6 +269,8 @@ TEST_F(VersioningTest, UnsupportedVersion) {
                 // Continue until we get both messages
                 return !msg_endpoint_received->load() || !sse_response_received->load();
             });
+            
+            sse_client_ptr->store(nullptr, std::memory_order_release);
         });
         
         std::string endpoint = msg_endpoint.get();
@@ -281,10 +286,32 @@ TEST_F(VersioningTest, UnsupportedVersion) {
         auto mcp_res = json::parse(sse_response.get());
         EXPECT_EQ(mcp_res["error"]["code"].get<int>(), static_cast<int>(error_code::invalid_params));
 
-        // Detach the thread - all state is heap-allocated via shared_ptr, so it's safe
-        // The thread will stop automatically once both messages are received
+        // Give the callback a moment to finish and return before stopping
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // Stop SSE client to interrupt the blocking Get() call
+        auto client = sse_client_ptr->load(std::memory_order_acquire);
+        if (client) {
+            client->stop();
+        }
+        
+        // Try to join the thread instead of detaching
         if (sse_thread.joinable()) {
-            sse_thread.detach();
+            // Wait a bit for the thread to exit after stop()
+            auto start = std::chrono::steady_clock::now();
+            auto timeout = std::chrono::seconds(2);
+            while (sse_thread.joinable() && std::chrono::steady_clock::now() - start < timeout) {
+                try {
+                    sse_thread.join();
+                    break;
+                } catch (...) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                }
+            }
+            // Only detach if we couldn't join
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
         }
         
         // Clean up resources  
@@ -383,13 +410,16 @@ TEST_F(PingTest, DirectPing) {
 
         // Capture port for use in detached thread
         int test_port = port_;
+        auto sse_client_ptr = std::make_shared<std::atomic<httplib::Client*>>(nullptr);
         
         // Use std::thread with shared state to avoid lifetime issues when detaching
         std::thread sse_thread([msg_endpoint_received, sse_response_received,
-                                msg_endpoint_promise, sse_promise, test_port]() {
+                                msg_endpoint_promise, sse_promise, test_port, sse_client_ptr]() {
             // Create SSE client inside thread so it's owned by the thread
-            httplib::Client sse_client("localhost", test_port);
-            sse_client.Get("/sse", [msg_endpoint_received, sse_response_received,
+            auto sse_client = std::make_shared<httplib::Client>("localhost", test_port);
+            sse_client_ptr->store(sse_client.get(), std::memory_order_release);
+            
+            sse_client->Get("/sse", [msg_endpoint_received, sse_response_received,
                                     msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
                     std::string response(data, len);
@@ -420,6 +450,8 @@ TEST_F(PingTest, DirectPing) {
                 // Continue until we get both messages
                 return !msg_endpoint_received->load() || !sse_response_received->load();
             });
+            
+            sse_client_ptr->store(nullptr, std::memory_order_release);
         });
 
         std::string endpoint = msg_endpoint.get();
@@ -434,10 +466,32 @@ TEST_F(PingTest, DirectPing) {
         auto mcp_res = json::parse(sse_response.get());
         EXPECT_EQ(mcp_res["result"], json::object());
 
-        // Detach the thread - all state is heap-allocated via shared_ptr, so it's safe
-        // The thread will stop automatically once both messages are received
+        // Give the callback a moment to finish and return before stopping
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // Stop SSE client to interrupt the blocking Get() call
+        auto client = sse_client_ptr->load(std::memory_order_acquire);
+        if (client) {
+            client->stop();
+        }
+        
+        // Try to join the thread instead of detaching
         if (sse_thread.joinable()) {
-            sse_thread.detach();
+            // Wait a bit for the thread to exit after stop()
+            auto start = std::chrono::steady_clock::now();
+            auto timeout = std::chrono::seconds(2);
+            while (sse_thread.joinable() && std::chrono::steady_clock::now() - start < timeout) {
+                try {
+                    sse_thread.join();
+                    break;
+                } catch (...) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                }
+            }
+            // Only detach if we couldn't join
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
         }
         
         // Clean up resources
@@ -450,15 +504,18 @@ TEST_F(PingTest, DirectPing) {
     }
 }
 
-// Tools test environment
-// Test tools functionality
+// Tools test - each test gets its own isolated server
 class ToolsTest : public ::testing::Test {
 protected:
-    static void SetUpTestSuite() {
+    void SetUp() override {
+        // Create server on unique port for this test (avoid conflicts)
+        static std::atomic<int> port_counter{13000};
+        port_ = port_counter.fetch_add(1);
+        
         // Set up test environment
         server::configuration config;
         config.host = "localhost";
-        config.port = 8083;
+        config.port = port_;
         config.name = "TestServer";
         config.version = "1.0.0";
         server_ = std::make_unique<server>(config);
@@ -542,13 +599,13 @@ protected:
             {"roots", {{"listChanged", true}}},
             {"sampling", json::object()}
         };
-        client_ = std::make_unique<sse_client>("http://localhost:8083");
+        client_ = std::make_unique<sse_client>("http://localhost:" + std::to_string(port_));
         client_->set_capabilities(client_capabilities);
         client_->initialize("TestClient", "1.0.0");
     }
 
-    static void TearDownTestSuite() {
-        // Clean up test environment - no long delays needed since no detached threads
+    void TearDown() override {
+        // Clean up - each test has isolated resources
         client_.reset();
         if (server_) {
             server_->stop();
@@ -556,27 +613,17 @@ protected:
         server_.reset();
     }
 
-    void SetUp() override {
-        // Get client pointer
-        client_ptr_ = client_.get();
-    }
-
-    // Use raw pointer for test access
-    sse_client* client_ptr_;
-    static std::unique_ptr<server> server_;
-    static std::unique_ptr<sse_client> client_;
+    int port_;
+    std::unique_ptr<server> server_;
+    std::unique_ptr<sse_client> client_;
 };
-
-// Static member variable definition
-std::unique_ptr<server> ToolsTest::server_;
-std::unique_ptr<sse_client> ToolsTest::client_;
 
 // Test listing tools
 TEST_F(ToolsTest, ListTools) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // Call list tools method
-    json tools_list = client_ptr_->send_request("tools/list").result;
+    json tools_list = client_->send_request("tools/list").result;
     
     // Verify tools list
     EXPECT_TRUE(tools_list.contains("tools"));
@@ -589,7 +636,7 @@ TEST_F(ToolsTest, ListTools) {
 TEST_F(ToolsTest, CallTool) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // Call tool
-    json tool_result = client_ptr_->call_tool("get_weather", {{"location", "New York"}});
+    json tool_result = client_->call_tool("get_weather", {{"location", "New York"}});
     
     // Verify tool call result
     EXPECT_TRUE(tool_result.contains("content"));
@@ -935,14 +982,18 @@ TEST_F(BatchRequestTest, SingleRequestBatch) {
     EXPECT_EQ(batch[0]["method"], "single_method");
 }
 
-// Integration tests for batch request handling with server
+// Integration tests for batch request handling - each test gets isolated server
 class BatchIntegrationTest : public ::testing::Test {
 protected:
-    static void SetUpTestSuite() {
+    void SetUp() override {
+        // Create server on unique port for this test (avoid conflicts)
+        static std::atomic<int> port_counter{14000};
+        port_ = port_counter.fetch_add(1);
+        
         // Set up test server
         server::configuration config;
         config.host = "localhost";
-        config.port = 8090;
+        config.port = port_;
         config.name = "BatchTestServer";
         config.version = "1.0.0";
         server_ = std::make_unique<server>(config);
@@ -973,12 +1024,17 @@ protected:
             {"roots", {{"listChanged", true}}},
             {"sampling", json::object()}
         };
-        client_ = std::make_unique<sse_client>("http://localhost:8090");
+        client_ = std::make_unique<sse_client>("http://localhost:" + std::to_string(port_));
         client_->set_capabilities(client_capabilities);
+        
+        // Initialize the client
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        bool init_result = client_->initialize("BatchTestClient", "1.0.0");
+        ASSERT_TRUE(init_result) << "Client initialization failed";
     }
 
-    static void TearDownTestSuite() {
-        // Clean up test environment - no long delays needed since no detached threads
+    void TearDown() override {
+        // Clean up - each test has isolated resources
         client_.reset();
         if (server_) {
             server_->stop();
@@ -986,22 +1042,10 @@ protected:
         server_.reset();
     }
 
-    void SetUp() override {
-        client_ptr_ = client_.get();
-        
-        // Initialize the client
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        bool init_result = client_ptr_->initialize("BatchTestClient", "1.0.0");
-        ASSERT_TRUE(init_result) << "Client initialization failed";
-    }
-
-    sse_client* client_ptr_;
-    static std::unique_ptr<server> server_;
-    static std::unique_ptr<sse_client> client_;
+    int port_;
+    std::unique_ptr<server> server_;
+    std::unique_ptr<sse_client> client_;
 };
-
-std::unique_ptr<server> BatchIntegrationTest::server_;
-std::unique_ptr<sse_client> BatchIntegrationTest::client_;
 
 // Note: The following tests validate batch message format and parsing logic.
 // Full integration tests would require extending the SSE client to support
@@ -1013,21 +1057,25 @@ TEST_F(BatchIntegrationTest, BatchRequestValidation) {
     // by checking that single requests still work (backward compatibility)
     
     // Send a single request (non-batch)
-    json response = client_ptr_->send_request("tools/list").result;
+    json response = client_->send_request("tools/list").result;
     
     // Verify response is valid
     EXPECT_TRUE(response.contains("tools"));
     EXPECT_TRUE(response["tools"].is_array());
 }
 
-// Test JSON-RPC validation integration with server
+// Test JSON-RPC validation integration - each test gets isolated server
 class JsonRpcServerValidationTest : public ::testing::Test {
 protected:
-    static void SetUpTestSuite() {
+    void SetUp() override {
+        // Create server on unique port for this test (avoid conflicts)
+        static std::atomic<int> port_counter{15000};
+        port_ = port_counter.fetch_add(1);
+        
         // Set up test server
         server::configuration config;
         config.host = "localhost";
-        config.port = 8095;
+        config.port = port_;
         config.name = "ValidationTestServer";
         config.version = "1.0.0";
         server_ = std::make_unique<server>(config);
@@ -1057,7 +1105,7 @@ protected:
             {"roots", {{"listChanged", true}}},
             {"sampling", json::object()}
         };
-        client_ = std::make_unique<sse_client>("http://localhost:8095");
+        client_ = std::make_unique<sse_client>("http://localhost:" + std::to_string(port_));
         client_->set_capabilities(client_capabilities);
         
         // Initialize
@@ -1067,8 +1115,8 @@ protected:
         }
     }
 
-    static void TearDownTestSuite() {
-        // Clean up test environment - no long delays needed since no detached threads
+    void TearDown() override {
+        // Clean up - each test has isolated resources
         client_.reset();
         if (server_) {
             server_->stop();
@@ -1076,13 +1124,10 @@ protected:
         server_.reset();
     }
 
-    static std::unique_ptr<server> server_;
-    static std::unique_ptr<sse_client> client_;
+    int port_;
+    std::unique_ptr<server> server_;
+    std::unique_ptr<sse_client> client_;
 };
-
-// Static member definitions
-std::unique_ptr<server> JsonRpcServerValidationTest::server_;
-std::unique_ptr<sse_client> JsonRpcServerValidationTest::client_;
 
 // Test that server accepts valid requests
 TEST_F(JsonRpcServerValidationTest, AcceptsValidRequest) {

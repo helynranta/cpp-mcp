@@ -17,14 +17,18 @@
 using namespace mcp;
 using json = nlohmann::ordered_json;
 
-// Test environment for Streamable HTTP transport tests
-class StreamableHttpTransportEnvironment : public ::testing::Environment {
-public:
+// Test fixture for Streamable HTTP transport tests - each test gets isolated server
+class StreamableHttpTransportTest : public ::testing::Test {
+protected:
     void SetUp() override {
+        // Create server on unique port for this test (avoid conflicts)
+        static std::atomic<int> port_counter{17000};
+        port_ = port_counter.fetch_add(1);
+        
         // Set up test server
         server::configuration config;
         config.host = "localhost";
-        config.port = 9092; // Different port to avoid conflicts
+        config.port = port_;
         config.name = "StreamableHttpTestServer";
         config.version = "1.0.0";
         server_ = std::make_unique<server>(config);
@@ -50,39 +54,24 @@ public:
         server_->start(false);
         
         // Give server time to start
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
-
-    void TearDown() override {
-        // Clean up - no long delays needed with isolated servers
-        if (server_) {
-            server_->stop();
-        }
-        server_.reset();
-    }
-
-    static std::unique_ptr<server>& GetServer() {
-        return server_;
-    }
-
-private:
-    static std::unique_ptr<server> server_;
-};
-
-std::unique_ptr<server> StreamableHttpTransportEnvironment::server_;
-
-// Test fixture for Streamable HTTP transport tests
-class StreamableHttpTransportTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        http_client = std::make_unique<httplib::Client>("localhost", 9092);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        http_client = std::make_unique<httplib::Client>("localhost", port_);
         http_client->set_read_timeout(5, 0); // 5 seconds timeout
     }
 
     void TearDown() override {
         http_client.reset();
+        
+        // Stop and clean up server
+        if (server_) {
+            server_->stop();
+        }
+        server_.reset();
     }
     
+    int port_;
+    std::unique_ptr<server> server_;
     // Helper to extract session ID from Mcp-Session-Id header
     std::string extract_session_id(const httplib::Result& res) {
         if (!res) return "";
@@ -100,10 +89,13 @@ protected:
         bool got_endpoint = false;
         std::mutex mtx;
         std::condition_variable cv;
+        auto sse_client = std::make_shared<httplib::Client>("localhost", port_);
+        std::atomic<httplib::Client*> client_ptr{nullptr};
         
-        std::thread sse_thread([&]() {
-            httplib::Client sse_client("localhost", 9092);
-            auto res = sse_client.Get("/mcp", 
+        std::thread sse_thread([&, sse_client]() {
+            client_ptr.store(sse_client.get(), std::memory_order_release);
+            
+            auto res = sse_client->Get("/mcp", 
                 [&](const char* data, size_t len) {
                     std::string response(data, len);
                     
@@ -123,6 +115,8 @@ protected:
                     }
                     return true;
                 });
+            
+            client_ptr.store(nullptr, std::memory_order_release);
         });
         
         // Wait for endpoint
@@ -131,8 +125,18 @@ protected:
             cv.wait_for(lock, std::chrono::seconds(3), [&] { return got_endpoint; });
         }
         
+        // Stop the client before detaching to avoid crashes during teardown
+        auto client = client_ptr.load(std::memory_order_acquire);
+        if (client) {
+            client->stop();
+        }
+        
         if (sse_thread.joinable()) {
-            sse_thread.detach();
+            // Give it a moment to exit after stop()
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            if (sse_thread.joinable()) {
+                sse_thread.detach();
+            }
         }
         
         return endpoint;
@@ -140,10 +144,6 @@ protected:
 
     std::unique_ptr<httplib::Client> http_client;
 };
-
-// Register test environment
-::testing::Environment* const streamable_http_env =
-    ::testing::AddGlobalTestEnvironment(new StreamableHttpTransportEnvironment);
 
 // Test: GET /mcp establishes SSE connection and returns Mcp-Session-Id header
 TEST_F(StreamableHttpTransportTest, GetMcpEstablishesSession) {
@@ -334,10 +334,13 @@ TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
     bool got_endpoint = false;
     std::mutex mtx;
     std::condition_variable cv;
+    auto sse_client = std::make_shared<httplib::Client>("localhost", port_);
+    std::atomic<httplib::Client*> client_ptr{nullptr};
     
-    std::thread sse_thread([&]() {
-        httplib::Client sse_client("localhost", 9092);
-        sse_client.Get("/sse", [&](const char* data, size_t len) {
+    std::thread sse_thread([&, sse_client]() {
+        client_ptr.store(sse_client.get(), std::memory_order_release);
+        
+        sse_client->Get("/sse", [&](const char* data, size_t len) {
             std::string response(data, len);
             
             if (response.find("endpoint") != std::string::npos) {
@@ -356,6 +359,8 @@ TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             return true;
         });
+        
+        client_ptr.store(nullptr, std::memory_order_release);
     });
     
     {
@@ -363,8 +368,18 @@ TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
         cv.wait_for(lock, std::chrono::seconds(3), [&] { return got_endpoint; });
     }
     
+    // Stop the client before detaching to avoid crashes during teardown
+    auto client = client_ptr.load(std::memory_order_acquire);
+    if (client) {
+        client->stop();
+    }
+    
     if (sse_thread.joinable()) {
-        sse_thread.detach();
+        // Give it a moment to exit after stop()
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        if (sse_thread.joinable()) {
+            sse_thread.detach();
+        }
     }
     
     EXPECT_FALSE(endpoint.empty()) << "Legacy /sse endpoint should still work";

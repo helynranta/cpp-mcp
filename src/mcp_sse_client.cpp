@@ -454,12 +454,20 @@ void sse_client::close_sse_connection() {
     
     LOG_INFO("Actively closing SSE connection (normal exit flow)...");
     
+    // Stop the SSE client to interrupt the blocking Get() call
+    // This is thread-safe and will shutdown the socket
+    if (sse_client_) {
+        sse_client_->stop();
+    }
+    
+    // Signal the thread to stop
     sse_running_ = false;
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    // Give the thread a moment to detect the socket shutdown
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     if (sse_thread_ && sse_thread_->joinable()) {
-        auto timeout = std::chrono::seconds(5);
+        auto timeout = std::chrono::seconds(2);
         auto start = std::chrono::steady_clock::now();
         
         LOG_INFO("Waiting for SSE thread to end...");
@@ -472,7 +480,7 @@ void sse_client::close_sse_connection() {
                 break;
             } catch (const std::exception& e) {
                 LOG_ERROR("Error waiting for SSE thread: ", e.what());
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
         }
         
