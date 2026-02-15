@@ -11,19 +11,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Find required packages
 find_package(Threads REQUIRED)
 
-# For older versions of CMake, this option needs to be set
-# IMPORTANT: Must be set BEFORE add_subdirectory to take effect
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-
-# Use local Google Test
-set(GTEST_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/googletest)
-add_subdirectory(${GTEST_ROOT} googletest-build)
+# Find GTest from vcpkg
+find_package(GTest REQUIRED)
 
 # Include header directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../common)
-include_directories(${GTEST_ROOT}/googletest/include)
-include_directories(${GTEST_ROOT}/googlemock/include)
 
 # Add test source files
 set(TEST_SOURCES
@@ -50,10 +43,10 @@ endif()
 
 # Link Google Test and MCP library
 target_link_libraries(${TEST_PROJECT_NAME} PRIVATE
-    gtest
-    gtest_main
-    gmock
-    gmock_main
+    GTest::gtest
+    GTest::gtest_main
+    GTest::gmock
+    GTest::gmock_main
     mcp
     Threads::Threads
 )

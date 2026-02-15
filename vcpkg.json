@@ -4,5 +4,13 @@
   "version": "2024.11.5",
   "dependencies": [
     "boost-beast"
-  ]
+  ],
+  "features": {
+    "tests": {
+      "description": "Build with test support",
+      "dependencies": [
+        "gtest"
+      ]
+    }
+  }
 }

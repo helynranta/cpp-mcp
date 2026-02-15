@@ -15,8 +15,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        submodules: recursive
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
@@ -28,6 +26,7 @@ jobs:
         cmake -B build \
           -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
           -DMCP_BUILD_TESTS=ON \
+          -DVCPKG_MANIFEST_FEATURES="tests" \
           -DCMAKE_BUILD_TYPE=Release
     
     - name: Build
@@ -45,8 +44,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        submodules: recursive
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
@@ -58,6 +55,7 @@ jobs:
         cmake -B build `
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
           -DMCP_BUILD_TESTS=ON `
+          -DVCPKG_MANIFEST_FEATURES="tests" `
           -DCMAKE_BUILD_TYPE=Release
     
     - name: Build
@@ -75,8 +73,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        submodules: recursive
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
@@ -88,6 +84,7 @@ jobs:
         cmake -B build \
           -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
           -DMCP_BUILD_TESTS=ON \
+          -DVCPKG_MANIFEST_FEATURES="tests" \
           -DCMAKE_BUILD_TYPE=Release
     
     - name: Build
