@@ -176,9 +176,8 @@ cd build && ctest -R mcp_catch2_tests -V
 
 ## Dependencies
 
-- **vcpkg** (for Catch2)
-- **Catch2 3.x** (installed via vcpkg)
-- **GoogleTest** (bundled as submodule)
+- **vcpkg** (for dependency management)
+- **GoogleTest** (installed via vcpkg feature "tests")
 - **CMake 3.10+**
 
 ## Success Criteria
