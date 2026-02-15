@@ -609,8 +609,8 @@ protected:
         client_.reset();
         if (server_) {
             server_->stop();
-            // Give OS time to release the port and clean up resources
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // Give more time for all server resources to fully clean up
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
         server_.reset();
     }
