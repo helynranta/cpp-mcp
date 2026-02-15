@@ -44,9 +44,9 @@ option(MCP_SSL "Enable SSL support" OFF)
 
 if(MCP_SSL)
     find_package(OpenSSL 3.0.0 COMPONENTS Crypto SSL REQUIRED)
-    include_directories(${OPENSSL_INCLUDE_DIR}) # before including cpp-httplib to avoid OpenSSL with lower version included 
+    include_directories(${OPENSSL_INCLUDE_DIR})
     message(STATUS "OpenSSL include directory: ${OPENSSL_INCLUDE_DIR}")
-    add_compile_definitions(MCP_SSL CPPHTTPLIB_OPENSSL_SUPPORT)
+    add_compile_definitions(MCP_SSL)
 endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)

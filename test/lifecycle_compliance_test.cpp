@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 #include "mcp_server.h"
 #include "mcp_message.h"
-#include "httplib.h"
+#include "mcp_http_factory.h"
 #include <thread>
 #include <chrono>
 
@@ -54,17 +54,18 @@ protected:
         // Give server time to start
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
-        // Create HTTP client
-        http_client = std::make_unique<httplib::Client>("localhost", port_);
+        // Create HTTP client using Beast
+        std::string base_url = "http://localhost:" + std::to_string(port_);
+        http_client = http::create_client(base_url);
         
         // Establish SSE connection and get session endpoint
-        auto sse_client = std::make_shared<httplib::Client>("localhost", port_);
+        auto sse_client = http::create_client(base_url);
         
-        sse_thread = std::thread([this, sse_client]() {
+        sse_thread = std::thread([this, sse_client = std::move(sse_client)]() mutable {
             // Store pointer atomically so TearDown can access it
             sse_client_ptr.store(sse_client.get(), std::memory_order_release);
             
-            sse_client->Get("/sse", [this](const char* data, size_t len) {
+            sse_client->get_stream("/sse", [this](const char* data, size_t len) {
                 std::string response(data, len);
                 
                 // Extract message endpoint
@@ -97,13 +98,9 @@ protected:
     }
 
     void TearDown() override {
-        // Clean up - stop SSE client before detaching
-        auto client = sse_client_ptr.load(std::memory_order_acquire);
-        if (client) {
-            client->stop();
-        }
+        // Clean up - SSE client will be destroyed when thread exits
         if (sse_thread.joinable()) {
-            // Give the thread a moment to exit after stop() is called
+            // Give the thread a moment to exit
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             if (sse_thread.joinable()) {
                 sse_thread.detach();
@@ -120,9 +117,9 @@ protected:
 
     int port_;
     std::unique_ptr<server> server_;
-    std::unique_ptr<httplib::Client> http_client;
+    std::unique_ptr<http::client_interface> http_client;
     std::thread sse_thread;
-    std::atomic<httplib::Client*> sse_client_ptr{nullptr};
+    std::atomic<http::client_interface*> sse_client_ptr{nullptr};
     std::string message_endpoint;
     std::mutex endpoint_mutex;
     std::condition_variable endpoint_cv;
@@ -148,14 +145,15 @@ TEST_F(LifecycleComplianceTest, RejectInitializeInBatch) {
     batch.push_back(init_request);
     
     // Send batch request
-    auto res = http_client->Post(message_endpoint.c_str(), batch.dump(), "application/json");
+    http::headers_map headers;
+    auto res = http_client->post(message_endpoint, headers, batch.dump(), "application/json");
     
     // Should return error (400 Bad Request)
-    ASSERT_TRUE(res);
-    EXPECT_EQ(400, res->status);
+    ASSERT_TRUE(res.success);
+    EXPECT_EQ(400, res.status_code);
     
     // Parse error response
-    json error_response = json::parse(res->body);
+    json error_response = json::parse(res.body);
     EXPECT_TRUE(error_response.contains("error"));
     EXPECT_EQ(-32600, error_response["error"]["code"]);
     EXPECT_NE(std::string::npos, 
@@ -175,11 +173,12 @@ TEST_F(LifecycleComplianceTest, RejectRequestsBeforeInitialize) {
         }}
     };
     
-    auto res = http_client->Post(message_endpoint.c_str(), tool_request.dump(), "application/json");
+    http::headers_map headers;
+    auto res = http_client->post(message_endpoint, headers, tool_request.dump(), "application/json");
     
     // Request should be accepted (202) but response should indicate error
-    ASSERT_TRUE(res);
-    EXPECT_EQ(202, res->status);
+    ASSERT_TRUE(res.success);
+    EXPECT_EQ(202, res.status_code);
     
     // Wait a bit for async processing
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -197,11 +196,12 @@ TEST_F(LifecycleComplianceTest, AllowPingBeforeInitialize) {
         {"method", "ping"}
     };
     
-    auto res = http_client->Post(message_endpoint.c_str(), ping_request.dump(), "application/json");
+    http::headers_map headers;
+    auto res = http_client->post(message_endpoint, headers, ping_request.dump(), "application/json");
     
     // Request should be accepted
-    ASSERT_TRUE(res);
-    EXPECT_EQ(202, res->status);
+    ASSERT_TRUE(res.success);
+    EXPECT_EQ(202, res.status_code);
 }
 
 // Test that initialize can only be called once
@@ -218,9 +218,10 @@ TEST_F(LifecycleComplianceTest, RejectDuplicateInitialize) {
         }}
     };
     
-    auto res1 = http_client->Post(message_endpoint.c_str(), init_request.dump(), "application/json");
-    ASSERT_TRUE(res1);
-    EXPECT_EQ(202, res1->status);
+    http::headers_map headers;
+    auto res1 = http_client->post(message_endpoint, headers, init_request.dump(), "application/json");
+    ASSERT_TRUE(res1.success);
+    EXPECT_EQ(202, res1.status_code);
     
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
@@ -228,9 +229,9 @@ TEST_F(LifecycleComplianceTest, RejectDuplicateInitialize) {
     json init_request2 = init_request;
     init_request2["id"] = 2;
     
-    auto res2 = http_client->Post(message_endpoint.c_str(), init_request2.dump(), "application/json");
-    ASSERT_TRUE(res2);
-    EXPECT_EQ(202, res2->status);
+    auto res2 = http_client->post(message_endpoint, headers, init_request2.dump(), "application/json");
+    ASSERT_TRUE(res2.success);
+    EXPECT_EQ(202, res2.status_code);
     
     // Wait for async processing - error response will come via SSE
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -250,9 +251,10 @@ TEST_F(LifecycleComplianceTest, RequireInitializedNotification) {
         }}
     };
     
-    auto res = http_client->Post(message_endpoint.c_str(), init_request.dump(), "application/json");
-    ASSERT_TRUE(res);
-    EXPECT_EQ(202, res->status);
+    http::headers_map headers;
+    auto res = http_client->post(message_endpoint, headers, init_request.dump(), "application/json");
+    ASSERT_TRUE(res.success);
+    EXPECT_EQ(202, res.status_code);
     
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
@@ -267,9 +269,9 @@ TEST_F(LifecycleComplianceTest, RequireInitializedNotification) {
         }}
     };
     
-    auto res2 = http_client->Post(message_endpoint.c_str(), tool_request.dump(), "application/json");
-    ASSERT_TRUE(res2);
-    EXPECT_EQ(202, res2->status);
+    auto res2 = http_client->post(message_endpoint, headers, tool_request.dump(), "application/json");
+    ASSERT_TRUE(res2.success);
+    EXPECT_EQ(202, res2.status_code);
     
     // Error response will come via SSE indicating session not ready
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -289,9 +291,10 @@ TEST_F(LifecycleComplianceTest, SuccessfulLifecycleSequence) {
         }}
     };
     
-    auto res1 = http_client->Post(message_endpoint.c_str(), init_request.dump(), "application/json");
-    ASSERT_TRUE(res1);
-    EXPECT_EQ(202, res1->status);
+    http::headers_map headers;
+    auto res1 = http_client->post(message_endpoint, headers, init_request.dump(), "application/json");
+    ASSERT_TRUE(res1.success);
+    EXPECT_EQ(202, res1.status_code);
     
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
@@ -301,9 +304,9 @@ TEST_F(LifecycleComplianceTest, SuccessfulLifecycleSequence) {
         {"method", "notifications/initialized"}
     };
     
-    auto res2 = http_client->Post(message_endpoint.c_str(), initialized_notif.dump(), "application/json");
-    ASSERT_TRUE(res2);
-    EXPECT_EQ(202, res2->status);
+    auto res2 = http_client->post(message_endpoint, headers, initialized_notif.dump(), "application/json");
+    ASSERT_TRUE(res2.success);
+    EXPECT_EQ(202, res2.status_code);
     
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
@@ -318,9 +321,9 @@ TEST_F(LifecycleComplianceTest, SuccessfulLifecycleSequence) {
         }}
     };
     
-    auto res3 = http_client->Post(message_endpoint.c_str(), tool_request.dump(), "application/json");
-    ASSERT_TRUE(res3);
-    EXPECT_EQ(202, res3->status);
+    auto res3 = http_client->post(message_endpoint, headers, tool_request.dump(), "application/json");
+    ASSERT_TRUE(res3.success);
+    EXPECT_EQ(202, res3.status_code);
     
     // Request should succeed (response via SSE)
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -351,7 +354,8 @@ TEST_F(LifecycleComplianceTest, CancellationNotificationHandling) {
         }}
     };
     
-    http_client->Post(message_endpoint.c_str(), init_request.dump(), "application/json");
+    http::headers_map headers;
+    http_client->post(message_endpoint, headers, init_request.dump(), "application/json");
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     json initialized_notif = {
@@ -359,7 +363,7 @@ TEST_F(LifecycleComplianceTest, CancellationNotificationHandling) {
         {"method", "notifications/initialized"}
     };
     
-    http_client->Post(message_endpoint.c_str(), initialized_notif.dump(), "application/json");
+    http_client->post(message_endpoint, headers, initialized_notif.dump(), "application/json");
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // Send cancellation notification
@@ -372,9 +376,9 @@ TEST_F(LifecycleComplianceTest, CancellationNotificationHandling) {
         }}
     };
     
-    auto res = http_client->Post(message_endpoint.c_str(), cancel_notif.dump(), "application/json");
-    ASSERT_TRUE(res);
-    EXPECT_EQ(202, res->status);
+    auto res = http_client->post(message_endpoint, headers, cancel_notif.dump(), "application/json");
+    ASSERT_TRUE(res.success);
+    EXPECT_EQ(202, res.status_code);
     
     // Wait for notification to be processed
     std::this_thread::sleep_for(std::chrono::milliseconds(200));

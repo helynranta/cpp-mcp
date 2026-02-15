@@ -3,10 +3,7 @@
  * @brief HTTP abstraction layer for MCP
  * 
  * This file provides library-agnostic HTTP interfaces that decouple MCP from
- * the underlying HTTP implementation (transitioning from httplib to boost::beast).
- * 
- * This is Phase 1 of the httplib → boost::beast migration.
- * See MIGRATION_PLAN.md for details.
+ * the underlying HTTP implementation (using Boost.Beast).
  */
 
 #ifndef MCP_HTTP_ABSTRACTION_H
@@ -30,7 +27,7 @@ using headers_map = std::multimap<std::string, std::string>;
  * @brief HTTP request data structure
  * 
  * Simple POD structure containing HTTP request information.
- * Decouples MCP code from httplib::Request or boost::beast::http::request.
+ * Abstracts HTTP request details from underlying implementation.
  */
 struct request_data {
     std::string method;        ///< HTTP method (GET, POST, DELETE, OPTIONS)
@@ -59,7 +56,6 @@ struct request_data {
  * @brief Data sink for streaming responses (SSE)
  * 
  * Abstract interface for writing chunked data in streaming responses.
- * Replaces httplib::DataSink.
  */
 class streaming_data_sink {
 public:
@@ -78,7 +74,6 @@ public:
  * @brief HTTP response builder interface
  * 
  * Abstract interface for building HTTP responses.
- * Decouples MCP code from httplib::Response or boost::beast::http::response.
  */
 class response_builder {
 public:
@@ -108,7 +103,6 @@ public:
      * @brief Set chunked content provider for streaming responses (SSE)
      * 
      * Used for Server-Sent Events and other streaming responses.
-     * Replaces httplib::Response::set_chunked_content_provider.
      * 
      * @param content_type Content-Type header value
      * @param provider Callback that writes data to sink. Returns true to continue, false to end stream.
@@ -131,7 +125,6 @@ using request_handler = std::function<void(const request_data&, response_builder
  * @brief HTTP server interface
  * 
  * Abstract interface for HTTP servers.
- * Can be implemented using httplib (current) or boost::beast (future).
  */
 class server_interface {
 public:
@@ -194,7 +187,6 @@ public:
  * @brief HTTP client result structure
  * 
  * Contains the result of an HTTP client request.
- * Replaces httplib::Result.
  */
 struct client_result {
     bool success = false;      ///< Whether request succeeded (no network/connection error)
@@ -222,7 +214,6 @@ struct client_result {
  * @brief Streaming callback for client-side SSE
  * 
  * Called for each chunk of data received during streaming.
- * Replaces httplib callback in Client::Get().
  * 
  * @param data Pointer to received data chunk
  * @param size Size of data chunk in bytes
@@ -234,7 +225,6 @@ using streaming_callback = std::function<bool(const char* data, size_t size)>;
  * @brief HTTP client interface
  * 
  * Abstract interface for HTTP clients.
- * Can be implemented using httplib (current) or boost::beast (future).
  */
 class client_interface {
 public:
@@ -330,8 +320,7 @@ std::unique_ptr<server_interface> create_server(
 /**
  * @brief Factory function to create HTTP client
  * 
- * Creates the appropriate client implementation based on configuration.
- * Currently returns httplib-based client, will transition to boost::beast.
+ * Creates an HTTP client using Boost.Beast.
  * 
  * @param scheme_host_port Base URL (e.g., "http://localhost:8080")
  * @return Unique pointer to client instance

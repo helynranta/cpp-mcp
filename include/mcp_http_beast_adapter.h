@@ -3,13 +3,6 @@
  * @brief Boost.Beast adapter for HTTP abstraction layer
  * 
  * This file provides implementations of the HTTP abstractions using Boost.Beast.
- * This adapter will REPLACE the httplib adapter after migration is complete.
- * 
- * This is Phase 2 of the httplib → boost::beast migration.
- * See MIGRATION_PLAN.md for details.
- * 
- * STATUS: NOT YET IMPLEMENTED
- * TODO: Implement all interfaces using Boost.Beast
  */
 
 #ifndef MCP_HTTP_BEAST_ADAPTER_H
@@ -132,7 +125,7 @@ public:
     {
         // SSL support will be added later
         if (use_ssl) {
-            throw std::runtime_error("SSL/TLS support not yet implemented for beast_server. Use create_httplib_server() for SSL support or disable SSL for now.");
+            throw std::runtime_error("SSL/TLS support not yet implemented for beast_server. Please disable SSL for now.");
         }
     }
     
@@ -448,7 +441,7 @@ public:
         }
         
         if (scheme_ == "https") {
-            throw std::runtime_error("HTTPS support not yet implemented for beast_client. Use create_httplib_client() for HTTPS support or use HTTP for now.");
+            throw std::runtime_error("HTTPS support not yet implemented for beast_client. Please use HTTP for now.");
         }
     }
     
