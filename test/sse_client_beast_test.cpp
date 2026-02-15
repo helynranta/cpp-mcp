@@ -122,7 +122,12 @@ TEST_F(SseClientBeastTest, CanPingServer) {
 /**
  * Test: sse_client can call tools using Beast
  * 
- * EXPECTED TO FAIL initially
+ * Note: MCP server wraps tool results in standard structure:
+ * {
+ *   "isError": false,
+ *   "content": <tool_handler_result>
+ * }
+ * Tests must check result["content"] not the raw result.
  */
 TEST_F(SseClientBeastTest, CanCallTools) {
     sse_client client(get_base_url());
@@ -145,7 +150,7 @@ TEST_F(SseClientBeastTest, CanCallTools) {
  * Verifies that the dual client pattern (one for POST, one for SSE GET)
  * is preserved after migration to abstraction layer.
  * 
- * EXPECTED TO FAIL initially
+ * Note: MCP server wraps tool results in {"isError": false, "content": <result>} structure
  */
 TEST_F(SseClientBeastTest, DualClientPatternPreserved) {
     sse_client client(get_base_url());
