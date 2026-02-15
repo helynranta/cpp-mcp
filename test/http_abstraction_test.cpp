@@ -6,7 +6,7 @@
  * These tests validate the abstractions work correctly independent of implementation.
  */
 
-#include <gtest/gtest.h>
+#include <boost/test/unit_test.hpp>
 #include "mcp_http_abstraction.h"
 #include "http_test_utilities.h"
 #include <memory>
@@ -17,217 +17,229 @@ using namespace mcp::http::test;
 /**
  * Test request_data structure and helper methods
  */
-class RequestDataTest : public ::testing::Test {
-protected:
+struct RequestDataTest {
     request_data req;
 };
 
-TEST_F(RequestDataTest, DefaultConstruction) {
-    EXPECT_TRUE(req.method.empty());
-    EXPECT_TRUE(req.path.empty());
-    EXPECT_TRUE(req.body.empty());
-    EXPECT_TRUE(req.remote_addr.empty());
-    EXPECT_EQ(0, req.remote_port);
-    EXPECT_TRUE(req.headers.empty());
+BOOST_FIXTURE_TEST_SUITE(RequestDataTestSuite, RequestDataTest)
+
+BOOST_AUTO_TEST_CASE(DefaultConstruction) {
+    BOOST_CHECK(req.method.empty());
+    BOOST_CHECK(req.path.empty());
+    BOOST_CHECK(req.body.empty());
+    BOOST_CHECK(req.remote_addr.empty());
+    BOOST_CHECK_EQUAL(0, req.remote_port);
+    BOOST_CHECK(req.headers.empty());
 }
 
-TEST_F(RequestDataTest, BasicFields) {
+BOOST_AUTO_TEST_CASE(BasicFields) {
     req.method = "GET";
     req.path = "/api/test";
     req.body = "test body";
     req.remote_addr = "127.0.0.1";
     req.remote_port = 12345;
     
-    EXPECT_EQ("GET", req.method);
-    EXPECT_EQ("/api/test", req.path);
-    EXPECT_EQ("test body", req.body);
-    EXPECT_EQ("127.0.0.1", req.remote_addr);
-    EXPECT_EQ(12345, req.remote_port);
+    BOOST_CHECK_EQUAL("GET", req.method);
+    BOOST_CHECK_EQUAL("/api/test", req.path);
+    BOOST_CHECK_EQUAL("test body", req.body);
+    BOOST_CHECK_EQUAL("127.0.0.1", req.remote_addr);
+    BOOST_CHECK_EQUAL(12345, req.remote_port);
 }
 
-TEST_F(RequestDataTest, HeaderManagement) {
+BOOST_AUTO_TEST_CASE(HeaderManagement) {
     req.headers.insert({"Content-Type", "application/json"});
     req.headers.insert({"Accept", "text/html"});
     req.headers.insert({"X-Custom", "value1"});
     req.headers.insert({"X-Custom", "value2"}); // Duplicate key
     
-    EXPECT_EQ(4, req.headers.size());
+    BOOST_CHECK_EQUAL(4, req.headers.size());
     
     // Test get_header for existing header
     auto content_type = req.get_header("Content-Type");
-    ASSERT_TRUE(content_type.has_value());
-    EXPECT_EQ("application/json", content_type.value());
+    BOOST_REQUIRE(content_type.has_value());
+    BOOST_CHECK_EQUAL("application/json", content_type.value());
     
     // Test get_header for non-existent header
     auto missing = req.get_header("Missing-Header");
-    EXPECT_FALSE(missing.has_value());
+    BOOST_CHECK(!missing.has_value());
     
     // Test multiple values (get_header returns first)
     auto custom = req.get_header("X-Custom");
-    ASSERT_TRUE(custom.has_value());
-    EXPECT_TRUE(custom.value() == "value1" || custom.value() == "value2");
+    BOOST_REQUIRE(custom.has_value());
+    BOOST_CHECK(custom.value() == "value1" || custom.value() == "value2");
 }
+
+BOOST_AUTO_TEST_SUITE_END()
 
 /**
  * Test client_result structure and helper methods
  */
-class ClientResultTest : public ::testing::Test {
-protected:
+struct ClientResultTest {
     client_result result;
 };
 
-TEST_F(ClientResultTest, DefaultConstruction) {
-    EXPECT_FALSE(result.success);
-    EXPECT_EQ(0, result.status_code);
-    EXPECT_TRUE(result.body.empty());
-    EXPECT_TRUE(result.error_message.empty());
-    EXPECT_TRUE(result.headers.empty());
+BOOST_FIXTURE_TEST_SUITE(ClientResultTestSuite, ClientResultTest)
+
+BOOST_AUTO_TEST_CASE(DefaultConstruction) {
+    BOOST_CHECK(!result.success);
+    BOOST_CHECK_EQUAL(0, result.status_code);
+    BOOST_CHECK(result.body.empty());
+    BOOST_CHECK(result.error_message.empty());
+    BOOST_CHECK(result.headers.empty());
 }
 
-TEST_F(ClientResultTest, SuccessfulRequest) {
+BOOST_AUTO_TEST_CASE(SuccessfulRequest) {
     result.success = true;
     result.status_code = 200;
     result.body = "{\"status\": \"ok\"}";
     
-    EXPECT_TRUE(result.success);
-    EXPECT_TRUE(result.is_ok());
-    EXPECT_TRUE(static_cast<bool>(result)); // Test implicit conversion
+    BOOST_CHECK(result.success);
+    BOOST_CHECK(result.is_ok());
+    BOOST_CHECK(static_cast<bool>(result)); // Test implicit conversion
 }
 
-TEST_F(ClientResultTest, FailedRequest) {
+BOOST_AUTO_TEST_CASE(FailedRequest) {
     result.success = false;
     result.error_message = "Connection timeout";
     
-    EXPECT_FALSE(result.success);
-    EXPECT_FALSE(result.is_ok());
-    EXPECT_FALSE(static_cast<bool>(result));
+    BOOST_CHECK(!result.success);
+    BOOST_CHECK(!result.is_ok());
+    BOOST_CHECK(!static_cast<bool>(result));
 }
 
-TEST_F(ClientResultTest, IsOkWithVariousStatusCodes) {
+BOOST_AUTO_TEST_CASE(IsOkWithVariousStatusCodes) {
     // 2xx status codes should be OK
     result.success = true;
     result.status_code = 200;
-    EXPECT_TRUE(result.is_ok());
+    BOOST_CHECK(result.is_ok());
     
     result.status_code = 201;
-    EXPECT_TRUE(result.is_ok());
+    BOOST_CHECK(result.is_ok());
     
     result.status_code = 204;
-    EXPECT_TRUE(result.is_ok());
+    BOOST_CHECK(result.is_ok());
     
     // 3xx redirects should not be OK
     result.status_code = 301;
-    EXPECT_FALSE(result.is_ok());
+    BOOST_CHECK(!result.is_ok());
     
     result.status_code = 302;
-    EXPECT_FALSE(result.is_ok());
+    BOOST_CHECK(!result.is_ok());
     
     // 4xx client errors should not be OK
     result.status_code = 400;
-    EXPECT_FALSE(result.is_ok());
+    BOOST_CHECK(!result.is_ok());
     
     result.status_code = 404;
-    EXPECT_FALSE(result.is_ok());
+    BOOST_CHECK(!result.is_ok());
     
     // 5xx server errors should not be OK
     result.status_code = 500;
-    EXPECT_FALSE(result.is_ok());
+    BOOST_CHECK(!result.is_ok());
     
     result.status_code = 503;
-    EXPECT_FALSE(result.is_ok());
+    BOOST_CHECK(!result.is_ok());
 }
 
-TEST_F(ClientResultTest, IsOkRequiresBothSuccessAndStatus) {
+BOOST_AUTO_TEST_CASE(IsOkRequiresBothSuccessAndStatus) {
     // Success but wrong status
     result.success = true;
     result.status_code = 404;
-    EXPECT_FALSE(result.is_ok());
+    BOOST_CHECK(!result.is_ok());
     
     // Right status but no success
     result.success = false;
     result.status_code = 200;
-    EXPECT_FALSE(result.is_ok());
+    BOOST_CHECK(!result.is_ok());
 }
 
-TEST_F(ClientResultTest, HeadersInResult) {
+BOOST_AUTO_TEST_CASE(HeadersInResult) {
     result.success = true;
     result.status_code = 200;
     result.headers.insert({"Content-Type", "application/json"});
     result.headers.insert({"Cache-Control", "no-cache"});
     
-    EXPECT_EQ(2, result.headers.size());
+    BOOST_CHECK_EQUAL(2, result.headers.size());
     
     auto it = result.headers.find("Content-Type");
-    ASSERT_NE(it, result.headers.end());
-    EXPECT_EQ("application/json", it->second);
+    BOOST_REQUIRE(it != result.headers.end());
+    BOOST_CHECK_EQUAL("application/json", it->second);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
 
 /**
  * Test mock implementations of abstraction interfaces
  */
-TEST(StreamingDataSinkTest, MockWriteSuccess) {
+BOOST_AUTO_TEST_SUITE(StreamingDataSinkTestSuite)
+
+BOOST_AUTO_TEST_CASE(MockWriteSuccess) {
     MockDataSink sink;
     sink.should_succeed = true;
     
     const char* data = "Hello, World!";
     bool result = sink.write(data, 13);
     
-    EXPECT_TRUE(result);
-    EXPECT_EQ("Hello, World!", sink.written_data);
+    BOOST_CHECK(result);
+    BOOST_CHECK_EQUAL("Hello, World!", sink.written_data);
 }
 
-TEST(StreamingDataSinkTest, MockWriteFailure) {
+BOOST_AUTO_TEST_CASE(MockWriteFailure) {
     MockDataSink sink;
     sink.should_succeed = false;
     
     const char* data = "Hello, World!";
     bool result = sink.write(data, 13);
     
-    EXPECT_FALSE(result);
-    EXPECT_TRUE(sink.written_data.empty());
+    BOOST_CHECK(!result);
+    BOOST_CHECK(sink.written_data.empty());
 }
 
-TEST(StreamingDataSinkTest, MultipleWrites) {
+BOOST_AUTO_TEST_CASE(MultipleWrites) {
     MockDataSink sink;
     
     sink.write("First ", 6);
     sink.write("Second ", 7);
     sink.write("Third", 5);
     
-    EXPECT_EQ("First Second Third", sink.written_data);
+    BOOST_CHECK_EQUAL("First Second Third", sink.written_data);
 }
 
-TEST(ResponseBuilderTest, SetStatus) {
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(ResponseBuilderTestSuite)
+
+BOOST_AUTO_TEST_CASE(SetStatus) {
     MockResponseBuilder builder;
     
     builder.set_status(200);
-    EXPECT_EQ(200, builder.status);
+    BOOST_CHECK_EQUAL(200, builder.status);
     
     builder.set_status(404);
-    EXPECT_EQ(404, builder.status);
+    BOOST_CHECK_EQUAL(404, builder.status);
 }
 
-TEST(ResponseBuilderTest, SetHeaders) {
+BOOST_AUTO_TEST_CASE(SetHeaders) {
     MockResponseBuilder builder;
     
     builder.set_header("Content-Type", "text/plain");
     builder.set_header("Cache-Control", "no-cache");
     
-    EXPECT_EQ(2, builder.headers.size());
-    EXPECT_EQ("text/plain", builder.headers["Content-Type"]);
-    EXPECT_EQ("no-cache", builder.headers["Cache-Control"]);
+    BOOST_CHECK_EQUAL(2, builder.headers.size());
+    BOOST_CHECK_EQUAL("text/plain", builder.headers["Content-Type"]);
+    BOOST_CHECK_EQUAL("no-cache", builder.headers["Cache-Control"]);
 }
 
-TEST(ResponseBuilderTest, SetContent) {
+BOOST_AUTO_TEST_CASE(SetContent) {
     MockResponseBuilder builder;
     
     builder.set_content("{\"status\": \"ok\"}", "application/json");
     
-    EXPECT_EQ("{\"status\": \"ok\"}", builder.body);
-    EXPECT_EQ("application/json", builder.content_type);
+    BOOST_CHECK_EQUAL("{\"status\": \"ok\"}", builder.body);
+    BOOST_CHECK_EQUAL("application/json", builder.content_type);
 }
 
-TEST(ResponseBuilderTest, SetChunkedContentProvider) {
+BOOST_AUTO_TEST_CASE(SetChunkedContentProvider) {
     MockResponseBuilder builder;
     
     bool provider_called = false;
@@ -239,18 +251,18 @@ TEST(ResponseBuilderTest, SetChunkedContentProvider) {
     
     builder.set_chunked_content_provider("text/event-stream", provider);
     
-    EXPECT_TRUE(builder.has_chunked_provider);
-    EXPECT_EQ("text/event-stream", builder.content_type);
+    BOOST_CHECK(builder.has_chunked_provider);
+    BOOST_CHECK_EQUAL("text/event-stream", builder.content_type);
     
     // Test calling the provider
     MockDataSink sink;
     builder.chunked_provider(0, sink);
     
-    EXPECT_TRUE(provider_called);
-    EXPECT_EQ("data: test\n\n", sink.written_data);
+    BOOST_CHECK(provider_called);
+    BOOST_CHECK_EQUAL("data: test\n\n", sink.written_data);
 }
 
-TEST(ResponseBuilderTest, ChunkedProviderMultipleChunks) {
+BOOST_AUTO_TEST_CASE(ChunkedProviderMultipleChunks) {
     MockResponseBuilder builder;
     
     int call_count = 0;
@@ -274,50 +286,56 @@ TEST(ResponseBuilderTest, ChunkedProviderMultipleChunks) {
     
     // Call provider multiple times
     bool continue1 = builder.chunked_provider(0, sink);
-    EXPECT_TRUE(continue1);
+    BOOST_CHECK(continue1);
     
     bool continue2 = builder.chunked_provider(7, sink);
-    EXPECT_TRUE(continue2);
+    BOOST_CHECK(continue2);
     
     bool continue3 = builder.chunked_provider(14, sink);
-    EXPECT_FALSE(continue3);
+    BOOST_CHECK(!continue3);
     
-    EXPECT_EQ("chunk1\nchunk2\nchunk3\n", sink.written_data);
-    EXPECT_EQ(3, call_count);
+    BOOST_CHECK_EQUAL("chunk1\nchunk2\nchunk3\n", sink.written_data);
+    BOOST_CHECK_EQUAL(3, call_count);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
 
 /**
  * Test headers_map type alias
  */
-TEST(HeadersMapTest, MultipleValuesForSameKey) {
+BOOST_AUTO_TEST_SUITE(HeadersMapTestSuite)
+
+BOOST_AUTO_TEST_CASE(MultipleValuesForSameKey) {
     headers_map headers;
     
     headers.insert({"Set-Cookie", "cookie1=value1"});
     headers.insert({"Set-Cookie", "cookie2=value2"});
     headers.insert({"Content-Type", "text/html"});
     
-    EXPECT_EQ(3, headers.size());
+    BOOST_CHECK_EQUAL(3, headers.size());
     
     // Count occurrences of Set-Cookie
     auto range = headers.equal_range("Set-Cookie");
     int cookie_count = std::distance(range.first, range.second);
-    EXPECT_EQ(2, cookie_count);
+    BOOST_CHECK_EQUAL(2, cookie_count);
 }
 
-TEST(HeadersMapTest, CaseSensitivity) {
+BOOST_AUTO_TEST_CASE(CaseSensitivity) {
     headers_map headers;
     
     headers.insert({"Content-Type", "text/html"});
     headers.insert({"content-type", "application/json"}); // Different case
     
     // std::multimap is case-sensitive by default
-    EXPECT_EQ(2, headers.size());
+    BOOST_CHECK_EQUAL(2, headers.size());
     
     auto it1 = headers.find("Content-Type");
-    ASSERT_NE(it1, headers.end());
-    EXPECT_EQ("text/html", it1->second);
+    BOOST_REQUIRE(it1 != headers.end());
+    BOOST_CHECK_EQUAL("text/html", it1->second);
     
     auto it2 = headers.find("content-type");
-    ASSERT_NE(it2, headers.end());
-    EXPECT_EQ("application/json", it2->second);
+    BOOST_REQUIRE(it2 != headers.end());
+    BOOST_CHECK_EQUAL("application/json", it2->second);
 }
+
+BOOST_AUTO_TEST_SUITE_END()

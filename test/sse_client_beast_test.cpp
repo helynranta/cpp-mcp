@@ -9,7 +9,7 @@
  * 3. Refactor
  */
 
-#include <gtest/gtest.h>
+#include <boost/test/unit_test.hpp>
 #include "mcp_server.h"
 #include "mcp_sse_client.h"
 #include <thread>
@@ -26,9 +26,8 @@ using namespace mcp;
  * 
  * Each test gets a unique port to avoid conflicts and ensure isolation.
  */
-class SseClientBeastTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+struct SseClientBeastTest {
+    SseClientBeastTest() {
         // Use unique port for each test to avoid conflicts
         // Note: This static counter is shared but necessary for port allocation
         static std::atomic<int> port_counter{19000};
@@ -57,7 +56,7 @@ protected:
         server_->start(false);
     }
     
-    void TearDown() override {
+    ~SseClientBeastTest() {
         // Ensure proper cleanup to avoid shared state between tests
         if (server_) {
             server_->stop();
@@ -82,21 +81,23 @@ protected:
     std::unique_ptr<server> server_;
 };
 
+BOOST_FIXTURE_TEST_SUITE(SseClientBeastTestSuite, SseClientBeastTest)
+
 /**
  * Test: sse_client can initialize with Beast backend
  * 
  * This test verifies that sse_client uses the
  * HTTP abstraction layer (which uses Beast by default).
  */
-TEST_F(SseClientBeastTest, CanInitializeWithBeastBackend) {
+BOOST_AUTO_TEST_CASE(CanInitializeWithBeastBackend) {
     // Create client (should use Beast via factory after migration)
     sse_client client(get_base_url());
     
     // Initialize connection
     bool success = client.initialize("BeastTestClient", "1.0.0");
     
-    EXPECT_TRUE(success) << "Client should initialize successfully with Beast backend";
-    EXPECT_TRUE(client.is_running()) << "Client should be running after initialization";
+    BOOST_CHECK(success);
+    BOOST_CHECK(client.is_running());
 }
 
 /**
@@ -104,14 +105,14 @@ TEST_F(SseClientBeastTest, CanInitializeWithBeastBackend) {
  * 
  * EXPECTED TO FAIL initially
  */
-TEST_F(SseClientBeastTest, CanPingServer) {
+BOOST_AUTO_TEST_CASE(CanPingServer) {
     sse_client client(get_base_url());
     
-    ASSERT_TRUE(client.initialize("BeastTestClient", "1.0.0"));
+    BOOST_REQUIRE(client.initialize("BeastTestClient", "1.0.0"));
     
     bool ping_result = client.ping();
     
-    EXPECT_TRUE(ping_result) << "Ping should succeed with Beast backend";
+    BOOST_CHECK(ping_result);
 }
 
 /**
@@ -119,16 +120,16 @@ TEST_F(SseClientBeastTest, CanPingServer) {
  * 
  * EXPECTED TO FAIL initially
  */
-TEST_F(SseClientBeastTest, CanCallTools) {
+BOOST_AUTO_TEST_CASE(CanCallTools) {
     sse_client client(get_base_url());
     
-    ASSERT_TRUE(client.initialize("BeastTestClient", "1.0.0"));
+    BOOST_REQUIRE(client.initialize("BeastTestClient", "1.0.0"));
     
     // Call echo tool
     json result = client.call_tool("echo", {{"message", "Hello Beast!"}});
     
-    EXPECT_TRUE(result.contains("echo")) << "Result should contain echo field";
-    EXPECT_EQ(result["echo"], "Hello Beast!") << "Echo should return correct message";
+    BOOST_CHECK(result.contains("echo"));
+    BOOST_CHECK_EQUAL(result["echo"], "Hello Beast!");
 }
 
 /**
@@ -139,22 +140,22 @@ TEST_F(SseClientBeastTest, CanCallTools) {
  * 
  * EXPECTED TO FAIL initially
  */
-TEST_F(SseClientBeastTest, DualClientPatternPreserved) {
+BOOST_AUTO_TEST_CASE(DualClientPatternPreserved) {
     sse_client client(get_base_url());
     
-    ASSERT_TRUE(client.initialize("BeastTestClient", "1.0.0"));
+    BOOST_REQUIRE(client.initialize("BeastTestClient", "1.0.0"));
     
     // After initialization, SSE should be running
-    EXPECT_TRUE(client.is_running()) << "SSE connection should be active";
+    BOOST_CHECK(client.is_running());
     
     // Multiple tool calls should work (testing POST client)
     for (int i = 0; i < 5; i++) {
         json result = client.call_tool("echo", {{"message", "test"}});
-        EXPECT_TRUE(result.contains("echo"));
+        BOOST_CHECK(result.contains("echo"));
     }
     
     // SSE should still be running
-    EXPECT_TRUE(client.is_running()) << "SSE connection should remain active during POST requests";
+    BOOST_CHECK(client.is_running());
 }
 
 /**
@@ -162,17 +163,17 @@ TEST_F(SseClientBeastTest, DualClientPatternPreserved) {
  * 
  * EXPECTED TO FAIL initially
  */
-TEST_F(SseClientBeastTest, TimeoutConfiguration) {
+BOOST_AUTO_TEST_CASE(TimeoutConfiguration) {
     sse_client client(get_base_url());
     
     // Set timeout before initialization
     client.set_timeout(10);
     
-    ASSERT_TRUE(client.initialize("BeastTestClient", "1.0.0"));
+    BOOST_REQUIRE(client.initialize("BeastTestClient", "1.0.0"));
     
     // Client should work normally with configured timeout
     bool ping_result = client.ping();
-    EXPECT_TRUE(ping_result);
+    BOOST_CHECK(ping_result);
 }
 
 /**
@@ -180,19 +181,19 @@ TEST_F(SseClientBeastTest, TimeoutConfiguration) {
  * 
  * EXPECTED TO FAIL initially
  */
-TEST_F(SseClientBeastTest, HeaderManagement) {
+BOOST_AUTO_TEST_CASE(HeaderManagement) {
     sse_client client(get_base_url());
     
     // Set custom header
     client.set_header("X-Custom-Header", "test-value");
     
-    ASSERT_TRUE(client.initialize("BeastTestClient", "1.0.0"));
+    BOOST_REQUIRE(client.initialize("BeastTestClient", "1.0.0"));
     
     // Headers should be sent with requests
     // (Server would need to echo headers for full verification,
     //  but this tests the API doesn't break)
     bool ping_result = client.ping();
-    EXPECT_TRUE(ping_result);
+    BOOST_CHECK(ping_result);
 }
 
 /**
@@ -200,14 +201,14 @@ TEST_F(SseClientBeastTest, HeaderManagement) {
  * 
  * EXPECTED TO FAIL initially
  */
-TEST_F(SseClientBeastTest, CanGetServerCapabilities) {
+BOOST_AUTO_TEST_CASE(CanGetServerCapabilities) {
     sse_client client(get_base_url());
     
-    ASSERT_TRUE(client.initialize("BeastTestClient", "1.0.0"));
+    BOOST_REQUIRE(client.initialize("BeastTestClient", "1.0.0"));
     
     json capabilities = client.get_server_capabilities();
     
-    EXPECT_TRUE(capabilities.is_object()) << "Server capabilities should be an object";
+    BOOST_CHECK(capabilities.is_object());
 }
 
 /**
@@ -215,14 +216,14 @@ TEST_F(SseClientBeastTest, CanGetServerCapabilities) {
  * 
  * EXPECTED TO FAIL initially
  */
-TEST_F(SseClientBeastTest, CanGetToolsList) {
+BOOST_AUTO_TEST_CASE(CanGetToolsList) {
     sse_client client(get_base_url());
     
-    ASSERT_TRUE(client.initialize("BeastTestClient", "1.0.0"));
+    BOOST_REQUIRE(client.initialize("BeastTestClient", "1.0.0"));
     
     std::vector<tool> tools = client.get_tools();
     
-    EXPECT_GT(tools.size(), 0) << "Should have at least the echo tool";
+    BOOST_CHECK_GT(tools.size(), 0);
     
     bool found_echo = false;
     for (const auto& t : tools) {
@@ -232,7 +233,7 @@ TEST_F(SseClientBeastTest, CanGetToolsList) {
         }
     }
     
-    EXPECT_TRUE(found_echo) << "Should find the echo tool in the list";
+    BOOST_CHECK(found_echo);
 }
 
 /**
@@ -242,14 +243,16 @@ TEST_F(SseClientBeastTest, CanGetToolsList) {
  * 
  * EXPECTED TO FAIL initially
  */
-TEST_F(SseClientBeastTest, CleanupWorksCorrectly) {
+BOOST_AUTO_TEST_CASE(CleanupWorksCorrectly) {
     {
         sse_client client(get_base_url());
-        ASSERT_TRUE(client.initialize("BeastTestClient", "1.0.0"));
-        ASSERT_TRUE(client.ping());
+        BOOST_REQUIRE(client.initialize("BeastTestClient", "1.0.0"));
+        BOOST_REQUIRE(client.ping());
         // Client destroyed here - should cleanup gracefully
     }
     
     // If we get here without hanging, cleanup worked
-    SUCCEED();
+    BOOST_CHECK(true);
 }
+
+BOOST_AUTO_TEST_SUITE_END()

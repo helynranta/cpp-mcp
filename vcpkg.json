@@ -9,7 +9,7 @@
     "tests": {
       "description": "Build with test support",
       "dependencies": [
-        "gtest"
+        "boost-test"
       ]
     }
   }

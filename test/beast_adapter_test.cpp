@@ -8,7 +8,7 @@
  * Following TDD: Write tests first, then implement to pass tests.
  */
 
-#include <gtest/gtest.h>
+#include <boost/test/unit_test.hpp>
 #include "mcp_http_beast_adapter.h"
 #include <thread>
 #include <chrono>
@@ -20,13 +20,15 @@ using namespace mcp::http::beast_adapter;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
+BOOST_AUTO_TEST_SUITE(BeastDataSinkTest)
+
 /**
  * Test beast_data_sink wrapper
  * 
  * This test validates that beast_data_sink correctly wraps Beast's
  * write operations to match our streaming_data_sink interface.
  */
-TEST(BeastDataSinkTest, WritesChunksCorrectly) {
+BOOST_AUTO_TEST_CASE(WritesChunksCorrectly) {
     // Setup: Create a socket pair for testing
     net::io_context ioc;
     tcp::socket server_socket{ioc};
@@ -52,15 +54,15 @@ TEST(BeastDataSinkTest, WritesChunksCorrectly) {
     std::string test_data = "Hello, Beast!";
     bool write_success = sink.write(test_data.c_str(), test_data.size());
     
-    EXPECT_TRUE(write_success);
+    BOOST_CHECK(write_success);
     
     // Verify: Read from client socket and check chunked format
     std::array<char, 256> buffer;
     boost::system::error_code ec;
     size_t bytes_read = client_socket.read_some(net::buffer(buffer), ec);
     
-    EXPECT_FALSE(ec);
-    EXPECT_GT(bytes_read, 0);
+    BOOST_CHECK(!ec);
+    BOOST_CHECK_GT(bytes_read, 0);
     
     // Parse chunk format: <hex-size>\r\n<data>\r\n
     std::string received(buffer.data(), bytes_read);
@@ -69,49 +71,53 @@ TEST(BeastDataSinkTest, WritesChunksCorrectly) {
     std::stringstream expected;
     expected << std::hex << test_data.size() << "\r\n" << test_data << "\r\n";
     
-    EXPECT_EQ(received, expected.str());
+    BOOST_CHECK_EQUAL(received, expected.str());
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(BeastResponseBuilderTest)
 
 /**
  * Test beast_response_builder wrapper
  */
-TEST(BeastResponseBuilderTest, SetStatus) {
+BOOST_AUTO_TEST_CASE(SetStatus) {
     boost::beast::http::response<boost::beast::http::string_body> res;
     beast_response_builder builder(res);
     
     builder.set_status(200);
-    EXPECT_EQ(res.result_int(), 200);
+    BOOST_CHECK_EQUAL(res.result_int(), 200);
     
     builder.set_status(404);
-    EXPECT_EQ(res.result_int(), 404);
+    BOOST_CHECK_EQUAL(res.result_int(), 404);
     
     builder.set_status(500);
-    EXPECT_EQ(res.result_int(), 500);
+    BOOST_CHECK_EQUAL(res.result_int(), 500);
 }
 
-TEST(BeastResponseBuilderTest, SetHeader) {
+BOOST_AUTO_TEST_CASE(SetHeader) {
     boost::beast::http::response<boost::beast::http::string_body> res;
     beast_response_builder builder(res);
     
     builder.set_header("Content-Type", "application/json");
-    EXPECT_EQ(res["Content-Type"], "application/json");
+    BOOST_CHECK_EQUAL(res["Content-Type"], "application/json");
     
     builder.set_header("X-Custom-Header", "test-value");
-    EXPECT_EQ(res["X-Custom-Header"], "test-value");
+    BOOST_CHECK_EQUAL(res["X-Custom-Header"], "test-value");
 }
 
-TEST(BeastResponseBuilderTest, SetContent) {
+BOOST_AUTO_TEST_CASE(SetContent) {
     boost::beast::http::response<boost::beast::http::string_body> res;
     beast_response_builder builder(res);
     
     std::string body = "{\"status\":\"ok\"}";
     builder.set_content(body, "application/json");
     
-    EXPECT_EQ(res.body(), body);
-    EXPECT_EQ(res["Content-Type"], "application/json");
+    BOOST_CHECK_EQUAL(res.body(), body);
+    BOOST_CHECK_EQUAL(res["Content-Type"], "application/json");
 }
 
-TEST(BeastResponseBuilderTest, DISABLED_SetChunkedContentProvider) {
+BOOST_AUTO_TEST_CASE(DISABLED_SetChunkedContentProvider) {
     // TODO Phase 2: Implement test
     // Should test:
     // - Setting up chunked transfer encoding
@@ -120,22 +126,26 @@ TEST(BeastResponseBuilderTest, DISABLED_SetChunkedContentProvider) {
     // - Final chunk (0\r\n\r\n)
 }
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(BeastServerTest)
+
 /**
  * Test beast_server wrapper
  */
-TEST(BeastServerTest, RegisterGetHandler) {
+BOOST_AUTO_TEST_CASE(RegisterGetHandler) {
     auto server = std::make_unique<beast_server>(false, "", "");
     
     bool handler_called = false;
     server->register_get("/test", [&](const request_data& req, response_builder& res) {
         handler_called = true;
-        EXPECT_EQ(req.method, "GET");
-        EXPECT_EQ(req.path, "/test");
+        BOOST_CHECK_EQUAL(req.method, "GET");
+        BOOST_CHECK_EQUAL(req.path, "/test");
         res.set_status(200);
         res.set_content("{\"message\":\"success\"}", "application/json");
     });
     
-    EXPECT_TRUE(server->listen("127.0.0.1", 9998));
+    BOOST_CHECK(server->listen("127.0.0.1", 9998));
     
     // Give server time to start
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -157,30 +167,30 @@ TEST(BeastServerTest, RegisterGetHandler) {
         beast::http::response<beast::http::string_body> res;
         beast::http::read(socket, buffer, res);
         
-        EXPECT_EQ(res.result_int(), 200);
-        EXPECT_EQ(res.body(), "{\"message\":\"success\"}");
-        EXPECT_TRUE(handler_called);
+        BOOST_CHECK_EQUAL(res.result_int(), 200);
+        BOOST_CHECK_EQUAL(res.body(), "{\"message\":\"success\"}");
+        BOOST_CHECK(handler_called);
         
     } catch (std::exception& e) {
-        FAIL() << "Exception: " << e.what();
+        BOOST_FAIL("Exception: " + std::string(e.what()));
     }
     
     server->stop();
 }
 
-TEST(BeastServerTest, RegisterPostHandler) {
+BOOST_AUTO_TEST_CASE(RegisterPostHandler) {
     auto server = std::make_unique<beast_server>(false, "", "");
     
     std::string received_body;
     server->register_post("/data", [&](const request_data& req, response_builder& res) {
-        EXPECT_EQ(req.method, "POST");
-        EXPECT_EQ(req.path, "/data");
+        BOOST_CHECK_EQUAL(req.method, "POST");
+        BOOST_CHECK_EQUAL(req.path, "/data");
         received_body = req.body;
         res.set_status(201);
         res.set_content("{\"created\":true}", "application/json");
     });
     
-    EXPECT_TRUE(server->listen("127.0.0.1", 9997));
+    BOOST_CHECK(server->listen("127.0.0.1", 9997));
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     try {
@@ -202,17 +212,17 @@ TEST(BeastServerTest, RegisterPostHandler) {
         beast::http::response<beast::http::string_body> res;
         beast::http::read(socket, buffer, res);
         
-        EXPECT_EQ(res.result_int(), 201);
-        EXPECT_EQ(received_body, "{\"test\":\"data\"}");
+        BOOST_CHECK_EQUAL(res.result_int(), 201);
+        BOOST_CHECK_EQUAL(received_body, "{\"test\":\"data\"}");
         
     } catch (std::exception& e) {
-        FAIL() << "Exception: " << e.what();
+        BOOST_FAIL("Exception: " + std::string(e.what()));
     }
     
     server->stop();
 }
 
-TEST(BeastServerTest, Returns404ForUnmatchedRoute) {
+BOOST_AUTO_TEST_CASE(Returns404ForUnmatchedRoute) {
     auto server = std::make_unique<beast_server>(false, "", "");
     
     server->register_get("/exists", [](const request_data& req, response_builder& res) {
@@ -220,7 +230,7 @@ TEST(BeastServerTest, Returns404ForUnmatchedRoute) {
         res.set_content("OK", "text/plain");
     });
     
-    EXPECT_TRUE(server->listen("127.0.0.1", 9996));
+    BOOST_CHECK(server->listen("127.0.0.1", 9996));
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     try {
@@ -239,21 +249,21 @@ TEST(BeastServerTest, Returns404ForUnmatchedRoute) {
         beast::http::response<beast::http::string_body> res;
         beast::http::read(socket, buffer, res);
         
-        EXPECT_EQ(res.result_int(), 404);
+        BOOST_CHECK_EQUAL(res.result_int(), 404);
         
     } catch (std::exception& e) {
-        FAIL() << "Exception: " << e.what();
+        BOOST_FAIL("Exception: " + std::string(e.what()));
     }
     
     server->stop();
 }
 
-TEST(BeastServerTest, SSEStreaming) {
+BOOST_AUTO_TEST_CASE(SSEStreaming) {
     auto server = std::make_unique<beast_server>(false, "", "");
     
     server->register_get("/sse", [](const request_data& req, response_builder& res) {
-        EXPECT_EQ(req.method, "GET");
-        EXPECT_EQ(req.path, "/sse");
+        BOOST_CHECK_EQUAL(req.method, "GET");
+        BOOST_CHECK_EQUAL(req.path, "/sse");
         
         res.set_chunked_content_provider("text/event-stream", 
             [](size_t offset, streaming_data_sink& sink) -> bool {
@@ -270,7 +280,7 @@ TEST(BeastServerTest, SSEStreaming) {
             });
     });
     
-    EXPECT_TRUE(server->listen("127.0.0.1", 9995));
+    BOOST_CHECK(server->listen("127.0.0.1", 9995));
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     try {
@@ -292,9 +302,9 @@ TEST(BeastServerTest, SSEStreaming) {
         beast::http::read_header(socket, buffer, parser);
         
         auto& res = parser.get();
-        EXPECT_EQ(res.result(), beast::http::status::ok);
-        EXPECT_EQ(res[beast::http::field::content_type], "text/event-stream");
-        EXPECT_TRUE(res.chunked());
+        BOOST_CHECK_EQUAL(res.result(), beast::http::status::ok);
+        BOOST_CHECK_EQUAL(res[beast::http::field::content_type], "text/event-stream");
+        BOOST_CHECK(res.chunked());
         
         // Read chunks
         std::vector<std::string> events;
@@ -333,21 +343,25 @@ TEST(BeastServerTest, SSEStreaming) {
             net::read(socket, net::buffer(byte), ec);
         }
         
-        EXPECT_EQ(events.size(), 2);
-        EXPECT_TRUE(events[0].find("Message 1") != std::string::npos);
-        EXPECT_TRUE(events[1].find("Message 2") != std::string::npos);
+        BOOST_CHECK_EQUAL(events.size(), 2);
+        BOOST_CHECK(events[0].find("Message 1") != std::string::npos);
+        BOOST_CHECK(events[1].find("Message 2") != std::string::npos);
         
     } catch (std::exception& e) {
-        FAIL() << "Exception: " << e.what();
+        BOOST_FAIL("Exception: " + std::string(e.what()));
     }
     
     server->stop();
 }
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(BeastClientTest)
+
 /**
  * Test beast_client wrapper
  */
-TEST(BeastClientTest, GetRequest) {
+BOOST_AUTO_TEST_CASE(GetRequest) {
     // Start a simple server
     auto server = std::make_unique<beast_server>(false, "", "");
     server->register_get("/test", [](const request_data& req, response_builder& res) {
@@ -355,27 +369,27 @@ TEST(BeastClientTest, GetRequest) {
         res.set_header("X-Test-Header", "test-value");
         res.set_content("{\"status\":\"ok\"}", "application/json");
     });
-    EXPECT_TRUE(server->listen("127.0.0.1", 9994));
+    BOOST_CHECK(server->listen("127.0.0.1", 9994));
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     // Test client
     beast_client client("http://127.0.0.1:9994");
     auto result = client.get("/test");
     
-    EXPECT_TRUE(result.success);
-    EXPECT_EQ(result.status_code, 200);
-    EXPECT_EQ(result.body, "{\"status\":\"ok\"}");
+    BOOST_CHECK(result.success);
+    BOOST_CHECK_EQUAL(result.status_code, 200);
+    BOOST_CHECK_EQUAL(result.body, "{\"status\":\"ok\"}");
     
     auto header_it = result.headers.find("X-Test-Header");
-    EXPECT_NE(header_it, result.headers.end());
+    BOOST_CHECK(header_it != result.headers.end());
     if (header_it != result.headers.end()) {
-        EXPECT_EQ(header_it->second, "test-value");
+        BOOST_CHECK_EQUAL(header_it->second, "test-value");
     }
     
     server->stop();
 }
 
-TEST(BeastClientTest, PostRequest) {
+BOOST_AUTO_TEST_CASE(PostRequest) {
     // Start a simple server
     auto server = std::make_unique<beast_server>(false, "", "");
     std::string received_body;
@@ -384,7 +398,7 @@ TEST(BeastClientTest, PostRequest) {
         res.set_status(201);
         res.set_content("{\"created\":true}", "application/json");
     });
-    EXPECT_TRUE(server->listen("127.0.0.1", 9993));
+    BOOST_CHECK(server->listen("127.0.0.1", 9993));
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     // Test client
@@ -394,14 +408,14 @@ TEST(BeastClientTest, PostRequest) {
     
     auto result = client.post("/submit", custom_headers, "{\"data\":\"test\"}", "application/json");
     
-    EXPECT_TRUE(result.success);
-    EXPECT_EQ(result.status_code, 201);
-    EXPECT_EQ(received_body, "{\"data\":\"test\"}");
+    BOOST_CHECK(result.success);
+    BOOST_CHECK_EQUAL(result.status_code, 201);
+    BOOST_CHECK_EQUAL(received_body, "{\"data\":\"test\"}");
     
     server->stop();
 }
 
-TEST(BeastClientTest, GetStreamRequest) {
+BOOST_AUTO_TEST_CASE(GetStreamRequest) {
     // Start a server with SSE streaming
     auto server = std::make_unique<beast_server>(false, "", "");
     server->register_get("/stream", [](const request_data& req, response_builder& res) {
@@ -414,7 +428,7 @@ TEST(BeastClientTest, GetStreamRequest) {
                 return false;
             });
     });
-    EXPECT_TRUE(server->listen("127.0.0.1", 9992));
+    BOOST_CHECK(server->listen("127.0.0.1", 9992));
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     // Test client streaming
@@ -427,29 +441,33 @@ TEST(BeastClientTest, GetStreamRequest) {
             return true; // Continue streaming
         });
     
-    EXPECT_TRUE(result.success);
-    EXPECT_EQ(result.status_code, 200);
-    EXPECT_EQ(received_chunks.size(), 3);
+    BOOST_CHECK(result.success);
+    BOOST_CHECK_EQUAL(result.status_code, 200);
+    BOOST_CHECK_EQUAL(received_chunks.size(), 3);
     
     for (size_t i = 0; i < received_chunks.size(); i++) {
-        EXPECT_TRUE(received_chunks[i].find("Event " + std::to_string(i)) != std::string::npos);
+        BOOST_CHECK(received_chunks[i].find("Event " + std::to_string(i)) != std::string::npos);
     }
     
     server->stop();
 }
 
-TEST(BeastClientTest, ConnectionFailure) {
+BOOST_AUTO_TEST_CASE(ConnectionFailure) {
     beast_client client("http://127.0.0.1:9876"); // Non-existent server
     auto result = client.get("/test");
     
-    EXPECT_FALSE(result.success);
-    EXPECT_FALSE(result.error_message.empty());
+    BOOST_CHECK(!result.success);
+    BOOST_CHECK(!result.error_message.empty());
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(BeastIntegrationTest)
 
 /**
  * Integration test: Beast client + server
  */
-TEST(BeastIntegrationTest, ClientServerCommunication) {
+BOOST_AUTO_TEST_CASE(ClientServerCommunication) {
     // Create server
     auto server = std::make_unique<beast_server>(false, "", "");
     
@@ -463,7 +481,7 @@ TEST(BeastIntegrationTest, ClientServerCommunication) {
         res.set_content(req.body, "application/json");
     });
     
-    EXPECT_TRUE(server->listen("127.0.0.1", 9991));
+    BOOST_CHECK(server->listen("127.0.0.1", 9991));
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     // Create client
@@ -471,16 +489,18 @@ TEST(BeastIntegrationTest, ClientServerCommunication) {
     
     // Test GET
     auto get_result = client.get("/health");
-    EXPECT_TRUE(get_result.success);
-    EXPECT_EQ(get_result.status_code, 200);
-    EXPECT_EQ(get_result.body, "{\"status\":\"healthy\"}");
+    BOOST_CHECK(get_result.success);
+    BOOST_CHECK_EQUAL(get_result.status_code, 200);
+    BOOST_CHECK_EQUAL(get_result.body, "{\"status\":\"healthy\"}");
     
     // Test POST
     headers_map headers;
     auto post_result = client.post("/echo", headers, "{\"test\":\"data\"}", "application/json");
-    EXPECT_TRUE(post_result.success);
-    EXPECT_EQ(post_result.status_code, 200);
-    EXPECT_EQ(post_result.body, "{\"test\":\"data\"}");
+    BOOST_CHECK(post_result.success);
+    BOOST_CHECK_EQUAL(post_result.status_code, 200);
+    BOOST_CHECK_EQUAL(post_result.body, "{\"test\":\"data\"}");
     
     server->stop();
 }
+
+BOOST_AUTO_TEST_SUITE_END()

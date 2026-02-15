@@ -6,7 +6,7 @@
  * and session lifecycle according to the MCP 2025-03-26 specification.
  */
 
-#include <gtest/gtest.h>
+#include <boost/test/unit_test.hpp>
 #include "mcp_server.h"
 #include "mcp_message.h"
 #include "mcp_http_factory.h"
@@ -18,9 +18,8 @@ using namespace mcp;
 using json = nlohmann::ordered_json;
 
 // Test fixture for Streamable HTTP transport tests - each test gets isolated server
-class StreamableHttpTransportTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+struct StreamableHttpTransportTest {
+    StreamableHttpTransportTest() {
         // Create server on unique port for this test (avoid conflicts)
         static std::atomic<int> port_counter{17000};
         port_ = port_counter.fetch_add(1);
@@ -61,7 +60,7 @@ protected:
         http_client->set_read_timeout(5); // 5 seconds timeout
     }
 
-    void TearDown() override {
+    ~StreamableHttpTransportTest() {
         http_client.reset();
         
         // Stop and clean up server
@@ -148,17 +147,18 @@ protected:
     std::unique_ptr<http::client_interface> http_client;
 };
 
+BOOST_FIXTURE_TEST_SUITE(StreamableHttpTransportTest_Suite, StreamableHttpTransportTest)
+
 // Test: GET /mcp establishes SSE connection and returns Mcp-Session-Id header
-TEST_F(StreamableHttpTransportTest, GetMcpEstablishesSession) {
+BOOST_AUTO_TEST_CASE(GetMcpEstablishesSession) {
     std::string endpoint = establish_sse_session_simple();
     
-    EXPECT_FALSE(endpoint.empty()) << "Should receive endpoint in SSE stream";
-    EXPECT_NE(endpoint.find("/mcp"), std::string::npos) 
-        << "Endpoint should be /mcp for streamable HTTP transport";
+    BOOST_CHECK(!endpoint.empty());
+    BOOST_CHECK_NE(endpoint.find("/mcp"), std::string::npos);
 }
 
 // Test: POST /mcp with Mcp-Session-Id header uses existing session
-TEST_F(StreamableHttpTransportTest, PostMcpWithSessionHeader) {
+BOOST_AUTO_TEST_CASE(PostMcpWithSessionHeader) {
     // First, establish a session via GET
     std::string endpoint = establish_sse_session_simple();
     
@@ -170,7 +170,7 @@ TEST_F(StreamableHttpTransportTest, PostMcpWithSessionHeader) {
         session_id = match[1].str();
     }
     
-    ASSERT_FALSE(session_id.empty()) << "Should have a session ID from GET /mcp";
+    BOOST_REQUIRE(!session_id.empty());
     
     // Now send a POST request with Mcp-Session-Id header
     json ping_request = {
@@ -185,16 +185,16 @@ TEST_F(StreamableHttpTransportTest, PostMcpWithSessionHeader) {
     
     auto res = http_client->post("/mcp", headers, ping_request.dump(), "application/json");
     
-    ASSERT_TRUE(res.success) << "POST /mcp should succeed";
-    EXPECT_EQ(202, res.status_code) << "Should return 202 Accepted for async processing";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(202, res.status_code);
     
     // Verify session ID is echoed back in response
     std::string response_session_id = extract_session_id(res);
-    EXPECT_EQ(session_id, response_session_id) << "Response should include same session ID";
+    BOOST_CHECK_EQUAL(session_id, response_session_id);
 }
 
 // Test: POST /mcp without session returns 404
-TEST_F(StreamableHttpTransportTest, PostMcpWithoutSessionReturns404) {
+BOOST_AUTO_TEST_CASE(PostMcpWithoutSessionReturns404) {
     json test_request = {
         {"jsonrpc", "2.0"},
         {"id", 1},
@@ -205,12 +205,12 @@ TEST_F(StreamableHttpTransportTest, PostMcpWithoutSessionReturns404) {
     http::headers_map empty_headers;
     auto res = http_client->post("/mcp", empty_headers, test_request.dump(), "application/json");
     
-    ASSERT_TRUE(res.success) << "POST /mcp should return a response";
-    EXPECT_EQ(404, res.status_code) << "Should return 404 for non-existent session";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(404, res.status_code);
 }
 
 // Test: POST /mcp with invalid session ID returns 404
-TEST_F(StreamableHttpTransportTest, PostMcpWithInvalidSessionReturns404) {
+BOOST_AUTO_TEST_CASE(PostMcpWithInvalidSessionReturns404) {
     json test_request = {
         {"jsonrpc", "2.0"},
         {"id", 1},
@@ -223,12 +223,12 @@ TEST_F(StreamableHttpTransportTest, PostMcpWithInvalidSessionReturns404) {
     
     auto res = http_client->post("/mcp", headers, test_request.dump(), "application/json");
     
-    ASSERT_TRUE(res.success) << "POST /mcp should return a response";
-    EXPECT_EQ(404, res.status_code) << "Should return 404 for invalid session";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(404, res.status_code);
 }
 
 // Test: DELETE /mcp terminates session
-TEST_F(StreamableHttpTransportTest, DeleteMcpTerminatesSession) {
+BOOST_AUTO_TEST_CASE(DeleteMcpTerminatesSession) {
     // First, establish a session
     std::string endpoint = establish_sse_session_simple();
     
@@ -239,7 +239,7 @@ TEST_F(StreamableHttpTransportTest, DeleteMcpTerminatesSession) {
         session_id = match[1].str();
     }
     
-    ASSERT_FALSE(session_id.empty()) << "Should have a session ID";
+    BOOST_REQUIRE(!session_id.empty());
     
     // Delete the session
     http::headers_map headers = {
@@ -248,11 +248,12 @@ TEST_F(StreamableHttpTransportTest, DeleteMcpTerminatesSession) {
     
     // DELETE method not yet implemented in Beast client
     // This test is disabled until DELETE is implemented
-    GTEST_SKIP() << "DELETE method not yet implemented in Beast client";
+    BOOST_TEST_MESSAGE("Test skipped: DELETE method not yet implemented in Beast client");
+    return;
     
     // auto delete_res = http_client->delete_("/mcp", headers);
-    // ASSERT_TRUE(delete_res) << "DELETE /mcp should succeed";
-    // EXPECT_EQ(204, delete_res.status_code) << "Should return 204 No Content on successful deletion";
+    // BOOST_REQUIRE(delete_res);
+    // BOOST_CHECK_EQUAL(204, delete_res.status_code);
     
     // Verify session is gone by trying to POST with a real method (not ping)
     json test_request = {
@@ -263,35 +264,37 @@ TEST_F(StreamableHttpTransportTest, DeleteMcpTerminatesSession) {
     
     auto post_res = http_client->post("/mcp", headers, test_request.dump(), "application/json");
     
-    ASSERT_TRUE(post_res) << "POST /mcp should return a response";
-    EXPECT_EQ(404, post_res.status_code) << "Should return 404 after session deleted";
+    BOOST_REQUIRE(post_res);
+    BOOST_CHECK_EQUAL(404, post_res.status_code);
 }
 
 // Test: DELETE /mcp without session ID returns 400
-TEST_F(StreamableHttpTransportTest, DeleteMcpWithoutSessionReturns400) {
+BOOST_AUTO_TEST_CASE(DeleteMcpWithoutSessionReturns400) {
     // DELETE method not yet implemented in Beast client
-    GTEST_SKIP() << "DELETE method not yet implemented in Beast client";
+    BOOST_TEST_MESSAGE("Test skipped: DELETE method not yet implemented in Beast client");
+    return;
     
     // auto res = http_client->delete_("/mcp");
-    // ASSERT_TRUE(res.success) << "DELETE /mcp should return a response";
-    // EXPECT_EQ(400, res.status_code) << "Should return 400 for missing session ID";
+    // BOOST_REQUIRE(res.success);
+    // BOOST_CHECK_EQUAL(400, res.status_code);
 }
 
 // Test: DELETE /mcp with invalid session ID returns 404
-TEST_F(StreamableHttpTransportTest, DeleteMcpWithInvalidSessionReturns404) {
+BOOST_AUTO_TEST_CASE(DeleteMcpWithInvalidSessionReturns404) {
     // DELETE method not yet implemented in Beast client
-    GTEST_SKIP() << "DELETE method not yet implemented in Beast client";
+    BOOST_TEST_MESSAGE("Test skipped: DELETE method not yet implemented in Beast client");
+    return;
     
     // http::headers_map headers = {
     //     {"Mcp-Session-Id", "invalid-session-12345"}
     // };
     // auto res = http_client->delete_("/mcp", headers);
-    // ASSERT_TRUE(res.success) << "DELETE /mcp should return a response";
-    // EXPECT_EQ(404, res.status_code) << "Should return 404 for non-existent session";
+    // BOOST_REQUIRE(res.success);
+    // BOOST_CHECK_EQUAL(404, res.status_code);
 }
 
 // Test: Backward compatibility with query parameter
-TEST_F(StreamableHttpTransportTest, BackwardCompatibilityWithQueryParameter) {
+BOOST_AUTO_TEST_CASE(BackwardCompatibilityWithQueryParameter) {
     // Establish a session
     std::string endpoint = establish_sse_session_simple();
     
@@ -302,7 +305,7 @@ TEST_F(StreamableHttpTransportTest, BackwardCompatibilityWithQueryParameter) {
         session_id = match[1].str();
     }
     
-    ASSERT_FALSE(session_id.empty()) << "Should have a session ID";
+    BOOST_REQUIRE(!session_id.empty());
     
     // POST using query parameter instead of header
     json ping_request = {
@@ -315,34 +318,34 @@ TEST_F(StreamableHttpTransportTest, BackwardCompatibilityWithQueryParameter) {
     http::headers_map headers;
     auto res = http_client->post(url_with_session, headers, ping_request.dump(), "application/json");
     
-    ASSERT_TRUE(res.success) << "POST /mcp with query param should succeed";
-    EXPECT_EQ(202, res.status_code) << "Should return 202 Accepted";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(202, res.status_code);
 }
 
 // Test: CORS headers include Mcp-Session-Id
-TEST_F(StreamableHttpTransportTest, CorsHeadersIncludeMcpSessionId) {
+BOOST_AUTO_TEST_CASE(CorsHeadersIncludeMcpSessionId) {
     // OPTIONS method not yet implemented in Beast client
-    GTEST_SKIP() << "OPTIONS method not yet implemented in Beast client";
+    BOOST_TEST_MESSAGE("Test skipped: OPTIONS method not yet implemented in Beast client");
+    return;
     
     // auto res = http_client->options("/mcp");
-    // ASSERT_TRUE(res.success) << "OPTIONS /mcp should succeed";
-    // EXPECT_EQ(204, res.status_code) << "Should return 204 No Content";
+    // BOOST_REQUIRE(res.success);
+    // BOOST_CHECK_EQUAL(204, res.status_code);
     
     // // Check CORS headers
     // auto allow_methods = res.headers.find("Access-Control-Allow-Methods");
-    // ASSERT_NE(allow_methods, res.headers.end()) << "Should have Allow-Methods header";
-    // EXPECT_NE(allow_methods->second.find("GET"), std::string::npos) << "Should allow GET";
-    // EXPECT_NE(allow_methods->second.find("POST"), std::string::npos) << "Should allow POST";
-    // EXPECT_NE(allow_methods->second.find("DELETE"), std::string::npos) << "Should allow DELETE";
+    // BOOST_REQUIRE_NE(allow_methods, res.headers.end());
+    // BOOST_CHECK_NE(allow_methods->second.find("GET"), std::string::npos);
+    // BOOST_CHECK_NE(allow_methods->second.find("POST"), std::string::npos);
+    // BOOST_CHECK_NE(allow_methods->second.find("DELETE"), std::string::npos);
     // 
     // auto allow_headers = res.headers.find("Access-Control-Allow-Headers");
-    // ASSERT_NE(allow_headers, res.headers.end()) << "Should have Allow-Headers header";
-    // EXPECT_NE(allow_headers->second.find("Mcp-Session-Id"), std::string::npos) 
-    //     << "Should allow Mcp-Session-Id header";
+    // BOOST_REQUIRE_NE(allow_headers, res.headers.end());
+    // BOOST_CHECK_NE(allow_headers->second.find("Mcp-Session-Id"), std::string::npos);
 }
 
 // Test: Legacy /sse endpoint still works
-TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
+BOOST_AUTO_TEST_CASE(LegacySseEndpointWorks) {
     std::string endpoint;
     bool got_endpoint = false;
     std::mutex mtx;
@@ -397,13 +400,12 @@ TEST_F(StreamableHttpTransportTest, LegacySseEndpointWorks) {
         }
     }
     
-    EXPECT_FALSE(endpoint.empty()) << "Legacy /sse endpoint should still work";
-    EXPECT_NE(endpoint.find("/message"), std::string::npos) 
-        << "Should return /message endpoint for backward compatibility";
+    BOOST_CHECK(!endpoint.empty());
+    BOOST_CHECK_NE(endpoint.find("/message"), std::string::npos);
 }
 
 // Test: POST with unsupported Accept header returns 406
-TEST_F(StreamableHttpTransportTest, PostMcpWithUnsupportedAcceptReturns406) {
+BOOST_AUTO_TEST_CASE(PostMcpWithUnsupportedAcceptReturns406) {
     // Establish a session
     std::string endpoint = establish_sse_session_simple();
     
@@ -414,7 +416,7 @@ TEST_F(StreamableHttpTransportTest, PostMcpWithUnsupportedAcceptReturns406) {
         session_id = match[1].str();
     }
     
-    ASSERT_FALSE(session_id.empty()) << "Should have a session ID";
+    BOOST_REQUIRE(!session_id.empty());
     
     // POST with unsupported Accept header (e.g., only text/html)
     json test_request = {
@@ -430,12 +432,12 @@ TEST_F(StreamableHttpTransportTest, PostMcpWithUnsupportedAcceptReturns406) {
     
     auto res = http_client->post("/mcp", headers, test_request.dump(), "application/json");
     
-    ASSERT_TRUE(res.success) << "POST /mcp should return a response";
-    EXPECT_EQ(406, res.status_code) << "Should return 406 Not Acceptable for unsupported Accept header";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(406, res.status_code);
 }
 
 // Test: POST with valid Accept headers (application/json and text/event-stream) succeeds
-TEST_F(StreamableHttpTransportTest, PostMcpWithValidAcceptHeaderSucceeds) {
+BOOST_AUTO_TEST_CASE(PostMcpWithValidAcceptHeaderSucceeds) {
     // Establish a session
     std::string endpoint = establish_sse_session_simple();
     
@@ -446,7 +448,7 @@ TEST_F(StreamableHttpTransportTest, PostMcpWithValidAcceptHeaderSucceeds) {
         session_id = match[1].str();
     }
     
-    ASSERT_FALSE(session_id.empty()) << "Should have a session ID";
+    BOOST_REQUIRE(!session_id.empty());
     
     // POST with proper Accept header
     json test_request = {
@@ -462,12 +464,14 @@ TEST_F(StreamableHttpTransportTest, PostMcpWithValidAcceptHeaderSucceeds) {
     
     auto res = http_client->post("/mcp", headers, test_request.dump(), "application/json");
     
-    ASSERT_TRUE(res.success) << "POST /mcp should succeed";
-    EXPECT_EQ(202, res.status_code) << "Should return 202 Accepted with valid Accept header";
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(202, res.status_code);
 }
 
 // Test: CORS headers include Accept in allowed headers
 // DISABLED: OPTIONS method not yet implemented in Beast client
-TEST_F(StreamableHttpTransportTest, DISABLED_CorsHeadersIncludeAccept) {
+BOOST_AUTO_TEST_CASE(DISABLED_CorsHeadersIncludeAccept) {
     // TODO: Re-enable when OPTIONS method is implemented
 }
+
+BOOST_AUTO_TEST_SUITE_END()
