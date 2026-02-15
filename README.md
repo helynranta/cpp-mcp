@@ -123,8 +123,8 @@ cmake --build build --config Release
 # Run all tests
 cd build && ctest -V
 
-# Run specific test suite
-./test/mcp_tests --gtest_filter="BeastClientTest.*"
+# Run specific test suite with Boost.Test
+./test/mcp_tests --run_test=BeastClientTest
 ```
 
 ### Boost Integration Details
@@ -137,7 +137,12 @@ This project uses vcpkg's manifest mode for dependency management. Dependencies 
 {
   "dependencies": [
     "boost-beast"
-  ]
+  ],
+  "features": {
+    "tests": {
+      "dependencies": ["boost-test"]
+    }
+  }
 }
 ```
 
@@ -165,7 +170,7 @@ Run the Boost integration tests to verify the installation:
 
 ```bash
 cd build
-./test/mcp_tests --gtest_filter="BoostIntegrationTest.*"
+./test/mcp_tests --run_test=BoostIntegrationTest
 ```
 
 These tests verify:

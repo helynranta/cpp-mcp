@@ -12,9 +12,20 @@ jobs:
     name: Test on Linux
     runs-on: ubuntu-latest
     
+    env:
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/vcpkg-cache,readwrite'
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+    
+    - name: Restore vcpkg cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg-cache
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+        restore-keys: |
+          vcpkg-${{ runner.os }}-
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
@@ -32,7 +43,7 @@ jobs:
     - name: Build
       run: cmake --build build --config Release -j$(nproc)
     
-    - name: Run GoogleTest tests
+    - name: Run Boost.Test tests
       run: |
         cd build
         ctest --output-on-failure -C Release -R mcp_tests
@@ -41,9 +52,20 @@ jobs:
     name: Test on Windows
     runs-on: windows-latest
     
+    env:
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/vcpkg-cache,readwrite'
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+    
+    - name: Restore vcpkg cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg-cache
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+        restore-keys: |
+          vcpkg-${{ runner.os }}-
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
@@ -61,7 +83,7 @@ jobs:
     - name: Build
       run: cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
     
-    - name: Run GoogleTest tests
+    - name: Run Boost.Test tests
       run: |
         cd build
         ctest --output-on-failure -C Release -R mcp_tests

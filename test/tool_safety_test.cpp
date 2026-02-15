@@ -6,21 +6,24 @@
  * and trust model for tool annotations.
  */
 
-#include <gtest/gtest.h>
+#include <boost/test/unit_test.hpp>
 #include "mcp_server.h"
 #include "mcp_sse_client.h"
 #include <thread>
 #include <chrono>
 #include <atomic>
 
-class ToolSafetyTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+struct ToolSafetyTest {
+    int test_port;
+    std::unique_ptr<mcp::server> server;
+    std::unique_ptr<mcp::sse_client> client;
+
+    ToolSafetyTest() {
         // Port for this test suite
         test_port = 9200;
     }
 
-    void TearDown() override {
+    ~ToolSafetyTest() {
         if (server) {
             server->stop();
             server.reset();
@@ -31,14 +34,12 @@ protected:
         // Wait a bit for cleanup
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-
-    int test_port;
-    std::unique_ptr<mcp::server> server;
-    std::unique_ptr<mcp::sse_client> client;
 };
 
+BOOST_FIXTURE_TEST_SUITE(ToolSafetyTestSuite, ToolSafetyTest)
+
 // Test: Tool with confirmation requirement denied without handler
-TEST_F(ToolSafetyTest, ConfirmationRequiredDeniedWithoutHandler) {
+BOOST_AUTO_TEST_CASE(ConfirmationRequiredDeniedWithoutHandler) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -65,24 +66,23 @@ TEST_F(ToolSafetyTest, ConfirmationRequiredDeniedWithoutHandler) {
     client = std::make_unique<mcp::sse_client>("http://localhost:" + std::to_string(test_port));
     
     bool init_result = client->initialize("test-client", "1.0.0");
-    ASSERT_TRUE(init_result) << "Initialize should succeed";
+    BOOST_REQUIRE(init_result);
     
     // Try to call the tool that requires confirmation
     auto result = client->call_tool("delete_file", {{"path", "/tmp/test.txt"}});
     
-    EXPECT_TRUE(result["isError"]) << "Tool call should fail without confirmation handler";
+    BOOST_CHECK(result["isError"]);
     if (result["isError"] && result.contains("content") && result["content"].is_array() && !result["content"].empty()) {
         auto first_item = result["content"][0];
         if (first_item.contains("text")) {
             std::string error_text = first_item["text"];
-            EXPECT_NE(error_text.find("confirmation"), std::string::npos) 
-                << "Error should mention confirmation";
+            BOOST_CHECK_NE(error_text.find("confirmation"), std::string::npos);
         }
     }
 }
 
 // Test: Tool with confirmation requirement allowed with handler
-TEST_F(ToolSafetyTest, ConfirmationRequiredAllowedWithHandler) {
+BOOST_AUTO_TEST_CASE(ConfirmationRequiredAllowedWithHandler) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -118,17 +118,17 @@ TEST_F(ToolSafetyTest, ConfirmationRequiredAllowedWithHandler) {
     client = std::make_unique<mcp::sse_client>("http://localhost:" + std::to_string(test_port));
     
     bool init_result = client->initialize("test-client", "1.0.0");
-    ASSERT_TRUE(init_result) << "Initialize should succeed";
+    BOOST_REQUIRE(init_result);
     
     // Call the tool with confirmation handler set
     auto result = client->call_tool("delete_file", {{"path", "/tmp/test.txt"}});
     
-    EXPECT_FALSE(result["isError"]) << "Tool call should succeed with confirmation handler";
-    EXPECT_TRUE(tool_executed) << "Tool should have been executed";
+    BOOST_CHECK(!result["isError"]);
+    BOOST_CHECK(tool_executed);
 }
 
 // Test: Tool confirmation handler can deny execution
-TEST_F(ToolSafetyTest, ConfirmationHandlerCanDeny) {
+BOOST_AUTO_TEST_CASE(ConfirmationHandlerCanDeny) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -170,21 +170,21 @@ TEST_F(ToolSafetyTest, ConfirmationHandlerCanDeny) {
     client = std::make_unique<mcp::sse_client>("http://localhost:" + std::to_string(test_port));
     
     bool init_result = client->initialize("test-client", "1.0.0");
-    ASSERT_TRUE(init_result) << "Initialize should succeed";
+    BOOST_REQUIRE(init_result);
     
     // Try to delete a system file (should be denied)
     auto result1 = client->call_tool("delete_file", {{"path", "/etc/passwd"}});
-    EXPECT_TRUE(result1["isError"]) << "Tool call should fail for system file";
+    BOOST_CHECK(result1["isError"]);
     
     // Try to delete a user file (should be allowed)
     auto result2 = client->call_tool("delete_file", {{"path", "/tmp/test.txt"}});
-    EXPECT_FALSE(result2["isError"]) << "Tool call should succeed for user file";
+    BOOST_CHECK(!result2["isError"]);
     
-    EXPECT_EQ(1, execution_count.load()) << "Tool should execute only once (for allowed file)";
+    BOOST_CHECK_EQUAL(1, execution_count.load());
 }
 
 // Test: Tool without confirmation requirement executes freely
-TEST_F(ToolSafetyTest, ToolWithoutConfirmationExecutesFreely) {
+BOOST_AUTO_TEST_CASE(ToolWithoutConfirmationExecutesFreely) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -217,17 +217,17 @@ TEST_F(ToolSafetyTest, ToolWithoutConfirmationExecutesFreely) {
     client = std::make_unique<mcp::sse_client>("http://localhost:" + std::to_string(test_port));
     
     bool init_result = client->initialize("test-client", "1.0.0");
-    ASSERT_TRUE(init_result) << "Initialize should succeed";
+    BOOST_REQUIRE(init_result);
     
     // Call the safe tool (should work despite strict handler)
     auto result = client->call_tool("read_file", {{"path", "/tmp/test.txt"}});
     
-    EXPECT_FALSE(result["isError"]) << "Tool call should succeed for tool without confirmation";
-    EXPECT_TRUE(tool_executed) << "Tool should have been executed";
+    BOOST_CHECK(!result["isError"]);
+    BOOST_CHECK(tool_executed);
 }
 
 // Test: Confirmation disabled allows all tools
-TEST_F(ToolSafetyTest, ConfirmationDisabledAllowsAllTools) {
+BOOST_AUTO_TEST_CASE(ConfirmationDisabledAllowsAllTools) {
     mcp::server::configuration config;
     config.host = "localhost";
     config.port = test_port;
@@ -255,34 +255,36 @@ TEST_F(ToolSafetyTest, ConfirmationDisabledAllowsAllTools) {
     client = std::make_unique<mcp::sse_client>("http://localhost:" + std::to_string(test_port));
     
     bool init_result = client->initialize("test-client", "1.0.0");
-    ASSERT_TRUE(init_result) << "Initialize should succeed";
+    BOOST_REQUIRE(init_result);
     
     // Call the tool (should work even without handler when confirmation is disabled)
     auto result = client->call_tool("delete_file", {{"path", "/tmp/test.txt"}});
     
-    EXPECT_FALSE(result["isError"]) << "Tool call should succeed when confirmation is disabled";
-    EXPECT_TRUE(tool_executed) << "Tool should have been executed";
+    BOOST_CHECK(!result["isError"]);
+    BOOST_CHECK(tool_executed);
 }
 
 // Test: Tool builder sets confirmation flag correctly
-TEST_F(ToolSafetyTest, ToolBuilderSetsConfirmationFlag) {
+BOOST_AUTO_TEST_CASE(ToolBuilderSetsConfirmationFlag) {
     auto tool1 = mcp::tool_builder("tool1")
         .with_description("Tool without confirmation")
         .build();
     
-    EXPECT_FALSE(tool1.requires_confirmation) << "Tool should not require confirmation by default";
+    BOOST_CHECK(!tool1.requires_confirmation);
     
     auto tool2 = mcp::tool_builder("tool2")
         .with_description("Tool with confirmation")
         .with_confirmation_required(true)
         .build();
     
-    EXPECT_TRUE(tool2.requires_confirmation) << "Tool should require confirmation when set";
+    BOOST_CHECK(tool2.requires_confirmation);
     
     auto tool3 = mcp::tool_builder("tool3")
         .with_description("Tool with confirmation disabled")
         .with_confirmation_required(false)
         .build();
     
-    EXPECT_FALSE(tool3.requires_confirmation) << "Tool should not require confirmation when explicitly disabled";
+    BOOST_CHECK(!tool3.requires_confirmation);
 }
+
+BOOST_AUTO_TEST_SUITE_END()

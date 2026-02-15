@@ -23,7 +23,7 @@ The cpp-mcp project is designed to be developed collaboratively by multiple AI a
 
 ```bash
 # 1. Write test in test/mcp_test.cpp
-TEST(NewFeatureTest, WorksCorrectly) {
+BOOST_AUTO_TEST_CASE(WorksCorrectly) {
     // Arrange
     auto component = create_test_component();
     
@@ -31,7 +31,7 @@ TEST(NewFeatureTest, WorksCorrectly) {
     auto result = component.new_feature();
     
     // Assert
-    EXPECT_TRUE(result.is_valid());
+    BOOST_CHECK(result.is_valid());
 }
 
 # 2. Verify test fails
@@ -59,7 +59,7 @@ cd build && ctest -R mcp_tests -V
 
 **Test framework used:**
 
-- **GoogleTest** - For all tests (unit, integration, and client/server communication)
+- **Boost.Test** - For all tests (unit, integration, and client/server communication)
 
 **Test Coverage Requirements:**
 - All new features must have corresponding tests
@@ -70,7 +70,7 @@ cd build && ctest -R mcp_tests -V
 **Running Tests:**
 
 ```bash
-# Configure with tests enabled (vcpkg will automatically install GoogleTest)
+# Configure with tests enabled (vcpkg will automatically install Boost.Test)
 cmake -B build -DMCP_BUILD_TESTS=ON \
   -DVCPKG_MANIFEST_FEATURES="tests" \
   -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
@@ -78,7 +78,7 @@ cmake -B build -DMCP_BUILD_TESTS=ON \
 # Build
 cmake --build build --config Release
 
-# Run GoogleTest suite
+# Run Boost.Test suite
 cd build && ctest -R mcp_tests -V
 
 # Run all tests
@@ -130,7 +130,7 @@ cpp-mcp/
 │   ├── mcp_tool.cpp
 │   └── ...
 ├── test/             # Test files
-│   ├── mcp_test.cpp         # GoogleTest tests
+│   ├── mcp_test.cpp         # Boost.Test tests
 │   └── ...                  # Other test files
 ├── examples/         # Example applications
 │   ├── server_example.cpp
@@ -150,9 +150,9 @@ cpp-mcp/
 2. **Write tests first:**
    ```cpp
    // test/mcp_test.cpp
-   TEST(NewFeatureTest, Behavior) {
+   BOOST_AUTO_TEST_CASE(Behavior) {
        // Write test before implementation
-       EXPECT_TRUE(new_feature_works());
+       BOOST_CHECK(new_feature_works());
    }
    ```
 3. **Implement the feature** in appropriate files
@@ -174,13 +174,13 @@ Tools are registered in the server and can be called by clients:
 
 ```cpp
 // 1. Write test first
-TEST(ToolRegistrationTest, NewTool) {
+BOOST_AUTO_TEST_CASE(NewTool) {
     tool new_tool = tool_builder("my_tool")
         .with_description("Description")
         .with_string_param("param", "Description", "default")
         .build();
     
-    EXPECT_EQ(new_tool.name, "my_tool");
+    BOOST_CHECK_EQUAL(new_tool.name, "my_tool");
 }
 
 // 2. Implement the tool
@@ -226,13 +226,24 @@ The project uses GitHub Actions for continuous integration:
 
 - **Platforms tested:** Ubuntu, Windows
 - **Build configurations:** Release
-- **Test framework:** GoogleTest
-- **Dependency management:** vcpkg
+
+- **Test framework:** Boost.Test
+- **Dependency management:** vcpkg with binary caching
+
 
 **Pipeline triggers:**
 - Pull requests to main/master branches
 - Direct pushes to main/master
 - Manual workflow dispatch
+
+**vcpkg Binary Caching:**
+- Both Linux and Windows use file-based cache stored in GitHub Actions cache
+  - Uses `files` provider to store binaries locally
+  - GitHub Actions cache persists between runs
+  - Cache key based on vcpkg.json and vcpkg-configuration.json hashes
+- First build: Dependencies are built and cached
+- Subsequent builds: Pre-built binaries are downloaded, significantly reducing build time
+- Cache is automatically managed per platform
 
 **Requirements for merge:**
 - ✅ All builds must succeed
@@ -270,11 +281,11 @@ When encountering issues:
 
 Test individual components in isolation:
 ```cpp
-TEST(ToolBuilderTest, CreatesValidTools) {
+BOOST_AUTO_TEST_CASE(CreatesValidTools) {
     tool t = tool_builder("test")
         .with_description("Test tool")
         .build();
-    EXPECT_EQ(t.name, "test");
+    BOOST_CHECK_EQUAL(t.name, "test");
 }
 ```
 
@@ -282,18 +293,18 @@ TEST(ToolBuilderTest, CreatesValidTools) {
 
 Test component interactions:
 ```cpp
-TEST(ClientServerTest, Communication) {
+BOOST_AUTO_TEST_CASE(Communication) {
     TestServer server(8891);
     server.start();
     
     // Test server is reachable
-    EXPECT_TRUE(server.is_running());
+    BOOST_CHECK(server.is_running());
 }
 ```
 
 ### Test Organization
 
-- **Use test fixtures** - Group related tests with GoogleTest fixtures
+- **Use test fixtures** - Group related tests with Boost.Test fixtures
 - **Descriptive names** - Test names should describe what they verify
 - **Independent tests** - Tests should not depend on execution order
 - **Clean up resources** - Use RAII or test fixtures for cleanup
@@ -344,7 +355,7 @@ Maintain TESTING_IMPLEMENTATION_PLAN.md and related docs:
 
 - [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
 - [MCP GitHub Repository](https://github.com/modelcontextprotocol/modelcontextprotocol) - Official specification and protocol details
-- [GoogleTest Documentation](https://google.github.io/googletest/)
+- [Boost.Test Documentation](https://www.boost.org/doc/libs/1_90_0/libs/test/doc/html/index.html)
 - [vcpkg Documentation](https://vcpkg.io/en/docs/)
 
 ## Quick Reference

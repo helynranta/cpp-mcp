@@ -6,7 +6,7 @@
  * and MCP 2025-03-26 requirements.
  */
 
-#include <gtest/gtest.h>
+#include <boost/test/unit_test.hpp>
 #include "mcp_jsonrpc_validation.h"
 #include "mcp_message.h"
 
@@ -14,68 +14,69 @@ using namespace mcp;
 using json = nlohmann::ordered_json;
 
 // Test fixture for JSON-RPC validation tests
-class JsonRpcValidationTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+struct JsonRpcValidationTest {
+    JsonRpcValidationTest() {
         // Setup test environment
     }
 
-    void TearDown() override {
+    ~JsonRpcValidationTest() {
         // Cleanup test environment
     }
 };
 
 // ===== Request ID Validation Tests =====
 
-TEST_F(JsonRpcValidationTest, ValidRequestIdString) {
+BOOST_FIXTURE_TEST_SUITE(JsonRpcValidationTestSuite, JsonRpcValidationTest)
+
+BOOST_AUTO_TEST_CASE(ValidRequestIdString) {
     json id = "request-123";
     std::string error;
-    EXPECT_TRUE(validate_request_id(id, false, error)) << "String ID should be valid";
+    BOOST_CHECK(validate_request_id(id, false, error));
 }
 
-TEST_F(JsonRpcValidationTest, ValidRequestIdInteger) {
+BOOST_AUTO_TEST_CASE(ValidRequestIdInteger) {
     json id = 42;
     std::string error;
-    EXPECT_TRUE(validate_request_id(id, false, error)) << "Integer ID should be valid";
+    BOOST_CHECK(validate_request_id(id, false, error));
 }
 
-TEST_F(JsonRpcValidationTest, ValidRequestIdFloat) {
+BOOST_AUTO_TEST_CASE(ValidRequestIdFloat) {
     json id = 3.14;
     std::string error;
-    EXPECT_TRUE(validate_request_id(id, false, error)) << "Float ID should be valid (numbers are allowed)";
+    BOOST_CHECK(validate_request_id(id, false, error));
 }
 
-TEST_F(JsonRpcValidationTest, InvalidRequestIdNull) {
+BOOST_AUTO_TEST_CASE(InvalidRequestIdNull) {
     json id = nullptr;
     std::string error;
-    EXPECT_FALSE(validate_request_id(id, false, error)) << "Null ID should be invalid for requests";
-    EXPECT_NE(error.find("must not be null"), std::string::npos);
+    BOOST_CHECK(!validate_request_id(id, false, error));
+    BOOST_CHECK_NE(error.find("must not be null"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidRequestIdObject) {
+BOOST_AUTO_TEST_CASE(InvalidRequestIdObject) {
     json id = json::object({{"key", "value"}});
     std::string error;
-    EXPECT_FALSE(validate_request_id(id, false, error)) << "Object ID should be invalid";
-    EXPECT_NE(error.find("must be a string or number"), std::string::npos);
+    BOOST_CHECK(!validate_request_id(id, false, error));
+    BOOST_CHECK_NE(error.find("must be a string or number"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidRequestIdArray) {
+BOOST_AUTO_TEST_CASE(InvalidRequestIdArray) {
     json id = json::array({1, 2, 3});
     std::string error;
-    EXPECT_FALSE(validate_request_id(id, false, error)) << "Array ID should be invalid";
-    EXPECT_NE(error.find("must be a string or number"), std::string::npos);
+    BOOST_CHECK(!validate_request_id(id, false, error));
+    BOOST_CHECK_NE(error.find("must be a string or number"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, NotificationMustNotHaveId) {
+BOOST_AUTO_TEST_CASE(NotificationMustNotHaveId) {
     json id = "some-id";
     std::string error;
-    EXPECT_FALSE(validate_request_id(id, true, error)) << "Notifications must not have ID";
-    EXPECT_NE(error.find("must not have"), std::string::npos);
+    BOOST_CHECK(!validate_request_id(id, true, error));
+    BOOST_CHECK_NE(error.find("must not have"), std::string::npos);
 }
 
 // ===== Request Message Validation Tests =====
 
-TEST_F(JsonRpcValidationTest, ValidRequestMessage) {
+BOOST_AUTO_TEST_CASE(ValidRequestMessage) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1},
@@ -83,78 +84,78 @@ TEST_F(JsonRpcValidationTest, ValidRequestMessage) {
         {"params", {{"key", "value"}}}
     };
     std::string error;
-    EXPECT_TRUE(validate_request_message(msg, error)) << "Valid request should pass validation";
+    BOOST_CHECK(validate_request_message(msg, error));
 }
 
-TEST_F(JsonRpcValidationTest, ValidRequestWithoutParams) {
+BOOST_AUTO_TEST_CASE(ValidRequestWithoutParams) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", "req-1"},
         {"method", "test_method"}
     };
     std::string error;
-    EXPECT_TRUE(validate_request_message(msg, error)) << "Request without params should be valid";
+    BOOST_CHECK(validate_request_message(msg, error));
 }
 
-TEST_F(JsonRpcValidationTest, ValidNotificationMessage) {
+BOOST_AUTO_TEST_CASE(ValidNotificationMessage) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"method", "notifications/test"}
     };
     std::string error;
-    EXPECT_TRUE(validate_request_message(msg, error)) << "Notification without ID should be valid";
+    BOOST_CHECK(validate_request_message(msg, error));
 }
 
-TEST_F(JsonRpcValidationTest, InvalidRequestMissingJsonRpc) {
+BOOST_AUTO_TEST_CASE(InvalidRequestMissingJsonRpc) {
     json msg = {
         {"id", 1},
         {"method", "test_method"}
     };
     std::string error;
-    EXPECT_FALSE(validate_request_message(msg, error)) << "Request missing 'jsonrpc' should fail";
-    EXPECT_NE(error.find("jsonrpc"), std::string::npos);
+    BOOST_CHECK(!validate_request_message(msg, error));
+    BOOST_CHECK_NE(error.find("jsonrpc"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidRequestWrongJsonRpcVersion) {
+BOOST_AUTO_TEST_CASE(InvalidRequestWrongJsonRpcVersion) {
     json msg = {
         {"jsonrpc", "1.0"},
         {"id", 1},
         {"method", "test_method"}
     };
     std::string error;
-    EXPECT_FALSE(validate_request_message(msg, error)) << "Wrong jsonrpc version should fail";
-    EXPECT_NE(error.find("2.0"), std::string::npos);
+    BOOST_CHECK(!validate_request_message(msg, error));
+    BOOST_CHECK_NE(error.find("2.0"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidRequestMissingMethod) {
+BOOST_AUTO_TEST_CASE(InvalidRequestMissingMethod) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1}
     };
     std::string error;
-    EXPECT_FALSE(validate_request_message(msg, error)) << "Request missing method should fail";
-    EXPECT_NE(error.find("method"), std::string::npos);
+    BOOST_CHECK(!validate_request_message(msg, error));
+    BOOST_CHECK_NE(error.find("method"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidRequestNullId) {
+BOOST_AUTO_TEST_CASE(InvalidRequestNullId) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", nullptr},
         {"method", "test_method"}
     };
     std::string error;
-    EXPECT_FALSE(validate_request_message(msg, error)) << "Request with null ID should fail";
-    EXPECT_NE(error.find("must not be null"), std::string::npos);
+    BOOST_CHECK(!validate_request_message(msg, error));
+    BOOST_CHECK_NE(error.find("must not be null"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidRequestNotObject) {
+BOOST_AUTO_TEST_CASE(InvalidRequestNotObject) {
     json msg = json::array({1, 2, 3});
     std::string error;
-    EXPECT_FALSE(validate_request_message(msg, error)) << "Array should not be valid request";
-    EXPECT_NE(error.find("must be an object"), std::string::npos);
+    BOOST_CHECK(!validate_request_message(msg, error));
+    BOOST_CHECK_NE(error.find("must be an object"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidParamsNotStructured) {
+BOOST_AUTO_TEST_CASE(InvalidParamsNotStructured) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1},
@@ -162,23 +163,23 @@ TEST_F(JsonRpcValidationTest, InvalidParamsNotStructured) {
         {"params", "invalid"}  // String is not allowed
     };
     std::string error;
-    EXPECT_FALSE(validate_request_message(msg, error)) << "Params must be object or array";
-    EXPECT_NE(error.find("params"), std::string::npos);
+    BOOST_CHECK(!validate_request_message(msg, error));
+    BOOST_CHECK_NE(error.find("params"), std::string::npos);
 }
 
 // ===== Response Message Validation Tests =====
 
-TEST_F(JsonRpcValidationTest, ValidSuccessResponse) {
+BOOST_AUTO_TEST_CASE(ValidSuccessResponse) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1},
         {"result", {{"key", "value"}}}
     };
     std::string error;
-    EXPECT_TRUE(validate_response_message(msg, error)) << "Valid success response should pass";
+    BOOST_CHECK(validate_response_message(msg, error));
 }
 
-TEST_F(JsonRpcValidationTest, ValidErrorResponse) {
+BOOST_AUTO_TEST_CASE(ValidErrorResponse) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1},
@@ -188,10 +189,10 @@ TEST_F(JsonRpcValidationTest, ValidErrorResponse) {
         }}
     };
     std::string error;
-    EXPECT_TRUE(validate_response_message(msg, error)) << "Valid error response should pass";
+    BOOST_CHECK(validate_response_message(msg, error));
 }
 
-TEST_F(JsonRpcValidationTest, InvalidResponseBothResultAndError) {
+BOOST_AUTO_TEST_CASE(InvalidResponseBothResultAndError) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1},
@@ -202,31 +203,31 @@ TEST_F(JsonRpcValidationTest, InvalidResponseBothResultAndError) {
         }}
     };
     std::string error;
-    EXPECT_FALSE(validate_response_message(msg, error)) << "Response with both result and error should fail";
-    EXPECT_NE(error.find("both"), std::string::npos);
+    BOOST_CHECK(!validate_response_message(msg, error));
+    BOOST_CHECK_NE(error.find("both"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidResponseNeitherResultNorError) {
+BOOST_AUTO_TEST_CASE(InvalidResponseNeitherResultNorError) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1}
     };
     std::string error;
-    EXPECT_FALSE(validate_response_message(msg, error)) << "Response without result or error should fail";
-    EXPECT_NE(error.find("either"), std::string::npos);
+    BOOST_CHECK(!validate_response_message(msg, error));
+    BOOST_CHECK_NE(error.find("either"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidResponseMissingId) {
+BOOST_AUTO_TEST_CASE(InvalidResponseMissingId) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"result", {{"key", "value"}}}
     };
     std::string error;
-    EXPECT_FALSE(validate_response_message(msg, error)) << "Response missing ID should fail";
-    EXPECT_NE(error.find("id"), std::string::npos);
+    BOOST_CHECK(!validate_response_message(msg, error));
+    BOOST_CHECK_NE(error.find("id"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidErrorMissingCode) {
+BOOST_AUTO_TEST_CASE(InvalidErrorMissingCode) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1},
@@ -235,11 +236,11 @@ TEST_F(JsonRpcValidationTest, InvalidErrorMissingCode) {
         }}
     };
     std::string error;
-    EXPECT_FALSE(validate_response_message(msg, error)) << "Error without code should fail";
-    EXPECT_NE(error.find("code"), std::string::npos);
+    BOOST_CHECK(!validate_response_message(msg, error));
+    BOOST_CHECK_NE(error.find("code"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidErrorMissingMessage) {
+BOOST_AUTO_TEST_CASE(InvalidErrorMissingMessage) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1},
@@ -248,11 +249,11 @@ TEST_F(JsonRpcValidationTest, InvalidErrorMissingMessage) {
         }}
     };
     std::string error;
-    EXPECT_FALSE(validate_response_message(msg, error)) << "Error without message should fail";
-    EXPECT_NE(error.find("message"), std::string::npos);
+    BOOST_CHECK(!validate_response_message(msg, error));
+    BOOST_CHECK_NE(error.find("message"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidErrorCodeNotInteger) {
+BOOST_AUTO_TEST_CASE(InvalidErrorCodeNotInteger) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1},
@@ -262,11 +263,11 @@ TEST_F(JsonRpcValidationTest, InvalidErrorCodeNotInteger) {
         }}
     };
     std::string error;
-    EXPECT_FALSE(validate_response_message(msg, error)) << "Error code must be integer";
-    EXPECT_NE(error.find("integer"), std::string::npos);
+    BOOST_CHECK(!validate_response_message(msg, error));
+    BOOST_CHECK_NE(error.find("integer"), std::string::npos);
 }
 
-TEST_F(JsonRpcValidationTest, InvalidErrorMessageNotString) {
+BOOST_AUTO_TEST_CASE(InvalidErrorMessageNotString) {
     json msg = {
         {"jsonrpc", "2.0"},
         {"id", 1},
@@ -276,112 +277,114 @@ TEST_F(JsonRpcValidationTest, InvalidErrorMessageNotString) {
         }}
     };
     std::string error;
-    EXPECT_FALSE(validate_response_message(msg, error)) << "Error message must be string";
-    EXPECT_NE(error.find("string"), std::string::npos);
+    BOOST_CHECK(!validate_response_message(msg, error));
+    BOOST_CHECK_NE(error.find("string"), std::string::npos);
 }
 
 // ===== Request ID Tracker Tests =====
 
-TEST_F(JsonRpcValidationTest, TrackerAcceptsUniqueIds) {
+BOOST_AUTO_TEST_CASE(TrackerAcceptsUniqueIds) {
     request_id_tracker tracker;
     
     json id1 = 1;
     json id2 = 2;
     
-    EXPECT_TRUE(tracker.add_request_id("session1", id1));
-    EXPECT_TRUE(tracker.add_request_id("session1", id2));
+    BOOST_CHECK(tracker.add_request_id("session1", id1));
+    BOOST_CHECK(tracker.add_request_id("session1", id2));
 }
 
-TEST_F(JsonRpcValidationTest, TrackerRejectsDuplicateIds) {
+BOOST_AUTO_TEST_CASE(TrackerRejectsDuplicateIds) {
     request_id_tracker tracker;
     
     json id = 1;
     
-    EXPECT_TRUE(tracker.add_request_id("session1", id));
-    EXPECT_FALSE(tracker.add_request_id("session1", id)) << "Duplicate ID should be rejected";
+    BOOST_CHECK(tracker.add_request_id("session1", id));
+    BOOST_CHECK(!tracker.add_request_id("session1", id));
 }
 
-TEST_F(JsonRpcValidationTest, TrackerAllowsSameIdDifferentSessions) {
+BOOST_AUTO_TEST_CASE(TrackerAllowsSameIdDifferentSessions) {
     request_id_tracker tracker;
     
     json id = 1;
     
-    EXPECT_TRUE(tracker.add_request_id("session1", id));
-    EXPECT_TRUE(tracker.add_request_id("session2", id)) << "Same ID in different sessions should be allowed";
+    BOOST_CHECK(tracker.add_request_id("session1", id));
+    BOOST_CHECK(tracker.add_request_id("session2", id));
 }
 
-TEST_F(JsonRpcValidationTest, TrackerRemovesIds) {
+BOOST_AUTO_TEST_CASE(TrackerRemovesIds) {
     request_id_tracker tracker;
     
     json id = 1;
     
-    EXPECT_TRUE(tracker.add_request_id("session1", id));
+    BOOST_CHECK(tracker.add_request_id("session1", id));
     tracker.remove_request_id("session1", id);
-    EXPECT_TRUE(tracker.add_request_id("session1", id)) << "Removed ID should be reusable";
+    BOOST_CHECK(tracker.add_request_id("session1", id));
 }
 
-TEST_F(JsonRpcValidationTest, TrackerClearsSession) {
+BOOST_AUTO_TEST_CASE(TrackerClearsSession) {
     request_id_tracker tracker;
     
     json id1 = 1;
     json id2 = 2;
     
-    EXPECT_TRUE(tracker.add_request_id("session1", id1));
-    EXPECT_TRUE(tracker.add_request_id("session1", id2));
+    BOOST_CHECK(tracker.add_request_id("session1", id1));
+    BOOST_CHECK(tracker.add_request_id("session1", id2));
     
     tracker.clear_session("session1");
     
-    EXPECT_TRUE(tracker.add_request_id("session1", id1)) << "After clearing session, IDs should be reusable";
-    EXPECT_TRUE(tracker.add_request_id("session1", id2)) << "After clearing session, IDs should be reusable";
+    BOOST_CHECK(tracker.add_request_id("session1", id1));
+    BOOST_CHECK(tracker.add_request_id("session1", id2));
 }
 
-TEST_F(JsonRpcValidationTest, TrackerHandlesStringIds) {
+BOOST_AUTO_TEST_CASE(TrackerHandlesStringIds) {
     request_id_tracker tracker;
     
     json id1 = "request-1";
     json id2 = "request-2";
     
-    EXPECT_TRUE(tracker.add_request_id("session1", id1));
-    EXPECT_TRUE(tracker.add_request_id("session1", id2));
-    EXPECT_FALSE(tracker.add_request_id("session1", id1)) << "Duplicate string ID should be rejected";
+    BOOST_CHECK(tracker.add_request_id("session1", id1));
+    BOOST_CHECK(tracker.add_request_id("session1", id2));
+    BOOST_CHECK(!tracker.add_request_id("session1", id1));
 }
 
 // ===== MCP Request/Notification Structure Tests =====
 
-TEST_F(JsonRpcValidationTest, McpRequestStructure) {
+BOOST_AUTO_TEST_CASE(McpRequestStructure) {
     request req = request::create("test_method", {{"key", "value"}});
     json req_json = req.to_json();
     
     std::string error;
-    EXPECT_TRUE(validate_request_message(req_json, error)) << "MCP request should be valid JSON-RPC";
-    EXPECT_FALSE(req.is_notification()) << "Request should not be a notification";
-    EXPECT_TRUE(req_json.contains("id")) << "Request should have ID";
+    BOOST_CHECK(validate_request_message(req_json, error));
+    BOOST_CHECK(!req.is_notification());
+    BOOST_CHECK(req_json.contains("id"));
 }
 
-TEST_F(JsonRpcValidationTest, McpNotificationStructure) {
+BOOST_AUTO_TEST_CASE(McpNotificationStructure) {
     request notif = request::create_notification("test_notif", {{"key", "value"}});
     json notif_json = notif.to_json();
     
     std::string error;
-    EXPECT_TRUE(validate_request_message(notif_json, error)) << "MCP notification should be valid JSON-RPC";
-    EXPECT_TRUE(notif.is_notification()) << "Notification should be identified as such";
-    EXPECT_FALSE(notif_json.contains("id")) << "Notification should NOT have ID field";
+    BOOST_CHECK(validate_request_message(notif_json, error));
+    BOOST_CHECK(notif.is_notification());
+    BOOST_CHECK(!notif_json.contains("id"));
 }
 
-TEST_F(JsonRpcValidationTest, McpResponseStructure) {
+BOOST_AUTO_TEST_CASE(McpResponseStructure) {
     response res = response::create_success(1, {{"key", "value"}});
     json res_json = res.to_json();
     
     std::string error;
-    EXPECT_TRUE(validate_response_message(res_json, error)) << "MCP response should be valid JSON-RPC";
-    EXPECT_FALSE(res.is_error()) << "Success response should not be error";
+    BOOST_CHECK(validate_response_message(res_json, error));
+    BOOST_CHECK(!res.is_error());
 }
 
-TEST_F(JsonRpcValidationTest, McpErrorResponseStructure) {
+BOOST_AUTO_TEST_CASE(McpErrorResponseStructure) {
     response res = response::create_error(1, error_code::invalid_params, "Invalid parameters");
     json res_json = res.to_json();
     
     std::string error;
-    EXPECT_TRUE(validate_response_message(res_json, error)) << "MCP error response should be valid JSON-RPC";
-    EXPECT_TRUE(res.is_error()) << "Error response should be identified as error";
+    BOOST_CHECK(validate_response_message(res_json, error));
+    BOOST_CHECK(res.is_error());
 }
+
+BOOST_AUTO_TEST_SUITE_END()

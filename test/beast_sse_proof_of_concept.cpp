@@ -8,7 +8,7 @@
  * This validates the migration approach before full implementation.
  */
 
-#include <gtest/gtest.h>
+#include <boost/test/unit_test.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/asio.hpp>
@@ -141,10 +141,12 @@ private:
     std::thread server_thread_;
 };
 
+BOOST_AUTO_TEST_SUITE(BeastSSEProofOfConcept)
+
 /**
  * @brief Test that Beast can do SSE streaming
  */
-TEST(BeastSSEProofOfConcept, CanStreamSSE) {
+BOOST_AUTO_TEST_CASE(CanStreamSSE) {
     // Start SSE server
     BeastSSEServer server(9999);
     server.start();
@@ -178,9 +180,9 @@ TEST(BeastSSEProofOfConcept, CanStreamSSE) {
         
         // Verify it's SSE
         auto& res = parser.get();
-        EXPECT_EQ(res.result(), http::status::ok);
-        EXPECT_EQ(res[http::field::content_type], "text/event-stream");
-        EXPECT_TRUE(res.chunked());
+        BOOST_CHECK_EQUAL(res.result(), http::status::ok);
+        BOOST_CHECK_EQUAL(res[http::field::content_type], "text/event-stream");
+        BOOST_CHECK(res.chunked());
         
         // Read chunks
         std::vector<std::string> events;
@@ -229,13 +231,13 @@ TEST(BeastSSEProofOfConcept, CanStreamSSE) {
         }
         
         // Verify we got the events
-        ASSERT_GE(events.size(), 3);
-        EXPECT_TRUE(events[0].find("Hello from Beast!") != std::string::npos);
-        EXPECT_TRUE(events[1].find("Second event") != std::string::npos);
-        EXPECT_TRUE(events[2].find("Final event") != std::string::npos);
+        BOOST_REQUIRE_GE(events.size(), 3);
+        BOOST_CHECK(events[0].find("Hello from Beast!") != std::string::npos);
+        BOOST_CHECK(events[1].find("Second event") != std::string::npos);
+        BOOST_CHECK(events[2].find("Final event") != std::string::npos);
         
     } catch (std::exception& e) {
-        FAIL() << "Exception: " << e.what();
+        BOOST_FAIL("Exception: " << e.what());
     }
     
     server.stop();
@@ -246,7 +248,7 @@ TEST(BeastSSEProofOfConcept, CanStreamSSE) {
  * 
  * This shows how to implement the DataSink pattern with Beast.
  */
-TEST(BeastSSEProofOfConcept, DataSinkPattern) {
+BOOST_AUTO_TEST_CASE(DataSinkPattern) {
     // Abstract data sink interface
     class DataSink {
     public:
@@ -284,5 +286,7 @@ TEST(BeastSSEProofOfConcept, DataSinkPattern) {
     // This demonstrates that we can implement the DataSink pattern with Beast
     // The actual implementation is integrated into the beast_server
     
-    SUCCEED() << "DataSink pattern is compatible with Beast";
+    BOOST_CHECK(true); // DataSink pattern is compatible with Beast
 }
+
+BOOST_AUTO_TEST_SUITE_END()
