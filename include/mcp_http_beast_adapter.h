@@ -21,6 +21,9 @@
 #include <boost/asio.hpp>
 #include <memory>
 #include <sstream>
+#include <thread>
+#include <atomic>
+#include <map>
 
 // Note: We use beast::http to avoid namespace conflicts with mcp::http
 namespace beast = boost::beast;
@@ -112,119 +115,470 @@ private:
 /**
  * @brief Boost.Beast implementation of server_interface
  * 
- * TODO: Implement using Beast HTTP server with io_context
- * 
- * Key implementation points:
- * - Use boost::asio::io_context for async I/O
- * - tcp::acceptor for accepting connections
- * - Route matching for registered handlers
- * - SSE streaming with manual chunked encoding
- * - Thread pool for handling requests
- * - SSL support using boost::asio::ssl::context
+ * Implements HTTP server using Boost.Beast with async I/O
  */
 class beast_server : public server_interface {
 public:
-    beast_server(bool use_ssl, const std::string& cert_path, const std::string& key_path) {
-        // TODO: Initialize io_context, acceptor, SSL context
+    beast_server(bool use_ssl, const std::string& cert_path, const std::string& key_path) 
+        : use_ssl_(use_ssl)
+        , cert_path_(cert_path)
+        , key_path_(key_path)
+        , running_(false)
+    {
+        // SSL support will be added later
+        if (use_ssl) {
+            throw std::runtime_error("SSL not yet implemented for beast_server");
+        }
+    }
+    
+    ~beast_server() {
+        stop();
     }
     
     void register_get(const std::string& pattern, request_handler handler) override {
-        // TODO: Add to routes map
+        routes_["GET:" + pattern] = handler;
     }
     
     void register_post(const std::string& pattern, request_handler handler) override {
-        // TODO: Add to routes map
+        routes_["POST:" + pattern] = handler;
     }
     
     void register_delete(const std::string& pattern, request_handler handler) override {
-        // TODO: Add to routes map
+        routes_["DELETE:" + pattern] = handler;
     }
     
     void register_options(const std::string& pattern, request_handler handler) override {
-        // TODO: Add to routes map
+        routes_["OPTIONS:" + pattern] = handler;
     }
     
     bool set_mount_point(const std::string& mount_point, 
                         const std::string& dir,
                         const headers_map& headers) override {
-        // TODO: Implement static file serving
+        // Static file serving not implemented yet
         return false;
     }
     
     bool listen(const std::string& host, int port) override {
-        // TODO: Start acceptor loop, run io_context
-        return false;
+        try {
+            running_ = true;
+            server_thread_ = std::thread([this, host, port]() {
+                this->run_server(host, port);
+            });
+            
+            // Give server time to start
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            return true;
+        } catch (...) {
+            return false;
+        }
     }
     
     void stop() override {
-        // TODO: Stop io_context, close acceptor
+        running_ = false;
+        if (io_context_) {
+            io_context_->stop();
+        }
+        if (server_thread_.joinable()) {
+            server_thread_.join();
+        }
     }
+    
+private:
+    void run_server(const std::string& host, int port) {
+        try {
+            io_context_ = std::make_unique<net::io_context>(1);
+            tcp::acceptor acceptor{*io_context_, 
+                {net::ip::make_address(host), static_cast<unsigned short>(port)}};
+            
+            acceptor.non_blocking(true);
+            
+            while (running_) {
+                tcp::socket socket{*io_context_};
+                boost::system::error_code ec;
+                acceptor.accept(socket, ec);
+                
+                if (!ec) {
+                    // Handle connection in a new thread
+                    std::thread([this, socket = std::move(socket)]() mutable {
+                        this->handle_connection(std::move(socket));
+                    }).detach();
+                } else if (ec == boost::asio::error::would_block) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                } else {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            }
+        } catch (...) {
+            // Server error
+        }
+    }
+    
+    void handle_connection(tcp::socket socket) {
+        try {
+            beast::flat_buffer buffer;
+            beast::http::request<beast::http::string_body> req;
+            
+            // Read request
+            beast::http::read(socket, buffer, req);
+            
+            // Convert to request_data
+            request_data req_data;
+            req_data.method = std::string(req.method_string());
+            req_data.path = std::string(req.target());
+            req_data.body = req.body();
+            
+            // Copy headers
+            for (auto const& field : req) {
+                req_data.headers.emplace(std::string(field.name_string()), 
+                                        std::string(field.value()));
+            }
+            
+            // Find matching route
+            std::string route_key = req_data.method + ":" + req_data.path;
+            auto it = routes_.find(route_key);
+            
+            if (it != routes_.end()) {
+                // Create response
+                beast::http::response<beast::http::string_body> res{
+                    beast::http::status::ok, req.version()};
+                beast_response_builder builder(res);
+                
+                // Call handler
+                it->second(req_data, builder);
+                
+                // Check if we need to do chunked streaming
+                if (builder.has_chunked_provider()) {
+                    handle_chunked_response(socket, req, builder);
+                } else {
+                    // Send regular response
+                    res.prepare_payload();
+                    beast::http::write(socket, res);
+                }
+            } else {
+                // 404 Not Found
+                beast::http::response<beast::http::string_body> res{
+                    beast::http::status::not_found, req.version()};
+                res.set(beast::http::field::content_type, "text/plain");
+                res.body() = "Not Found";
+                res.prepare_payload();
+                beast::http::write(socket, res);
+            }
+            
+        } catch (...) {
+            // Connection error
+        }
+    }
+    
+    void handle_chunked_response(tcp::socket& socket, 
+                                 const beast::http::request<beast::http::string_body>& req,
+                                 beast_response_builder& builder) {
+        try {
+            // Send chunked response headers
+            beast::http::response<beast::http::empty_body> res{
+                beast::http::status::ok, req.version()};
+            res.set(beast::http::field::content_type, builder.get_chunked_content_type());
+            res.set(beast::http::field::cache_control, "no-cache");
+            res.set(beast::http::field::connection, "keep-alive");
+            res.chunked(true);
+            
+            // Write headers
+            beast::http::response_serializer<beast::http::empty_body> sr{res};
+            beast::http::write_header(socket, sr);
+            
+            // Create data sink and call provider
+            beast_data_sink sink(socket);
+            size_t offset = 0;
+            while (builder.get_chunked_provider()(offset, sink)) {
+                offset++;
+            }
+            
+            // Send final chunk
+            boost::system::error_code ec;
+            net::write(socket, net::buffer("0\r\n\r\n"), ec);
+            
+        } catch (...) {
+            // Streaming error
+        }
+    }
+    
+    bool use_ssl_;
+    std::string cert_path_;
+    std::string key_path_;
+    std::atomic<bool> running_;
+    std::thread server_thread_;
+    std::unique_ptr<net::io_context> io_context_;
+    std::map<std::string, request_handler> routes_;
 };
 
 /**
  * @brief Boost.Beast implementation of client_interface
  * 
- * TODO: Implement using Beast HTTP client
- * 
- * Key implementation points:
- * - Use boost::asio::io_context for async I/O
- * - tcp::resolver for DNS resolution
- * - HTTP request/response with Beast
- * - SSE streaming with callback
- * - Timeout management
- * - SSL support using boost::asio::ssl::stream
+ * Implements HTTP client using Boost.Beast
  */
 class beast_client : public client_interface {
 public:
     explicit beast_client(const std::string& scheme_host_port) {
-        // TODO: Parse URL, create io_context, resolver
+        // Parse URL: http://host:port or https://host:port
+        size_t scheme_end = scheme_host_port.find("://");
+        if (scheme_end != std::string::npos) {
+            scheme_ = scheme_host_port.substr(0, scheme_end);
+            std::string host_port = scheme_host_port.substr(scheme_end + 3);
+            
+            size_t port_pos = host_port.find(':');
+            if (port_pos != std::string::npos) {
+                host_ = host_port.substr(0, port_pos);
+                port_ = host_port.substr(port_pos + 1);
+            } else {
+                host_ = host_port;
+                port_ = (scheme_ == "https") ? "443" : "80";
+            }
+        } else {
+            // Assume http://host:port format without scheme
+            size_t port_pos = scheme_host_port.find(':');
+            if (port_pos != std::string::npos) {
+                host_ = scheme_host_port.substr(0, port_pos);
+                port_ = scheme_host_port.substr(port_pos + 1);
+            } else {
+                host_ = scheme_host_port;
+                port_ = "80";
+            }
+            scheme_ = "http";
+        }
+        
+        if (scheme_ == "https") {
+            throw std::runtime_error("HTTPS not yet implemented for beast_client");
+        }
     }
     
     client_result get(const std::string& path) override {
-        // TODO: Send GET request, return result
-        return client_result{};
+        try {
+            net::io_context ioc;
+            tcp::resolver resolver{ioc};
+            auto const results = resolver.resolve(host_, port_);
+            
+            tcp::socket socket{ioc};
+            net::connect(socket, results.begin(), results.end());
+            
+            beast::http::request<beast::http::string_body> req{
+                beast::http::verb::get, path, 11};
+            req.set(beast::http::field::host, host_);
+            req.set(beast::http::field::user_agent, "beast-client");
+            
+            // Add default headers
+            for (const auto& [name, value] : default_headers_) {
+                req.set(name, value);
+            }
+            
+            beast::http::write(socket, req);
+            
+            beast::flat_buffer buffer;
+            beast::http::response<beast::http::string_body> res;
+            beast::http::read(socket, buffer, res);
+            
+            client_result result;
+            result.success = true;
+            result.status_code = res.result_int();
+            result.body = res.body();
+            
+            for (auto const& field : res) {
+                result.headers.emplace(std::string(field.name_string()), 
+                                      std::string(field.value()));
+            }
+            
+            return result;
+        } catch (std::exception& e) {
+            client_result result;
+            result.success = false;
+            result.error_message = e.what();
+            return result;
+        }
     }
     
     client_result get_stream(const std::string& path, streaming_callback callback) override {
-        // TODO: Send GET request, stream response chunks to callback
-        return client_result{};
+        try {
+            net::io_context ioc;
+            tcp::resolver resolver{ioc};
+            auto const results = resolver.resolve(host_, port_);
+            
+            tcp::socket socket{ioc};
+            net::connect(socket, results.begin(), results.end());
+            
+            beast::http::request<beast::http::string_body> req{
+                beast::http::verb::get, path, 11};
+            req.set(beast::http::field::host, host_);
+            req.set(beast::http::field::user_agent, "beast-client");
+            
+            for (const auto& [name, value] : default_headers_) {
+                req.set(name, value);
+            }
+            
+            beast::http::write(socket, req);
+            
+            // Read response headers
+            beast::flat_buffer buffer;
+            beast::http::response_parser<beast::http::string_body> parser;
+            parser.body_limit(std::numeric_limits<std::uint64_t>::max());
+            beast::http::read_header(socket, buffer, parser);
+            
+            auto& res = parser.get();
+            
+            client_result result;
+            result.success = true;
+            result.status_code = res.result_int();
+            
+            for (auto const& field : res) {
+                result.headers.emplace(std::string(field.name_string()), 
+                                      std::string(field.value()));
+            }
+            
+            // Stream chunks if chunked encoding
+            if (res.chunked()) {
+                boost::system::error_code ec;
+                while (!ec) {
+                    // Read chunk size
+                    std::array<char, 1> byte;
+                    std::string line;
+                    while (true) {
+                        size_t n = socket.read_some(net::buffer(byte), ec);
+                        if (ec || n == 0) break;
+                        line += byte[0];
+                        if (line.size() >= 2 && line.substr(line.size()-2) == "\r\n") {
+                            break;
+                        }
+                    }
+                    
+                    if (ec) break;
+                    
+                    std::string size_hex = line.substr(0, line.size()-2);
+                    if (size_hex.empty()) continue;
+                    
+                    size_t chunk_size = std::stoull(size_hex, nullptr, 16);
+                    if (chunk_size == 0) break; // Final chunk
+                    
+                    // Read chunk data
+                    std::vector<char> chunk_data(chunk_size);
+                    net::read(socket, net::buffer(chunk_data), ec);
+                    if (ec) break;
+                    
+                    // Call callback
+                    if (!callback(chunk_data.data(), chunk_size)) {
+                        break; // Callback requested stop
+                    }
+                    
+                    // Read trailing \r\n
+                    net::read(socket, net::buffer(byte), ec);
+                    net::read(socket, net::buffer(byte), ec);
+                }
+            }
+            
+            return result;
+        } catch (std::exception& e) {
+            client_result result;
+            result.success = false;
+            result.error_message = e.what();
+            return result;
+        }
     }
     
     client_result post(const std::string& path,
                       const headers_map& headers,
                       const std::string& body,
                       const std::string& content_type) override {
-        // TODO: Send POST request, return result
-        return client_result{};
+        try {
+            net::io_context ioc;
+            tcp::resolver resolver{ioc};
+            auto const results = resolver.resolve(host_, port_);
+            
+            tcp::socket socket{ioc};
+            net::connect(socket, results.begin(), results.end());
+            
+            beast::http::request<beast::http::string_body> req{
+                beast::http::verb::post, path, 11};
+            req.set(beast::http::field::host, host_);
+            req.set(beast::http::field::user_agent, "beast-client");
+            req.set(beast::http::field::content_type, content_type);
+            
+            // Add custom headers
+            for (const auto& [name, value] : headers) {
+                req.set(name, value);
+            }
+            
+            // Add default headers
+            for (const auto& [name, value] : default_headers_) {
+                req.set(name, value);
+            }
+            
+            req.body() = body;
+            req.prepare_payload();
+            
+            beast::http::write(socket, req);
+            
+            beast::flat_buffer buffer;
+            beast::http::response<beast::http::string_body> res;
+            beast::http::read(socket, buffer, res);
+            
+            client_result result;
+            result.success = true;
+            result.status_code = res.result_int();
+            result.body = res.body();
+            
+            for (auto const& field : res) {
+                result.headers.emplace(std::string(field.name_string()), 
+                                      std::string(field.value()));
+            }
+            
+            return result;
+        } catch (std::exception& e) {
+            client_result result;
+            result.success = false;
+            result.error_message = e.what();
+            return result;
+        }
     }
     
     void set_connection_timeout(int seconds) override {
-        // TODO: Store timeout for async operations
+        connection_timeout_seconds_ = seconds;
+        // TODO: Implement timeout using deadline timer
     }
     
     void set_read_timeout(int seconds) override {
-        // TODO: Store timeout for async operations
+        read_timeout_seconds_ = seconds;
+        // TODO: Implement timeout using deadline timer
     }
     
     void set_write_timeout(int seconds) override {
-        // TODO: Store timeout for async operations
+        write_timeout_seconds_ = seconds;
+        // TODO: Implement timeout using deadline timer
     }
     
     void set_default_headers(const headers_map& headers) override {
-        // TODO: Store default headers
+        default_headers_ = headers;
     }
     
     void set_certificate_verification(bool enable) override {
+        verify_certificate_ = enable;
         // TODO: Configure SSL context verification mode
     }
     
     void set_ca_cert_path(const std::string& path) override {
+        ca_cert_path_ = path;
         // TODO: Load CA certificate into SSL context
     }
     
     void stop() override {
-        // TODO: Cancel active requests, stop io_context
+        // No persistent connections to stop in current implementation
     }
+    
+private:
+    std::string scheme_;
+    std::string host_;
+    std::string port_;
+    headers_map default_headers_;
+    int connection_timeout_seconds_ = 10;
+    int read_timeout_seconds_ = 10;
+    int write_timeout_seconds_ = 10;
+    bool verify_certificate_ = true;
+    std::string ca_cert_path_;
 };
 
 } // namespace beast_adapter

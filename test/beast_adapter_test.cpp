@@ -122,145 +122,365 @@ TEST(BeastResponseBuilderTest, DISABLED_SetChunkedContentProvider) {
 
 /**
  * Test beast_server wrapper
- * 
- * These tests will validate the Beast server implementation matches
- * the server_interface abstraction.
  */
-TEST(BeastServerTest, DISABLED_RegisterGetHandler) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Registering GET route
-    // - Handler receives correct request_data
-    // - Response_builder works correctly
-    // - Client receives correct response
+TEST(BeastServerTest, RegisterGetHandler) {
+    auto server = std::make_unique<beast_server>(false, "", "");
+    
+    bool handler_called = false;
+    server->register_get("/test", [&](const request_data& req, response_builder& res) {
+        handler_called = true;
+        EXPECT_EQ(req.method, "GET");
+        EXPECT_EQ(req.path, "/test");
+        res.set_status(200);
+        res.set_content("{\"message\":\"success\"}", "application/json");
+    });
+    
+    EXPECT_TRUE(server->listen("127.0.0.1", 9998));
+    
+    // Give server time to start
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    // Make request
+    try {
+        net::io_context ioc;
+        tcp::resolver resolver{ioc};
+        auto const results = resolver.resolve("127.0.0.1", "9998");
+        
+        tcp::socket socket{ioc};
+        net::connect(socket, results.begin(), results.end());
+        
+        beast::http::request<beast::http::string_body> req{beast::http::verb::get, "/test", 11};
+        req.set(beast::http::field::host, "127.0.0.1");
+        beast::http::write(socket, req);
+        
+        beast::flat_buffer buffer;
+        beast::http::response<beast::http::string_body> res;
+        beast::http::read(socket, buffer, res);
+        
+        EXPECT_EQ(res.result_int(), 200);
+        EXPECT_EQ(res.body(), "{\"message\":\"success\"}");
+        EXPECT_TRUE(handler_called);
+        
+    } catch (std::exception& e) {
+        FAIL() << "Exception: " << e.what();
+    }
+    
+    server->stop();
 }
 
-TEST(BeastServerTest, DISABLED_RegisterPostHandler) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Registering POST route
-    // - Request body is captured
-    // - Headers are passed correctly
+TEST(BeastServerTest, RegisterPostHandler) {
+    auto server = std::make_unique<beast_server>(false, "", "");
+    
+    std::string received_body;
+    server->register_post("/data", [&](const request_data& req, response_builder& res) {
+        EXPECT_EQ(req.method, "POST");
+        EXPECT_EQ(req.path, "/data");
+        received_body = req.body;
+        res.set_status(201);
+        res.set_content("{\"created\":true}", "application/json");
+    });
+    
+    EXPECT_TRUE(server->listen("127.0.0.1", 9997));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    try {
+        net::io_context ioc;
+        tcp::resolver resolver{ioc};
+        auto const results = resolver.resolve("127.0.0.1", "9997");
+        
+        tcp::socket socket{ioc};
+        net::connect(socket, results.begin(), results.end());
+        
+        beast::http::request<beast::http::string_body> req{beast::http::verb::post, "/data", 11};
+        req.set(beast::http::field::host, "127.0.0.1");
+        req.set(beast::http::field::content_type, "application/json");
+        req.body() = "{\"test\":\"data\"}";
+        req.prepare_payload();
+        beast::http::write(socket, req);
+        
+        beast::flat_buffer buffer;
+        beast::http::response<beast::http::string_body> res;
+        beast::http::read(socket, buffer, res);
+        
+        EXPECT_EQ(res.result_int(), 201);
+        EXPECT_EQ(received_body, "{\"test\":\"data\"}");
+        
+    } catch (std::exception& e) {
+        FAIL() << "Exception: " << e.what();
+    }
+    
+    server->stop();
 }
 
-TEST(BeastServerTest, DISABLED_RegisterDeleteHandler) {
-    // TODO Phase 2: Implement test
+TEST(BeastServerTest, Returns404ForUnmatchedRoute) {
+    auto server = std::make_unique<beast_server>(false, "", "");
+    
+    server->register_get("/exists", [](const request_data& req, response_builder& res) {
+        res.set_status(200);
+        res.set_content("OK", "text/plain");
+    });
+    
+    EXPECT_TRUE(server->listen("127.0.0.1", 9996));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    try {
+        net::io_context ioc;
+        tcp::resolver resolver{ioc};
+        auto const results = resolver.resolve("127.0.0.1", "9996");
+        
+        tcp::socket socket{ioc};
+        net::connect(socket, results.begin(), results.end());
+        
+        beast::http::request<beast::http::string_body> req{beast::http::verb::get, "/notfound", 11};
+        req.set(beast::http::field::host, "127.0.0.1");
+        beast::http::write(socket, req);
+        
+        beast::flat_buffer buffer;
+        beast::http::response<beast::http::string_body> res;
+        beast::http::read(socket, buffer, res);
+        
+        EXPECT_EQ(res.result_int(), 404);
+        
+    } catch (std::exception& e) {
+        FAIL() << "Exception: " << e.what();
+    }
+    
+    server->stop();
 }
 
-TEST(BeastServerTest, DISABLED_RegisterOptionsHandler) {
-    // TODO Phase 2: Implement test
-}
-
-TEST(BeastServerTest, DISABLED_MultipleRoutes) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Multiple routes on same server
-    // - Route matching priority
-    // - 404 for unmatched routes
-}
-
-TEST(BeastServerTest, DISABLED_SSEStreaming) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - SSE response with chunked encoding
-    // - Multiple messages over same connection
-    // - Client disconnect handling
-    // 
-    // Reference: test/beast_sse_proof_of_concept.cpp
-}
-
-TEST(BeastServerTest, DISABLED_ConcurrentConnections) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Multiple simultaneous client connections
-    // - Thread pool handling
-    // - No resource leaks
-}
-
-TEST(BeastServerTest, DISABLED_StopServer) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Graceful shutdown
-    // - In-flight requests complete
-    // - New connections rejected
+TEST(BeastServerTest, SSEStreaming) {
+    auto server = std::make_unique<beast_server>(false, "", "");
+    
+    server->register_get("/sse", [](const request_data& req, response_builder& res) {
+        EXPECT_EQ(req.method, "GET");
+        EXPECT_EQ(req.path, "/sse");
+        
+        res.set_chunked_content_provider("text/event-stream", 
+            [](size_t offset, streaming_data_sink& sink) -> bool {
+                if (offset == 0) {
+                    std::string event = "event: test\ndata: Message 1\n\n";
+                    return sink.write(event.c_str(), event.size());
+                } else if (offset == 1) {
+                    std::string event = "event: test\ndata: Message 2\n\n";
+                    return sink.write(event.c_str(), event.size());
+                } else {
+                    // End of stream
+                    return false;
+                }
+            });
+    });
+    
+    EXPECT_TRUE(server->listen("127.0.0.1", 9995));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    try {
+        net::io_context ioc;
+        tcp::resolver resolver{ioc};
+        auto const results = resolver.resolve("127.0.0.1", "9995");
+        
+        tcp::socket socket{ioc};
+        net::connect(socket, results.begin(), results.end());
+        
+        beast::http::request<beast::http::string_body> req{beast::http::verb::get, "/sse", 11};
+        req.set(beast::http::field::host, "127.0.0.1");
+        beast::http::write(socket, req);
+        
+        // Read response headers
+        beast::flat_buffer buffer;
+        beast::http::response_parser<beast::http::string_body> parser;
+        parser.body_limit(std::numeric_limits<std::uint64_t>::max());
+        beast::http::read_header(socket, buffer, parser);
+        
+        auto& res = parser.get();
+        EXPECT_EQ(res.result(), beast::http::status::ok);
+        EXPECT_EQ(res[beast::http::field::content_type], "text/event-stream");
+        EXPECT_TRUE(res.chunked());
+        
+        // Read chunks
+        std::vector<std::string> events;
+        boost::system::error_code ec;
+        
+        while (!ec && events.size() < 2) {
+            // Read chunk size line
+            std::array<char, 1> byte;
+            std::string line;
+            while (true) {
+                size_t n = socket.read_some(net::buffer(byte), ec);
+                if (ec || n == 0) break;
+                line += byte[0];
+                if (line.size() >= 2 && line.substr(line.size()-2) == "\r\n") {
+                    break;
+                }
+            }
+            
+            if (ec) break;
+            
+            // Parse chunk size
+            std::string size_hex = line.substr(0, line.size()-2);
+            size_t chunk_size = std::stoull(size_hex, nullptr, 16);
+            
+            if (chunk_size == 0) break; // Final chunk
+            
+            // Read chunk data
+            std::vector<char> chunk_data(chunk_size);
+            net::read(socket, net::buffer(chunk_data), ec);
+            if (ec) break;
+            
+            events.push_back(std::string(chunk_data.begin(), chunk_data.end()));
+            
+            // Read trailing \r\n
+            net::read(socket, net::buffer(byte), ec);
+            net::read(socket, net::buffer(byte), ec);
+        }
+        
+        EXPECT_EQ(events.size(), 2);
+        EXPECT_TRUE(events[0].find("Message 1") != std::string::npos);
+        EXPECT_TRUE(events[1].find("Message 2") != std::string::npos);
+        
+    } catch (std::exception& e) {
+        FAIL() << "Exception: " << e.what();
+    }
+    
+    server->stop();
 }
 
 /**
  * Test beast_client wrapper
- * 
- * These tests will validate the Beast client implementation matches
- * the client_interface abstraction.
  */
-TEST(BeastClientTest, DISABLED_GetRequest) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Simple GET request
-    // - Response parsing
-    // - Headers received
+TEST(BeastClientTest, GetRequest) {
+    // Start a simple server
+    auto server = std::make_unique<beast_server>(false, "", "");
+    server->register_get("/test", [](const request_data& req, response_builder& res) {
+        res.set_status(200);
+        res.set_header("X-Test-Header", "test-value");
+        res.set_content("{\"status\":\"ok\"}", "application/json");
+    });
+    EXPECT_TRUE(server->listen("127.0.0.1", 9994));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    // Test client
+    beast_client client("http://127.0.0.1:9994");
+    auto result = client.get("/test");
+    
+    EXPECT_TRUE(result.success);
+    EXPECT_EQ(result.status_code, 200);
+    EXPECT_EQ(result.body, "{\"status\":\"ok\"}");
+    
+    auto header_it = result.headers.find("X-Test-Header");
+    EXPECT_NE(header_it, result.headers.end());
+    if (header_it != result.headers.end()) {
+        EXPECT_EQ(header_it->second, "test-value");
+    }
+    
+    server->stop();
 }
 
-TEST(BeastClientTest, DISABLED_PostRequest) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - POST with body
-    // - Custom headers
-    // - Response handling
+TEST(BeastClientTest, PostRequest) {
+    // Start a simple server
+    auto server = std::make_unique<beast_server>(false, "", "");
+    std::string received_body;
+    server->register_post("/submit", [&](const request_data& req, response_builder& res) {
+        received_body = req.body;
+        res.set_status(201);
+        res.set_content("{\"created\":true}", "application/json");
+    });
+    EXPECT_TRUE(server->listen("127.0.0.1", 9993));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    // Test client
+    beast_client client("http://127.0.0.1:9993");
+    headers_map custom_headers;
+    custom_headers.emplace("X-Custom", "value");
+    
+    auto result = client.post("/submit", custom_headers, "{\"data\":\"test\"}", "application/json");
+    
+    EXPECT_TRUE(result.success);
+    EXPECT_EQ(result.status_code, 201);
+    EXPECT_EQ(received_body, "{\"data\":\"test\"}");
+    
+    server->stop();
 }
 
-TEST(BeastClientTest, DISABLED_GetStreamRequest) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - SSE streaming reception
-    // - Chunked transfer decoding
-    // - Callback invocation for each chunk
-    // 
-    // Reference: test/beast_sse_proof_of_concept.cpp
+TEST(BeastClientTest, GetStreamRequest) {
+    // Start a server with SSE streaming
+    auto server = std::make_unique<beast_server>(false, "", "");
+    server->register_get("/stream", [](const request_data& req, response_builder& res) {
+        res.set_chunked_content_provider("text/event-stream", 
+            [](size_t offset, streaming_data_sink& sink) -> bool {
+                if (offset < 3) {
+                    std::string event = "data: Event " + std::to_string(offset) + "\n\n";
+                    return sink.write(event.c_str(), event.size());
+                }
+                return false;
+            });
+    });
+    EXPECT_TRUE(server->listen("127.0.0.1", 9992));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    // Test client streaming
+    beast_client client("http://127.0.0.1:9992");
+    std::vector<std::string> received_chunks;
+    
+    auto result = client.get_stream("/stream", 
+        [&](const char* data, size_t size) -> bool {
+            received_chunks.push_back(std::string(data, size));
+            return true; // Continue streaming
+        });
+    
+    EXPECT_TRUE(result.success);
+    EXPECT_EQ(result.status_code, 200);
+    EXPECT_EQ(received_chunks.size(), 3);
+    
+    for (size_t i = 0; i < received_chunks.size(); i++) {
+        EXPECT_TRUE(received_chunks[i].find("Event " + std::to_string(i)) != std::string::npos);
+    }
+    
+    server->stop();
 }
 
-TEST(BeastClientTest, DISABLED_ConnectionFailure) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Connect to non-existent server
-    // - Proper error reporting
-    // - client_result.success = false
-}
-
-TEST(BeastClientTest, DISABLED_RequestTimeout) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - set_connection_timeout
-    // - set_read_timeout
-    // - Timeout triggers properly
-}
-
-TEST(BeastClientTest, DISABLED_DefaultHeaders) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - set_default_headers
-    // - Headers included in all requests
+TEST(BeastClientTest, ConnectionFailure) {
+    beast_client client("http://127.0.0.1:9876"); // Non-existent server
+    auto result = client.get("/test");
+    
+    EXPECT_FALSE(result.success);
+    EXPECT_FALSE(result.error_message.empty());
 }
 
 /**
  * Integration test: Beast client + server
  */
-TEST(BeastIntegrationTest, DISABLED_ClientServerCommunication) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - beast_server and beast_client working together
-    // - Full request/response cycle
-    // - SSE streaming end-to-end
-}
-
-/**
- * Comparison test: httplib adapter vs beast adapter
- * 
- * This test validates that both adapters produce equivalent behavior
- * for the same operations.
- */
-TEST(AdapterComparisonTest, DISABLED_EquivalentBehavior) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Same requests produce same responses
-    // - Both handle SSE streaming correctly
-    // - Performance comparison (optional)
+TEST(BeastIntegrationTest, ClientServerCommunication) {
+    // Create server
+    auto server = std::make_unique<beast_server>(false, "", "");
+    
+    server->register_get("/health", [](const request_data& req, response_builder& res) {
+        res.set_status(200);
+        res.set_content("{\"status\":\"healthy\"}", "application/json");
+    });
+    
+    server->register_post("/echo", [](const request_data& req, response_builder& res) {
+        res.set_status(200);
+        res.set_content(req.body, "application/json");
+    });
+    
+    EXPECT_TRUE(server->listen("127.0.0.1", 9991));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    // Create client
+    beast_client client("http://127.0.0.1:9991");
+    
+    // Test GET
+    auto get_result = client.get("/health");
+    EXPECT_TRUE(get_result.success);
+    EXPECT_EQ(get_result.status_code, 200);
+    EXPECT_EQ(get_result.body, "{\"status\":\"healthy\"}");
+    
+    // Test POST
+    headers_map headers;
+    auto post_result = client.post("/echo", headers, "{\"test\":\"data\"}", "application/json");
+    EXPECT_TRUE(post_result.success);
+    EXPECT_EQ(post_result.status_code, 200);
+    EXPECT_EQ(post_result.body, "{\"test\":\"data\"}");
+    
+    server->stop();
 }
