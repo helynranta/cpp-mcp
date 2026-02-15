@@ -227,12 +227,18 @@ The project uses GitHub Actions for continuous integration:
 - **Platforms tested:** Ubuntu, Windows
 - **Build configurations:** Release
 - **Test framework:** GoogleTest
-- **Dependency management:** vcpkg
+- **Dependency management:** vcpkg with binary caching to GitHub Packages
 
 **Pipeline triggers:**
 - Pull requests to main/master branches
 - Direct pushes to main/master
 - Manual workflow dispatch
+
+**vcpkg Binary Caching:**
+- Binary packages are cached in GitHub Packages (NuGet feed)
+- First build: Dependencies are built and uploaded to the cache
+- Subsequent builds: Pre-built binaries are downloaded, significantly reducing build time
+- Cache is automatically managed per repository owner
 
 **Requirements for merge:**
 - ✅ All builds must succeed
