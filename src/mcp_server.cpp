@@ -48,6 +48,12 @@ server::server(const server::configuration& conf)
 }
 
 server::~server() {
+    // Signal to all captured lambdas that we're being destroyed
+    // This must be done BEFORE stop() to prevent any callback from accessing
+    // server members after destruction begins
+    if (alive_) {
+        alive_->store(false, std::memory_order_release);
+    }
     stop();
 }
 
@@ -535,10 +541,18 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
     }
     
     // Create session thread
-    auto thread = std::make_unique<std::thread>([this, session_id, session_uri, session_dispatcher]() {
+    // Capture alive_ for safe access in the thread
+    auto alive = alive_;
+    auto thread = std::make_unique<std::thread>([this, alive, session_id, session_uri, session_dispatcher]() {
         try {
             // Send initial session URI
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            
+            // Check if server is still alive
+            if (!alive || !alive->load(std::memory_order_acquire)) {
+                return;
+            }
+            
             std::stringstream ss;
             ss << "event: endpoint\r\ndata: " << session_uri << "\r\n\r\n";
             session_dispatcher->send_event(ss.str());
@@ -548,10 +562,12 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
             
             // Send periodic heartbeats to detect connection status
             int heartbeat_count = 0;
-            while (running_ && !session_dispatcher->is_closed()) {
+            while (alive && alive->load(std::memory_order_acquire) && 
+                   running_ && !session_dispatcher->is_closed()) {
                std::this_thread::sleep_for(std::chrono::seconds(5) + std::chrono::milliseconds(rand() % 500)); // NOTE: DO NOT set it the same as the timeout of wait_event
                 
-                if (session_dispatcher->is_closed() || !running_) {
+                if (!alive || !alive->load(std::memory_order_acquire) ||
+                    session_dispatcher->is_closed() || !running_) {
                     break;
                 }
                 
@@ -561,22 +577,31 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
                 try {
                     bool sent = session_dispatcher->send_event(heartbeat.str());
                     if (!sent) {
-                        LOG_WARNING("Failed to send heartbeat, client may have closed connection: ", session_id);
+                        if (alive && alive->load(std::memory_order_acquire)) {
+                            LOG_WARNING("Failed to send heartbeat, client may have closed connection: ", session_id);
+                        }
                         break;
                     }
                     
                     // Update activity time (heartbeat successful)
                     session_dispatcher->update_activity();
                 } catch (const std::exception& e) {
-                    LOG_ERROR("Failed to send heartbeat: ", e.what());
+                    if (alive && alive->load(std::memory_order_acquire)) {
+                        LOG_ERROR("Failed to send heartbeat: ", e.what());
+                    }
                     break;
                 }
             }
         } catch (const std::exception& e) {
-            LOG_ERROR("SSE session thread exception: ", session_id, ", ", e.what());
+            if (alive && alive->load(std::memory_order_acquire)) {
+                LOG_ERROR("SSE session thread exception: ", session_id, ", ", e.what());
+            }
         }
         
-        close_session(session_id);
+        // Only call close_session if server is still alive
+        if (alive && alive->load(std::memory_order_acquire)) {
+            close_session(session_id);
+        }
     });
     
     // Store thread
@@ -585,9 +610,15 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
         sse_threads_[session_id] = std::move(thread);
     }
     
-    // Setup chunked content provider
-    res.set_chunked_content_provider("text/event-stream", [this, session_id, session_dispatcher](size_t /* offset */, http::streaming_data_sink& sink) {
+    // Setup chunked content provider - capture alive_ by value (shared_ptr) for safe access
+    // Note: 'alive' was already captured above for the SSE thread
+    res.set_chunked_content_provider("text/event-stream", [this, alive, session_id, session_dispatcher](size_t /* offset */, http::streaming_data_sink& sink) {
         try {
+            // Check if server is still alive before accessing any members
+            if (!alive || !alive->load(std::memory_order_acquire)) {
+                return false;
+            }
+            
             // Check if session is closed - directly get status from dispatcher, reduce lock contention
             if (session_dispatcher->is_closed()) {
                 return false;
@@ -599,10 +630,11 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
             // Wait for event
             bool result = session_dispatcher->wait_event(&sink);
             if (!result) {
-                LOG_WARNING("Failed to wait for event, closing connection: ", session_id);
-                
-                close_session(session_id);
-                
+                // Check alive again before accessing server methods
+                if (alive && alive->load(std::memory_order_acquire)) {
+                    LOG_WARNING("Failed to wait for event, closing connection: ", session_id);
+                    close_session(session_id);
+                }
                 return false;
             }
             
@@ -611,10 +643,11 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
 
             return true;
         } catch (const std::exception& e) {
-            LOG_ERROR("SSE content provider exception: ", e.what());
-            
-            close_session(session_id);
-            
+            // Check alive before logging/calling server methods
+            if (alive && alive->load(std::memory_order_acquire)) {
+                LOG_ERROR("SSE content provider exception: ", e.what());
+                close_session(session_id);
+            }
             return false;
         }
     });
@@ -1014,11 +1047,18 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
             session_lifecycle_[session_id] = lifecycle_state::uninitialized;
         }
         
-        // Create session thread for heartbeats
-        auto thread = std::make_unique<std::thread>([this, session_id, session_uri, session_dispatcher]() {
+        // Create session thread for heartbeats - capture alive_ for safe access
+        auto alive = alive_;
+        auto thread = std::make_unique<std::thread>([this, alive, session_id, session_uri, session_dispatcher]() {
             try {
                 // Send initial session endpoint
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                
+                // Check if server is still alive
+                if (!alive || !alive->load(std::memory_order_acquire)) {
+                    return;
+                }
+                
                 std::stringstream ss;
                 ss << "event: endpoint\r\ndata: " << session_uri << "\r\n\r\n";
                 session_dispatcher->send_event(ss.str());
@@ -1026,10 +1066,12 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
                 
                 // Send periodic heartbeats
                 int heartbeat_count = 0;
-                while (running_ && !session_dispatcher->is_closed()) {
+                while (alive && alive->load(std::memory_order_acquire) && 
+                       running_ && !session_dispatcher->is_closed()) {
                     std::this_thread::sleep_for(std::chrono::seconds(5) + std::chrono::milliseconds(rand() % 500));
                     
-                    if (session_dispatcher->is_closed() || !running_) {
+                    if (!alive || !alive->load(std::memory_order_acquire) ||
+                        session_dispatcher->is_closed() || !running_) {
                         break;
                     }
                     
@@ -1039,20 +1081,29 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
                     try {
                         bool sent = session_dispatcher->send_event(heartbeat.str());
                         if (!sent) {
-                            LOG_WARNING("Failed to send heartbeat, client may have closed connection: ", session_id);
+                            if (alive && alive->load(std::memory_order_acquire)) {
+                                LOG_WARNING("Failed to send heartbeat, client may have closed connection: ", session_id);
+                            }
                             break;
                         }
                         session_dispatcher->update_activity();
                     } catch (const std::exception& e) {
-                        LOG_ERROR("Failed to send heartbeat: ", e.what());
+                        if (alive && alive->load(std::memory_order_acquire)) {
+                            LOG_ERROR("Failed to send heartbeat: ", e.what());
+                        }
                         break;
                     }
                 }
             } catch (const std::exception& e) {
-                LOG_ERROR("SSE session thread exception: ", session_id, ", ", e.what());
+                if (alive && alive->load(std::memory_order_acquire)) {
+                    LOG_ERROR("SSE session thread exception: ", session_id, ", ", e.what());
+                }
             }
             
-            close_session(session_id);
+            // Only call close_session if server is still alive
+            if (alive && alive->load(std::memory_order_acquire)) {
+                close_session(session_id);
+            }
         });
         
         // Store thread
@@ -1074,9 +1125,15 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
         }
     }
     
-    // Setup chunked content provider for SSE
-    res.set_chunked_content_provider("text/event-stream", [this, session_id, session_dispatcher](size_t /* offset */, http::streaming_data_sink& sink) {
+    // Setup chunked content provider for SSE - capture alive_ for safe access
+    auto alive = alive_;
+    res.set_chunked_content_provider("text/event-stream", [this, alive, session_id, session_dispatcher](size_t /* offset */, http::streaming_data_sink& sink) {
         try {
+            // Check if server is still alive before accessing any members
+            if (!alive || !alive->load(std::memory_order_acquire)) {
+                return false;
+            }
+            
             if (session_dispatcher->is_closed()) {
                 return false;
             }
@@ -1085,16 +1142,20 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
             
             bool result = session_dispatcher->wait_event(&sink);
             if (!result) {
-                LOG_WARNING("Failed to wait for event, closing connection: ", session_id);
-                close_session(session_id);
+                if (alive && alive->load(std::memory_order_acquire)) {
+                    LOG_WARNING("Failed to wait for event, closing connection: ", session_id);
+                    close_session(session_id);
+                }
                 return false;
             }
             
             session_dispatcher->update_activity();
             return true;
         } catch (const std::exception& e) {
-            LOG_ERROR("SSE content provider exception: ", e.what());
-            close_session(session_id);
+            if (alive && alive->load(std::memory_order_acquire)) {
+                LOG_ERROR("SSE content provider exception: ", e.what());
+                close_session(session_id);
+            }
             return false;
         }
     });

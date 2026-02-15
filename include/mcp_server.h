@@ -489,6 +489,11 @@ private:
     // Running flag
     bool running_ = false;
     
+    // Shared alive flag for safe lambda capture - lambdas can check this instead of
+    // accessing raw `this` pointer. When server is destroyed, this is set to false
+    // and lambdas can safely detect that the server is gone.
+    std::shared_ptr<std::atomic<bool>> alive_ = std::make_shared<std::atomic<bool>>(true);
+    
     // Thread pool for async method handlers
     thread_pool thread_pool_;
     
