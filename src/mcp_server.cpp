@@ -1848,7 +1848,7 @@ json server::get_session_state(const std::string& session_id) const {
     if (it != session_state_.end()) {
         return it->second;
     }
-    return json(); // Return empty JSON object
+    return json(); // Return null JSON
 }
 
 void server::clear_session_state(const std::string& session_id) {

@@ -72,9 +72,9 @@ int main() {
         // Increment counter
         counter++;
         
-        // Update session state
+        // Update session state with timestamp (stored as nanoseconds since epoch)
         state["counter"] = counter;
-        state["last_updated"] = std::chrono::system_clock::now().time_since_epoch().count();
+        state["last_updated_ns"] = std::chrono::system_clock::now().time_since_epoch().count();
         srv.set_session_state(session_id, state);
         
         // Return current counter value
