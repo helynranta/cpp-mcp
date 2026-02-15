@@ -3,11 +3,7 @@
  * @brief Default HTTP factory implementations
  * 
  * This file provides the default factory implementations for creating
- * HTTP server and client instances. As of Phase 2 migration, these
- * now use Boost.Beast by default.
- * 
- * Legacy httplib adapters are still available via create_httplib_server()
- * and create_httplib_client() functions.
+ * HTTP server and client instances. Uses Boost.Beast.
  */
 
 #ifndef MCP_HTTP_FACTORY_H
@@ -15,7 +11,6 @@
 
 #include "mcp_http_abstraction.h"
 #include "mcp_http_beast_adapter.h"
-#include "mcp_http_httplib_adapter.h"
 
 namespace mcp {
 namespace http {

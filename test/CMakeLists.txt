@@ -29,7 +29,6 @@ set(TEST_SOURCES
     boost_integration_test.cpp
     beast_sse_proof_of_concept.cpp
     http_abstraction_test.cpp
-    httplib_adapter_test.cpp
     beast_adapter_test.cpp
     sse_client_beast_test.cpp
 )

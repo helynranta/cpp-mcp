@@ -283,7 +283,7 @@ void sse_client::open_sse_connection() {
                 LOG_INFO("SSE thread: Attempting to connect to ", sse_endpoint_);
                 
                 std::string buffer;
-                // Use client_interface::get_stream() instead of httplib::Client::Get()
+                // Stream SSE data using client interface
                 auto res = sse_client_->get_stream(sse_endpoint_, 
                     [&,this](const char *data, size_t data_length) -> bool {
                         buffer.append(data, data_length);
@@ -311,7 +311,7 @@ void sse_client::open_sse_connection() {
                         return sse_running_.load();
                     });
                 
-                // Check client_result instead of httplib::Result
+                // Check client result
                 if (!res || res.status_code / 100 != 2) {
                     std::string error_msg = "SSE connection failed: ";
                     if (!res.success) {
@@ -544,7 +544,7 @@ json sse_client::send_jsonrpc(const request& req) {
     }
     
     if (req.is_notification()) {
-        // Use client_interface::post() instead of httplib::Client::Post()
+        // Send POST request to message endpoint
         auto result = http_client_->post(msg_endpoint_, headers, req_body, "application/json");
         
         if (!result.success) {
@@ -563,7 +563,7 @@ json sse_client::send_jsonrpc(const request& req) {
         pending_requests_[req.id] = std::move(response_promise);
     }
     
-    // Use client_interface::post() instead of httplib::Client::Post()
+    // Send POST request and wait for response via SSE
     auto result = http_client_->post(msg_endpoint_, headers, req_body, "application/json");
     
     if (!result.success) {
