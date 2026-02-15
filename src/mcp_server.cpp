@@ -220,6 +220,9 @@ void server::stop() {
         session_lifecycle_.clear();
         session_client_capabilities_.clear();
     }
+
+    LOG_INFO("Server stop cleanup: dispatchers=", dispatchers_to_close.size(),
+             ", sse_threads=", threads_to_stop.size());
     
     // Close all dispatchers to gracefully disconnect SSE clients
     for (const auto& dispatcher : dispatchers_to_close) {
@@ -240,6 +243,7 @@ void server::stop() {
     // 1. Dispatchers are closed (wait_event returns false)
     // 2. stop_requested() returns true
     // 3. alive_ is set to false (checked in lambdas)
+    LOG_INFO("Server stop cleanup: joining ", threads_to_stop.size(), " SSE threads");
     threads_to_stop.clear();  // Joins all threads automatically
     
     // Stop server thread - jthread joins automatically
@@ -1857,6 +1861,7 @@ void server::clear_session_state(const std::string& session_id) {
 void server::close_session(const std::string& session_id) {
      // Clean up resources safely
     try {
+        LOG_INFO("close_session begin: ", session_id);
         for (const auto& [key, handler] : session_cleanup_handler_) {
             handler(key);
         }
@@ -1901,17 +1906,20 @@ void server::close_session(const std::string& session_id) {
         if (thread_to_release) {
             auto thread_id = thread_to_release->get_id();
             if (thread_id == std::this_thread::get_id()) {
+                LOG_INFO("close_session self-thread cleanup: ", session_id);
                 // We're being called from within the thread itself
                 // Just request stop and let the thread exit naturally
                 thread_to_release->request_stop();
                 // Release ownership without joining (thread will clean up on exit)
                 thread_to_release.release();
             } else {
+                LOG_INFO("close_session joining thread for: ", session_id);
                 // Safe to request stop and join
                 thread_to_release->request_stop();
                 thread_to_release.reset();  // jthread joins automatically
             }
         }
+        LOG_INFO("close_session end: ", session_id);
     } catch (const std::exception& e) {
         LOG_WARNING("Exception while cleaning up session resources: ", session_id, ", ", e.what());
     } catch (...) {
