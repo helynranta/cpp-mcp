@@ -55,3 +55,12 @@ target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR}/include)
 if(OPENSSL_FOUND)
     target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
 endif()
+
+# http_example - demonstrates Boost.Beast HTTP client/server APIs
+set(TARGET http_example)
+add_executable(${TARGET} http_example.cpp)
+target_link_libraries(${TARGET} PRIVATE mcp)
+target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+if(OPENSSL_FOUND)
+    target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
+endif()
