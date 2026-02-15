@@ -20,9 +20,10 @@
 #include <boost/beast/http.hpp>
 #include <boost/asio.hpp>
 #include <memory>
+#include <sstream>
 
+// Note: We use beast::http to avoid namespace conflicts with mcp::http
 namespace beast = boost::beast;
-namespace http = beast::http;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
@@ -33,49 +34,79 @@ namespace beast_adapter {
 /**
  * @brief Boost.Beast implementation of streaming_data_sink
  * 
- * TODO: Implement using Beast socket and chunked encoding
+ * Wraps a Beast TCP socket and writes chunked-encoded data for SSE streaming.
  */
 class beast_data_sink : public streaming_data_sink {
 public:
-    beast_data_sink(/* TODO: socket reference */) {
-        // TODO: Implementation
-    }
+    explicit beast_data_sink(tcp::socket& socket) : socket_(socket) {}
     
     bool write(const char* data, size_t size) override {
-        // TODO: Write hex chunk size, data, and \r\n
-        return false;
+        try {
+            // Format: <size in hex>\r\n<data>\r\n
+            std::ostringstream chunk;
+            chunk << std::hex << size << "\r\n";
+            chunk.write(data, size);
+            chunk << "\r\n";
+            
+            std::string chunk_str = chunk.str();
+            boost::system::error_code ec;
+            net::write(socket_, net::buffer(chunk_str), ec);
+            
+            return !ec;
+        } catch (...) {
+            return false;
+        }
     }
+    
+private:
+    tcp::socket& socket_;
 };
 
 /**
  * @brief Boost.Beast implementation of response_builder
  * 
- * TODO: Implement using Beast HTTP response
+ * Wraps a Beast HTTP response to match our response_builder interface.
  */
 class beast_response_builder : public response_builder {
 public:
-    beast_response_builder(/* TODO: response reference */) {
-        // TODO: Implementation
-    }
+    explicit beast_response_builder(beast::http::response<beast::http::string_body>& response) 
+        : response_(response) {}
     
     void set_status(int code) override {
-        // TODO: res.result(static_cast<http::status>(code))
+        response_.result(static_cast<beast::http::status>(code));
     }
     
     void set_header(const std::string& name, const std::string& value) override {
-        // TODO: res.set(name, value)
+        response_.set(name, value);
     }
     
     void set_content(const std::string& body, const std::string& content_type) override {
-        // TODO: res.body() = body; res.set(field::content_type, content_type); res.prepare_payload()
+        response_.body() = body;
+        response_.set(beast::http::field::content_type, content_type);
+        response_.prepare_payload();
     }
     
     void set_chunked_content_provider(
         const std::string& content_type,
         std::function<bool(size_t offset, streaming_data_sink& sink)> provider
     ) override {
-        // TODO: Set chunked encoding, call provider with beast_data_sink
+        // This is handled by the server during connection handling
+        // Store the provider for later use
+        chunked_provider_ = provider;
+        chunked_content_type_ = content_type;
     }
+    
+    // Accessors for server to use
+    bool has_chunked_provider() const { return chunked_provider_ != nullptr; }
+    const std::function<bool(size_t, streaming_data_sink&)>& get_chunked_provider() const {
+        return chunked_provider_;
+    }
+    const std::string& get_chunked_content_type() const { return chunked_content_type_; }
+    
+private:
+    beast::http::response<beast::http::string_body>& response_;
+    std::function<bool(size_t, streaming_data_sink&)> chunked_provider_;
+    std::string chunked_content_type_;
 };
 
 /**

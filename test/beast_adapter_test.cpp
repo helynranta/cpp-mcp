@@ -5,66 +5,110 @@
  * Tests the beast adapter implementation that uses boost::beast to match
  * the HTTP abstraction interfaces. 
  * 
- * NOTE: This is a Phase 2 file. The beast adapter is not yet fully implemented.
- * These tests serve as specification for what needs to be implemented.
- * 
- * TODO Phase 2:
- * - Implement beast_server class
- * - Implement beast_client class  
- * - Implement beast_data_sink class
- * - Implement beast_response_builder class
- * - Enable these tests as implementation progresses
+ * Following TDD: Write tests first, then implement to pass tests.
  */
 
 #include <gtest/gtest.h>
-// #include "mcp_http_beast_adapter.h"  // TODO: Uncomment when beast adapter is implemented
+#include "mcp_http_beast_adapter.h"
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <sstream>
 
-// NOTE: All tests in this file are disabled until Phase 2 implementation
+using namespace mcp::http;
+using namespace mcp::http::beast_adapter;
+namespace net = boost::asio;
+using tcp = net::ip::tcp;
 
 /**
  * Test beast_data_sink wrapper
  * 
- * This test will validate that beast_data_sink correctly wraps Beast's
- * async_write operations to match our streaming_data_sink interface.
+ * This test validates that beast_data_sink correctly wraps Beast's
+ * write operations to match our streaming_data_sink interface.
  */
-TEST(BeastDataSinkTest, DISABLED_WritesToBeastSocket) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Writing data chunks to Beast socket
-    // - Proper hex-encoding for chunked transfer
-    // - Error handling when connection closes
+TEST(BeastDataSinkTest, WritesChunksCorrectly) {
+    // Setup: Create a socket pair for testing
+    net::io_context ioc;
+    tcp::socket server_socket{ioc};
+    tcp::socket client_socket{ioc};
+    
+    // Create connected socket pair using local endpoint
+    tcp::acceptor acceptor{ioc, {net::ip::make_address("127.0.0.1"), 0}};
+    auto local_endpoint = acceptor.local_endpoint();
+    
+    // Start async accept
+    std::thread accept_thread([&]() {
+        boost::system::error_code ec;
+        acceptor.accept(server_socket, ec);
+    });
+    
+    // Connect client
+    client_socket.connect(local_endpoint);
+    accept_thread.join();
+    
+    // Test: Create beast_data_sink and write data
+    beast_data_sink sink(server_socket);
+    
+    std::string test_data = "Hello, Beast!";
+    bool write_success = sink.write(test_data.c_str(), test_data.size());
+    
+    EXPECT_TRUE(write_success);
+    
+    // Verify: Read from client socket and check chunked format
+    std::array<char, 256> buffer;
+    boost::system::error_code ec;
+    size_t bytes_read = client_socket.read_some(net::buffer(buffer), ec);
+    
+    EXPECT_FALSE(ec);
+    EXPECT_GT(bytes_read, 0);
+    
+    // Parse chunk format: <hex-size>\r\n<data>\r\n
+    std::string received(buffer.data(), bytes_read);
+    
+    // Should contain hex size
+    std::stringstream expected;
+    expected << std::hex << test_data.size() << "\r\n" << test_data << "\r\n";
+    
+    EXPECT_EQ(received, expected.str());
 }
 
 /**
  * Test beast_response_builder wrapper
- * 
- * This test will validate that beast_response_builder correctly builds
- * Beast HTTP responses from our response_builder interface.
  */
-TEST(BeastResponseBuilderTest, DISABLED_SetStatus) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Setting various HTTP status codes
-    // - Mapping status codes to Beast format
+TEST(BeastResponseBuilderTest, SetStatus) {
+    boost::beast::http::response<boost::beast::http::string_body> res;
+    beast_response_builder builder(res);
+    
+    builder.set_status(200);
+    EXPECT_EQ(res.result_int(), 200);
+    
+    builder.set_status(404);
+    EXPECT_EQ(res.result_int(), 404);
+    
+    builder.set_status(500);
+    EXPECT_EQ(res.result_int(), 500);
 }
 
-TEST(BeastResponseBuilderTest, DISABLED_SetHeaders) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Setting individual headers
-    // - Multiple values for same header
-    // - Standard headers (Content-Type, etc.)
+TEST(BeastResponseBuilderTest, SetHeader) {
+    boost::beast::http::response<boost::beast::http::string_body> res;
+    beast_response_builder builder(res);
+    
+    builder.set_header("Content-Type", "application/json");
+    EXPECT_EQ(res["Content-Type"], "application/json");
+    
+    builder.set_header("X-Custom-Header", "test-value");
+    EXPECT_EQ(res["X-Custom-Header"], "test-value");
 }
 
-TEST(BeastResponseBuilderTest, DISABLED_SetContent) {
-    // TODO Phase 2: Implement test
-    // Should test:
-    // - Setting response body
-    // - Automatic Content-Type header
-    // - Content-Length calculation
+TEST(BeastResponseBuilderTest, SetContent) {
+    boost::beast::http::response<boost::beast::http::string_body> res;
+    beast_response_builder builder(res);
+    
+    std::string body = "{\"status\":\"ok\"}";
+    builder.set_content(body, "application/json");
+    
+    EXPECT_EQ(res.body(), body);
+    EXPECT_EQ(res["Content-Type"], "application/json");
 }
 
 TEST(BeastResponseBuilderTest, DISABLED_SetChunkedContentProvider) {
