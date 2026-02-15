@@ -7,6 +7,7 @@
  */
 
 #include "mcp_server.h"
+#include <random>
 
 namespace mcp {
 

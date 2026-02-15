@@ -12,6 +12,7 @@
 #include "mcp_server.h"
 #include "mcp_tool.h"
 #include "mcp_sse_client.h"
+#include "mcp_http_factory.h"
 
 using namespace mcp;
 using json = nlohmann::ordered_json;
@@ -215,8 +216,9 @@ TEST_F(VersioningTest, SupportedVersion) {
 // Test unsupported version
 TEST_F(VersioningTest, UnsupportedVersion) {
     try {
-        // Use httplib::Client to send unsupported version request
-        std::unique_ptr<httplib::Client> http_client = std::make_unique<httplib::Client>("localhost", port_);
+        // Use Beast client to send unsupported version request
+        std::string base_url = "http://localhost:" + std::to_string(port_);
+        auto http_client = http::create_client(base_url);
         
         // Open SSE connection
         auto msg_endpoint_promise = std::make_shared<std::promise<std::string>>();
@@ -229,16 +231,17 @@ TEST_F(VersioningTest, UnsupportedVersion) {
 
         // Capture port for use in detached thread
         int test_port = port_;
-        auto sse_client_ptr = std::make_shared<std::atomic<httplib::Client*>>(nullptr);
+        auto sse_client_ptr = std::make_shared<std::atomic<http::client_interface*>>(nullptr);
         
         // Use std::thread with shared state to avoid lifetime issues when detaching
         std::thread sse_thread([msg_endpoint_received, sse_response_received,
                                 msg_endpoint_promise, sse_promise, test_port, sse_client_ptr]() {
             // Create SSE client inside thread so it's owned by the thread
-            auto sse_client = std::make_shared<httplib::Client>("localhost", test_port);
+            std::string sse_base_url = "http://localhost:" + std::to_string(test_port);
+            auto sse_client = http::create_client(sse_base_url);
             sse_client_ptr->store(sse_client.get(), std::memory_order_release);
             
-            sse_client->Get("/sse", [msg_endpoint_received, sse_response_received,
+            sse_client->get_stream("/sse", [msg_endpoint_received, sse_response_received,
                                     msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
                     std::string response(data, len);
@@ -278,10 +281,11 @@ TEST_F(VersioningTest, UnsupportedVersion) {
         
         // Send unsupported version request
         json req = request::create("initialize", {{"protocolVersion", "0.0.1"}}).to_json();
-        auto res = http_client->Post(endpoint.c_str(), req.dump(), "application/json");
+        http::headers_map headers;
+        auto res = http_client->post(endpoint, headers, req.dump(), "application/json");
         
-        EXPECT_TRUE(res != nullptr);
-        EXPECT_EQ(res->status / 100, 2);
+        EXPECT_TRUE(res.success);
+        EXPECT_EQ(res.status_code / 100, 2);
         
         auto mcp_res = json::parse(sse_response.get());
         EXPECT_EQ(mcp_res["error"]["code"].get<int>(), static_cast<int>(error_code::invalid_params));
@@ -396,8 +400,9 @@ TEST_F(PingTest, PingRequest) {
 
 TEST_F(PingTest, DirectPing) {
     try {
-        // Use httplib::Client to send Ping request
-        std::unique_ptr<httplib::Client> http_client = std::make_unique<httplib::Client>("localhost", port_);
+        // Use Beast client to send Ping request
+        std::string base_url = "http://localhost:" + std::to_string(port_);
+        auto http_client = http::create_client(base_url);
         
         // Open SSE connection
         auto msg_endpoint_promise = std::make_shared<std::promise<std::string>>();
@@ -410,16 +415,17 @@ TEST_F(PingTest, DirectPing) {
 
         // Capture port for use in detached thread
         int test_port = port_;
-        auto sse_client_ptr = std::make_shared<std::atomic<httplib::Client*>>(nullptr);
+        auto sse_client_ptr = std::make_shared<std::atomic<http::client_interface*>>(nullptr);
         
         // Use std::thread with shared state to avoid lifetime issues when detaching
         std::thread sse_thread([msg_endpoint_received, sse_response_received,
                                 msg_endpoint_promise, sse_promise, test_port, sse_client_ptr]() {
             // Create SSE client inside thread so it's owned by the thread
-            auto sse_client = std::make_shared<httplib::Client>("localhost", test_port);
+            std::string sse_base_url = "http://localhost:" + std::to_string(test_port);
+            auto sse_client = http::create_client(sse_base_url);
             sse_client_ptr->store(sse_client.get(), std::memory_order_release);
             
-            sse_client->Get("/sse", [msg_endpoint_received, sse_response_received,
+            sse_client->get_stream("/sse", [msg_endpoint_received, sse_response_received,
                                     msg_endpoint_promise, sse_promise](const char* data, size_t len) {
                 try {
                     std::string response(data, len);
@@ -459,9 +465,10 @@ TEST_F(PingTest, DirectPing) {
 
         // Even if the SSE connection is not established, you can send a ping request
         json ping_req = request::create("ping").to_json();
-        auto ping_res = http_client->Post(endpoint.c_str(), ping_req.dump(), "application/json");
-        EXPECT_TRUE(ping_res != nullptr);
-        EXPECT_EQ(ping_res->status / 100, 2);
+        http::headers_map ping_headers;
+        auto ping_res = http_client->post(endpoint, ping_headers, ping_req.dump(), "application/json");
+        EXPECT_TRUE(ping_res.success);
+        EXPECT_EQ(ping_res.status_code / 100, 2);
 
         auto mcp_res = json::parse(sse_response.get());
         EXPECT_EQ(mcp_res["result"], json::object());

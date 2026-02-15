@@ -23,13 +23,15 @@ if(OPENSSL_FOUND)
     target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
 endif()
 
-set(TARGET agent_example)
-add_executable(${TARGET} agent_example.cpp)
-target_link_libraries(${TARGET} PRIVATE mcp)
-target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR}/include)
-if(OPENSSL_FOUND)
-    target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
-endif()
+# agent_example temporarily disabled - it uses httplib for external LLM API calls
+# TODO: Migrate to use Beast client or a different HTTP library
+# set(TARGET agent_example)
+# add_executable(${TARGET} agent_example.cpp)
+# target_link_libraries(${TARGET} PRIVATE mcp)
+# target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+# if(OPENSSL_FOUND)
+#     target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
+# endif()
 
 set(TARGET progress_example)
 add_executable(${TARGET} progress_example.cpp)
