@@ -8,9 +8,11 @@
 
 #include <gtest/gtest.h>
 #include "mcp_http_abstraction.h"
+#include "http_test_utilities.h"
 #include <memory>
 
 using namespace mcp::http;
+using namespace mcp::http::test;
 
 /**
  * Test request_data structure and helper methods
@@ -163,50 +165,6 @@ TEST_F(ClientResultTest, HeadersInResult) {
 /**
  * Test mock implementations of abstraction interfaces
  */
-class MockDataSink : public streaming_data_sink {
-public:
-    std::string written_data;
-    bool should_succeed = true;
-    
-    bool write(const char* data, size_t size) override {
-        if (should_succeed) {
-            written_data.append(data, size);
-        }
-        return should_succeed;
-    }
-};
-
-class MockResponseBuilder : public response_builder {
-public:
-    int status = 0;
-    std::map<std::string, std::string> headers;
-    std::string body;
-    std::string content_type;
-    bool has_chunked_provider = false;
-    std::function<bool(size_t, streaming_data_sink&)> chunked_provider;
-    
-    void set_status(int code) override {
-        status = code;
-    }
-    
-    void set_header(const std::string& name, const std::string& value) override {
-        headers[name] = value;
-    }
-    
-    void set_content(const std::string& content, const std::string& type) override {
-        body = content;
-        content_type = type;
-    }
-    
-    void set_chunked_content_provider(
-        const std::string& type,
-        std::function<bool(size_t, streaming_data_sink&)> provider) override {
-        content_type = type;
-        chunked_provider = provider;
-        has_chunked_provider = true;
-    }
-};
-
 TEST(StreamingDataSinkTest, MockWriteSuccess) {
     MockDataSink sink;
     sink.should_succeed = true;

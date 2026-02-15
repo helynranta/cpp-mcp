@@ -358,13 +358,12 @@ protected:
             res.set_chunked_content_provider(
                 "text/event-stream",
                 [](size_t, httplib::DataSink& sink) -> bool {
-                    static int count = 0;
-                    if (count == 0) {
-                        count++;
+                    static std::atomic<int> count{0};
+                    int current = count.fetch_add(1);
+                    if (current == 0) {
                         sink.write("data: message1\n\n", 16);
                         return true;
-                    } else if (count == 1) {
-                        count++;
+                    } else if (current == 1) {
                         sink.write("data: message2\n\n", 16);
                         return false; // Done
                     }
