@@ -20,6 +20,9 @@ add_library(${TARGET} STATIC
 
 target_link_libraries(${TARGET} PUBLIC ${CMAKE_THREAD_LIBS_INIT})
 
+# Link Boost libraries
+target_link_libraries(${TARGET} PUBLIC Boost::system)
+
 # If OpenSSL is found, link the OpenSSL libraries
 if(OPENSSL_FOUND)
     target_link_libraries(${TARGET} PUBLIC ${OPENSSL_LIBRARIES})

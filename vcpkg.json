@@ -2,5 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "cpp-mcp",
   "version": "2024.11.5",
-  "dependencies": []
+  "dependencies": [
+    "boost-beast"
+  ]
 }
