@@ -275,8 +275,10 @@ private:
                     std::thread([this, socket = std::move(socket)]() mutable {
                         this->handle_connection(std::move(socket));
                         
-                        // Decrement active connection count and notify
-                        if (active_connections_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                        // Decrement active connection count and notify when reaching 0
+                        auto prev_count = active_connections_.fetch_sub(1, std::memory_order_acq_rel);
+                        if (prev_count == 1) {
+                            // Was 1, now 0 - notify waiters under lock to avoid race
                             std::lock_guard<std::mutex> lock(connections_mutex_);
                             connections_cv_.notify_all();
                         }
