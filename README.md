@@ -40,10 +40,10 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 
 **C++23 Compiler Required**: This project requires a C++23-compliant compiler. No backwards compatibility with older C++ standards is provided.
 
-Minimum compiler versions:
-- **GCC** 11 or later
-- **Clang** 12 or later  
-- **MSVC** 2019 (v142) or later
+Minimum compiler versions (with experimental C++23 support):
+- **GCC** 11 or later (GCC 13+ recommended for production)
+- **Clang** 12 or later (Clang 15+ recommended for production)
+- **MSVC** 2019 (v142) or later (MSVC 2022+ recommended for production)
 
 ### Dependencies
 
