@@ -1,9 +1,20 @@
 /**
  * @file server_example.cpp
- * @brief Server example based on MCP protocol
+ * @brief MCP server example with multiple tools
  * 
  * This example demonstrates how to create an MCP server, register tools and resources,
  * and handle client requests. Follows the 2025-03-26 basic protocol specification.
+ * 
+ * Demonstrates:
+ * - Creating and configuring an MCP server with Boost.Beast
+ * - Registering multiple tools (time, calculator, echo, hello)
+ * - Setting server capabilities
+ * - Starting the server in blocking mode
+ * 
+ * Source code: https://github.com/helynranta/cpp-mcp/blob/main/examples/server_example.cpp
+ * Related APIs:
+ * - MCP Server: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_server.h
+ * - Tool Builder: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_tool.h
  */
 #include "mcp_server.h"
 #include "mcp_tool.h"

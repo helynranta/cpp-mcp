@@ -1,8 +1,22 @@
 /**
- * @file client_example.cpp
- * @brief Example of an MCP client implementation
+ * @file sse_client_example.cpp
+ * @brief MCP SSE (Server-Sent Events) client example
  * 
- * This file demonstrates how to create an MCP client that connects to a server.
+ * This file demonstrates how to create an MCP client that connects to a server
+ * using HTTP and Server-Sent Events for real-time communication. Uses Boost.Beast
+ * for HTTP transport.
+ * 
+ * Demonstrates:
+ * - Connecting to an MCP server via SSE
+ * - Initializing the client connection
+ * - Getting server capabilities
+ * - Listing and calling tools
+ * - Handling MCP exceptions
+ * 
+ * Source code: https://github.com/helynranta/cpp-mcp/blob/main/examples/sse_client_example.cpp
+ * Related APIs:
+ * - SSE Client: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_sse_client.h
+ * 
  * Follows the 2025-03-26 basic protocol specification.
  */
 

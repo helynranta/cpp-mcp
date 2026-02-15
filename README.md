@@ -106,6 +106,27 @@ cmake -B build
 cmake --build build --config Release
 ```
 
+#### Running Tests
+
+Build and run the test suite to verify the installation:
+
+```bash
+# Configure with tests enabled
+cmake -B build \
+  -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+  -DMCP_BUILD_TESTS=ON \
+  -DVCPKG_MANIFEST_FEATURES="tests"
+
+# Build tests
+cmake --build build --config Release
+
+# Run all tests
+cd build && ctest -V
+
+# Run specific test suite
+./test/mcp_tests --gtest_filter="BeastClientTest.*"
+```
+
 ### Boost Integration Details
 
 #### vcpkg Manifest Mode
@@ -286,9 +307,103 @@ Manages MCP resources.
 #### Server (`mcp_server.h`, `mcp_server.cpp`)
 Implements MCP server functionality.
 
+### HTTP Transport Layer
+
+The MCP framework uses **Boost.Beast** for its HTTP transport layer, providing modern, efficient async I/O.
+
+#### HTTP Factory ([`mcp_http_factory.h`](https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_http_factory.h))
+
+Factory functions for creating HTTP clients and servers:
+
+```cpp
+#include "mcp_http_factory.h"
+
+// Create HTTP server (uses Boost.Beast by default)
+auto server = mcp::http::create_server(
+    use_ssl,        // Whether to use SSL/TLS
+    cert_path,      // Path to SSL certificate (if SSL enabled)
+    key_path        // Path to SSL private key (if SSL enabled)
+);
+
+// Create HTTP client (uses Boost.Beast by default)
+auto client = mcp::http::create_client("http://localhost:8080");
+```
+
+#### HTTP Abstractions ([`mcp_http_abstraction.h`](https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_http_abstraction.h))
+
+Transport-agnostic HTTP interfaces:
+- `server_interface` - Abstract HTTP server interface
+- `client_interface` - Abstract HTTP client interface
+- `response_builder` - For constructing HTTP responses
+- `streaming_data_sink` - For SSE streaming
+
+#### Beast Adapter ([`mcp_http_beast_adapter.h`](https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_http_beast_adapter.h))
+
+Boost.Beast implementation of HTTP abstractions:
+- `beast_server` - Async HTTP server with SSE support
+- `beast_client` - HTTP client with streaming support
+
+**Key features:**
+- Built on Boost.Beast 1.90.0
+- Asynchronous I/O with Boost.Asio
+- Support for SSE (Server-Sent Events) streaming
+- Thread-safe operation using `std::jthread` (C++20)
+- Automatic session management
+
+**Example client usage:**
+```cpp
+#include "mcp_http_factory.h"
+
+// Create client
+auto client = mcp::http::create_client("http://localhost:8080");
+
+// GET request
+auto result = client->get("/api/endpoint");
+if (result.success) {
+    std::cout << "Status: " << result.status_code << std::endl;
+    std::cout << "Body: " << result.body << std::endl;
+}
+
+// POST request
+mcp::http::headers_map headers;
+auto post_result = client->post("/api/data", headers, 
+    "{\"key\":\"value\"}", "application/json");
+
+// Streaming GET (for SSE)
+client->get_stream("/events", [](const char* data, size_t size) {
+    std::cout << "Event: " << std::string(data, size) << std::endl;
+    return true; // Continue streaming
+});
+```
+
+**Example server usage:**
+```cpp
+#include "mcp_http_factory.h"
+
+// Create server
+auto server = mcp::http::create_server(false, "", ""); // No SSL
+
+// Register route handler
+server->on("/test", [](const mcp::http::request_data& req, 
+                       mcp::http::response_builder& res) {
+    res.set_status(200);
+    res.set_content("{\"status\":\"ok\"}", "application/json");
+});
+
+// Listen and run
+server->listen("localhost", 8080);
+server->run(); // Blocking call
+```
+
+For more details, see:
+- [Boost.Beast Documentation](https://www.boost.org/doc/libs/release/libs/beast/doc/html/index.html)
+- [Boost.Beast HTTP Examples](https://www.boost.org/doc/libs/release/libs/beast/example/http/)
+
 ## Examples
 
-### HTTP Server Example (`examples/server_example.cpp`)
+All examples use the Boost.Beast-based HTTP transport for communication. Source code is available in the [`examples/`](https://github.com/helynranta/cpp-mcp/tree/main/examples) directory.
+
+### HTTP Server Example ([`examples/server_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/server_example.cpp))
 
 Example MCP server implementation with custom tools:
 - Time tool: Get the current time
@@ -296,22 +411,62 @@ Example MCP server implementation with custom tools:
 - Echo tool: Echo input with optional transformations (to uppercase, reverse)
 - Greeting tool: Returns `Hello, `+ input name + `!`, defaults to `Hello, World!`
 
-### HTTP Client Example (`examples/client_example.cpp`)
+**Build and run:**
+```bash
+cmake --build build --target server_example
+./build/examples/server_example
+```
 
-Example MCP client connecting to a server:
-- Get server information
+The server listens on `http://localhost:8888` by default. You can verify it's working by connecting with the SSE client example in another terminal.
+
+**Testing:**
+```bash
+# Terminal 1: Start the server
+./build/examples/server_example
+
+# Terminal 2: Connect with the client
+./build/examples/sse_client_example
+```
+
+### SSE Client Example ([`examples/sse_client_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/sse_client_example.cpp))
+
+Example MCP client connecting to a server via Server-Sent Events:
+- Connect to an MCP server using HTTP/SSE transport
+- Get server information and capabilities
 - List available tools
 - Call tools with parameters
-- Access resources
+- Handle errors and exceptions
 
-### Stdio Client Example (`examples/stdio_client_example.cpp`)
+**Build and run:**
+```bash
+cmake --build build --target sse_client_example
+# First start the server in another terminal
+./build/examples/sse_client_example
+```
+
+### Stdio Client Example ([`examples/stdio_client_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/stdio_client_example.cpp))
 
 Demonstrates how to use the stdio client to communicate with a local server:
 - Launch a local server process
 - Access filesystem resources
 - Call server tools
+- Communicate via stdin/stdout
 
-### Agent Example (`examples/agent_example.cpp`)
+**Build and run:**
+```bash
+cmake --build build --target stdio_client_example
+./build/examples/stdio_client_example "npx -y @modelcontextprotocol/server-everything"
+```
+
+### Agent Example ([`examples/agent_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/agent_example.cpp))
+
+AI agent that integrates an MCP server with an external LLM API. The agent:
+- Runs a local MCP server with tools (e.g., calculator)
+- Connects to an LLM API (OpenAI, OpenRouter, etc.) using Boost.Beast HTTP client
+- Allows the LLM to call MCP tools to answer user queries
+- Implements a chat loop with tool execution
+
+**Command-line options:**
 
 | Option | Description |
 | :- | :- |
@@ -324,14 +479,19 @@ Demonstrates how to use the stdio client to communicate with a local server:
 | `--temperature` | Temperature (default to 0.0) |
 | `--max-steps` | Maximum steps calling tools without user input (default to 3) |
 
-Example usage:
-```
+**Build and run:**
+```bash
+# Build with SSL support for HTTPS connections
+cmake -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DMCP_SSL=ON
+cmake --build build --target agent_example
+
+# Run with your LLM API
 ./build/examples/agent_example --base-url <base_url> --endpoint <endpoint> --api-key <api_key> --model <model_name>
 ```
 
 **Note**: Remember to compile with `-DMCP_SSL=ON` when connecting to an https base URL.
 
-### Progress Notification Example (`examples/progress_example.cpp`)
+### Progress Notification Example ([`examples/progress_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/progress_example.cpp))
 
 Demonstrates real-time progress notifications:
 - Server sends progress updates during long-running operations
@@ -339,7 +499,13 @@ Demonstrates real-time progress notifications:
 - Shows both with and without progress tokens
 - Example of proper progress token handling
 
-### Batch Request Example (`examples/batch_example.cpp`)
+**Build and run:**
+```bash
+cmake --build build --target progress_example
+./build/examples/progress_example
+```
+
+### Batch Request Example ([`examples/batch_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/batch_example.cpp))
 
 Demonstrates JSON-RPC batch request support (MCP 2025-03-26):
 - Multiple requests in a single batch
@@ -347,6 +513,12 @@ Demonstrates JSON-RPC batch request support (MCP 2025-03-26):
 - Notification-only batches
 - Empty batch validation
 - Shows expected server behavior for each scenario
+
+**Build and run:**
+```bash
+cmake --build build --target batch_example
+./build/examples/batch_example
+```
 
 ## How to Use
 

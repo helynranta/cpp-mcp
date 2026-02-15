@@ -210,6 +210,13 @@ The project currently depends on:
 
 - **Boost.Beast** (`boost-beast`) - HTTP and WebSocket networking library
   - Automatically includes Boost.Asio and Boost.System as transitive dependencies
+  - Used for all HTTP transport (client and server)
+  - Provides async I/O and SSE streaming support
+
+**HTTP Transport Implementation:**
+- Default factory uses Boost.Beast: `mcp::http::create_server()` and `mcp::http::create_client()`
+- All MCP HTTP communication uses the Beast-based implementation
+- Examples demonstrate Beast client usage for both MCP and external APIs
 
 All dependencies are managed through vcpkg manifest mode and automatically installed when using the vcpkg toolchain file.
 
