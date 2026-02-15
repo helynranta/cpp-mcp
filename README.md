@@ -520,6 +520,15 @@ cmake --build build --target batch_example
 ./build/examples/batch_example
 ```
 
+### Session State Management Example ([`examples/session_state_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/session_state_example.cpp))
+
+Demonstrates how to use the session state storage API to maintain state across tool calls within a session:
+
+```bash
+cmake --build build --target session_state_example
+./build/examples/session_state_example
+```
+
 ## How to Use
 
 ### Setting up an HTTP Server
@@ -870,6 +879,76 @@ Clients can send cancellation notifications:
     }
 }
 ```
+
+## Session Management
+
+The MCP server provides built-in session management for tracking state across multiple tool calls within a session. Each connected client gets a unique session ID, and you can store arbitrary JSON data associated with that session.
+
+### Session ID
+
+Session IDs are automatically generated as UUIDs (format: `8-4-4-4-12` hexadecimal digits) and are passed via the `Mcp-Session-Id` HTTP header. Clients can also provide their own session ID in the header if needed.
+
+### Session State Storage
+
+You can store and retrieve arbitrary JSON state data for each session:
+
+```cpp
+// Store session state
+json state = {
+    {"user", "alice"},
+    {"counter", 42},
+    {"preferences", {
+        {"theme", "dark"},
+        {"language", "en"}
+    }}
+};
+server.set_session_state(session_id, state);
+
+// Retrieve session state
+json retrieved_state = server.get_session_state(session_id);
+
+// Clear session state manually
+server.clear_session_state(session_id);
+```
+
+### Example: Stateful Tool
+
+Here's an example of a tool that maintains a counter per session:
+
+```cpp
+tool increment_counter = tool_builder("increment_counter")
+    .with_description("Increments a counter for the current session")
+    .build();
+
+server.register_tool(increment_counter, [&server](const json& params, const std::string& session_id) -> json {
+    // Get current session state
+    json state = server.get_session_state(session_id);
+    
+    // Initialize or increment counter
+    int counter = state.is_null() ? 0 : state.value("counter", 0);
+    counter++;
+    
+    // Update session state
+    state["counter"] = counter;
+    server.set_session_state(session_id, state);
+    
+    return {{"counter", counter}};
+});
+```
+
+### Automatic Cleanup
+
+Session state is automatically cleaned up when a session is closed (on disconnect or DELETE request). You can also register cleanup handlers:
+
+```cpp
+server.register_session_cleanup("my_tool", [&server](const std::string& session_id) {
+    // Custom cleanup logic
+    json state = server.get_session_state(session_id);
+    // ... perform cleanup actions
+});
+```
+
+For a complete working example, see [`examples/session_state_example.cpp`](examples/session_state_example.cpp).
 
 
 ## Using TLS clients and servers
