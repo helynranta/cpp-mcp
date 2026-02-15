@@ -235,11 +235,16 @@ The project uses GitHub Actions for continuous integration:
 - Manual workflow dispatch
 
 **vcpkg Binary Caching:**
-- Binary packages are cached in GitHub Packages (NuGet feed)
+- **Linux**: File-based cache stored in GitHub Actions cache
+  - Uses `files` provider to store binaries locally
+  - GitHub Actions cache persists between runs
+  - Cache key based on vcpkg.json and vcpkg-configuration.json hashes
+- **Windows**: NuGet feed via GitHub Packages
+  - Binary packages cached in GitHub Packages
+  - Authentication handled automatically by vcpkg using GITHUB_TOKEN
 - First build: Dependencies are built and uploaded to the cache
 - Subsequent builds: Pre-built binaries are downloaded, significantly reducing build time
-- Cache is automatically managed per repository owner
-- Authentication handled automatically by vcpkg using GITHUB_TOKEN
+- Cache is automatically managed per platform
 
 **Requirements for merge:**
 - ✅ All builds must succeed
