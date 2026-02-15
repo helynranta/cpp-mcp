@@ -11,6 +11,24 @@
 
 namespace mcp {
 
+namespace {
+bool interruptible_sleep(const std::stop_token& stoken, std::chrono::milliseconds duration) {
+    constexpr auto kStopCheckInterval = std::chrono::milliseconds(100); // Balance shutdown responsiveness and CPU overhead
+    while (!stoken.stop_requested() && duration > std::chrono::milliseconds::zero()) {
+        auto step = duration > kStopCheckInterval ? kStopCheckInterval : duration;
+        std::this_thread::sleep_for(step);
+        duration -= step;
+    }
+    return !stoken.stop_requested();
+}
+
+int heartbeat_jitter_ms() {
+    thread_local std::mt19937 rng{std::random_device{}()};
+    thread_local std::uniform_int_distribution<int> dist(0, 499);
+    return dist(rng);
+}
+}
+
 
 server::server(const server::configuration& conf)
     : host_(conf.host)
@@ -484,7 +502,9 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
     auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri, session_dispatcher](std::stop_token stoken) {
         try {
             // Send initial session URI
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            if (!interruptible_sleep(stoken, std::chrono::milliseconds(500))) {
+                return;
+            }
             
             // Check if server is still alive or stop requested
             if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire)) {
@@ -503,7 +523,10 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
             while (!stoken.stop_requested() && 
                    alive && alive->load(std::memory_order_acquire) && 
                    running_ && !session_dispatcher->is_closed()) {
-               std::this_thread::sleep_for(std::chrono::seconds(5) + std::chrono::milliseconds(rand() % 500)); // NOTE: DO NOT set it the same as the timeout of wait_event
+                auto heartbeat_sleep = std::chrono::seconds(5) + std::chrono::milliseconds(heartbeat_jitter_ms());
+                if (!interruptible_sleep(stoken, std::chrono::duration_cast<std::chrono::milliseconds>(heartbeat_sleep))) {
+                    break;
+                } // NOTE: DO NOT set it the same as the timeout of wait_event
                 
                 if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire) ||
                     session_dispatcher->is_closed() || !running_) {
@@ -991,7 +1014,9 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
         auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri, session_dispatcher](std::stop_token stoken) {
             try {
                 // Send initial session endpoint
-                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                if (!interruptible_sleep(stoken, std::chrono::milliseconds(500))) {
+                    return;
+                }
                 
                 // Check if server is still alive or stop requested
                 if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire)) {
@@ -1008,7 +1033,10 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
                 while (!stoken.stop_requested() &&
                        alive && alive->load(std::memory_order_acquire) && 
                        running_ && !session_dispatcher->is_closed()) {
-                    std::this_thread::sleep_for(std::chrono::seconds(5) + std::chrono::milliseconds(rand() % 500));
+                    auto heartbeat_sleep = std::chrono::seconds(5) + std::chrono::milliseconds(heartbeat_jitter_ms());
+                    if (!interruptible_sleep(stoken, std::chrono::duration_cast<std::chrono::milliseconds>(heartbeat_sleep))) {
+                        break;
+                    }
                     
                     if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire) ||
                         session_dispatcher->is_closed() || !running_) {
