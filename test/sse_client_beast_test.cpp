@@ -132,8 +132,11 @@ TEST_F(SseClientBeastTest, CanCallTools) {
     // Call echo tool
     json result = client.call_tool("echo", {{"message", "Hello Beast!"}});
     
-    EXPECT_TRUE(result.contains("echo")) << "Result should contain echo field";
-    EXPECT_EQ(result["echo"], "Hello Beast!") << "Echo should return correct message";
+    // Tool results are wrapped in standard MCP structure with isError and content fields
+    EXPECT_TRUE(result.contains("content")) << "Result should contain content field";
+    EXPECT_FALSE(result["isError"]) << "Result should not be an error";
+    EXPECT_TRUE(result["content"].contains("echo")) << "Result content should contain echo field";
+    EXPECT_EQ(result["content"]["echo"], "Hello Beast!") << "Echo should return correct message";
 }
 
 /**
@@ -155,7 +158,9 @@ TEST_F(SseClientBeastTest, DualClientPatternPreserved) {
     // Multiple tool calls should work (testing POST client)
     for (int i = 0; i < 5; i++) {
         json result = client.call_tool("echo", {{"message", "test"}});
-        EXPECT_TRUE(result.contains("echo"));
+        EXPECT_TRUE(result.contains("content"));
+        EXPECT_FALSE(result["isError"]);
+        EXPECT_TRUE(result["content"].contains("echo"));
     }
     
     // SSE should still be running
