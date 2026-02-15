@@ -239,6 +239,7 @@ The project uses GitHub Actions for continuous integration:
 - First build: Dependencies are built and uploaded to the cache
 - Subsequent builds: Pre-built binaries are downloaded, significantly reducing build time
 - Cache is automatically managed per repository owner
+- Authentication handled automatically by vcpkg using GITHUB_TOKEN
 
 **Requirements for merge:**
 - ✅ All builds must succeed

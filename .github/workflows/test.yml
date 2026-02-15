@@ -22,17 +22,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Setup NuGet credentials
-      run: |
-        mono $(vcpkg fetch nuget | tail -n 1) sources add \
-          -source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
-          -storepasswordincleartext \
-          -name "GitHubPackages" \
-          -username "${{ github.repository_owner }}" \
-          -password "${{ secrets.GITHUB_TOKEN }}"
-        mono $(vcpkg fetch nuget | tail -n 1) setapikey "${{ secrets.GITHUB_TOKEN }}" \
-          -source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
-    
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
       with:
@@ -64,18 +53,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
-    - name: Setup NuGet credentials
-      shell: pwsh
-      run: |
-        & $(vcpkg fetch nuget | Select-Object -Last 1) sources add `
-          -source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" `
-          -storepasswordincleartext `
-          -name "GitHubPackages" `
-          -username "${{ github.repository_owner }}" `
-          -password "${{ secrets.GITHUB_TOKEN }}"
-        & $(vcpkg fetch nuget | Select-Object -Last 1) setapikey "${{ secrets.GITHUB_TOKEN }}" `
-          -source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
     
     - name: Install vcpkg
       uses: lukka/run-vcpkg@v11
