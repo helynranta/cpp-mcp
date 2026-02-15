@@ -36,6 +36,15 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 
 ## How to Build
 
+### Requirements
+
+**C++23 Compiler Required**: This project requires a C++23-compliant compiler. No backwards compatibility with older C++ standards is provided.
+
+Minimum compiler versions:
+- **GCC** 11 or later
+- **Clang** 12 or later  
+- **MSVC** 2019 (v142) or later
+
 ### Dependencies
 
 This project uses vcpkg for dependency management. The following dependencies are automatically fetched via vcpkg:
@@ -86,7 +95,11 @@ cmake --build build --config Release
 
 #### Without vcpkg (Manual dependency installation)
 
-If you prefer to install Boost manually, ensure Boost (version 1.70 or later, tested with 1.90.0) is installed on your system and build without the vcpkg toolchain file:
+If you prefer to install Boost manually, ensure:
+- Boost (version 1.70 or later, tested with 1.90.0) is installed on your system
+- A C++23-compliant compiler is available (GCC 11+, Clang 12+, MSVC 2019+)
+
+Then build without the vcpkg toolchain file:
 
 ```bash
 cmake -B build
