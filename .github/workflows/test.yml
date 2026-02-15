@@ -65,32 +65,3 @@ jobs:
       run: |
         cd build
         ctest --output-on-failure -C Release -R mcp_tests
-  
-  test-macos:
-    name: Test on macOS
-    runs-on: macos-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Install vcpkg
-      uses: lukka/run-vcpkg@v11
-      with:
-        vcpkgJsonGlob: 'vcpkg.json'
-    
-    - name: Configure CMake
-      run: |
-        cmake -B build \
-          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
-          -DMCP_BUILD_TESTS=ON \
-          -DVCPKG_MANIFEST_FEATURES="tests" \
-          -DCMAKE_BUILD_TYPE=Release
-    
-    - name: Build
-      run: cmake --build build --config Release -j$(sysctl -n hw.ncpu)
-    
-    - name: Run GoogleTest tests
-      run: |
-        cd build
-        ctest --output-on-failure -C Release -R mcp_tests

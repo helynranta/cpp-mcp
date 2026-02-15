@@ -1292,7 +1292,7 @@ ssl_context.load_verify_file(ca_cert);
 **Platform Support:**
 - ✅ Linux (tested)
 - ✅ Windows (tested)
-- ✅ macOS (tested)
+- ❌ macOS (no longer supported)
 - ✅ Same as current httplib support
 
 ---
