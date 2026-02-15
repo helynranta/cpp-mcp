@@ -493,27 +493,12 @@ void sse_client::close_sse_connection() {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     if (sse_thread_ && sse_thread_->joinable()) {
-        auto timeout = std::chrono::seconds(2);
-        auto start = std::chrono::steady_clock::now();
-        
         LOG_INFO("Waiting for SSE thread to end...");
         
-        while (sse_thread_->joinable() && 
-            std::chrono::steady_clock::now() - start < timeout) {
-            try {
-                sse_thread_->join();
-                LOG_INFO("SSE thread successfully ended");
-                break;
-            } catch (const std::exception& e) {
-                LOG_ERROR("Error waiting for SSE thread: ", e.what());
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            }
-        }
-        
-        if (sse_thread_->joinable()) {
-            LOG_WARNING("SSE thread did not end within timeout, detaching thread");
-            sse_thread_->detach();
-        }
+        // Join the thread - this blocks until the thread completes
+        // We've already signaled it to stop via sse_running_ = false and sse_client_->stop()
+        sse_thread_->join();
+        LOG_INFO("SSE thread successfully ended");
     }
     
     {
