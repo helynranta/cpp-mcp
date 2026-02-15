@@ -16,6 +16,7 @@
 #define MCP_HTTP_BEAST_ADAPTER_H
 
 #include "mcp_http_abstraction.h"
+#include "mcp_logger.h"
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/asio.hpp>
@@ -24,6 +25,8 @@
 #include <thread>
 #include <atomic>
 #include <map>
+#include <mutex>
+#include <condition_variable>
 
 // Note: We use beast::http to avoid namespace conflicts with mcp::http
 namespace beast = boost::beast;
@@ -124,6 +127,8 @@ public:
         , cert_path_(cert_path)
         , key_path_(key_path)
         , running_(false)
+        , server_ready_(false)
+        , server_failed_(false)
     {
         // SSL support will be added later
         if (use_ssl) {
@@ -161,14 +166,30 @@ public:
     bool listen(const std::string& host, int port) override {
         try {
             running_ = true;
+            server_ready_ = false;
+            server_failed_ = false;
+            
             server_thread_ = std::thread([this, host, port]() {
                 this->run_server(host, port);
             });
             
-            // Give server time to start
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // Wait for server to signal it's ready (acceptor is bound) or failed
+            std::unique_lock<std::mutex> lock(ready_mutex_);
+            auto wait_result = ready_cv_.wait_for(lock, std::chrono::seconds(5), 
+                [this]() { return server_ready_.load() || server_failed_.load(); });
+            
+            if (!wait_result || server_failed_.load()) {
+                // Timeout or server failed to start
+                running_ = false;
+                if (server_thread_.joinable()) {
+                    server_thread_.join();
+                }
+                return false;
+            }
+            
             return true;
         } catch (...) {
+            running_ = false;
             return false;
         }
     }
@@ -188,11 +209,32 @@ public:
 private:
     void run_server(const std::string& host, int port) {
         try {
+            LOG_INFO("Beast server: Creating io_context and acceptor for ", host, ":", port);
             io_context_ = std::make_unique<net::io_context>(1);
-            tcp::acceptor acceptor{*io_context_, 
-                {net::ip::make_address(host), static_cast<unsigned short>(port)}};
+            
+            // Resolve the host (handles both IPv4 and IPv6, including "localhost")
+            tcp::resolver resolver(*io_context_);
+            auto endpoints = resolver.resolve(host, std::to_string(port));
+            
+            if (endpoints.empty()) {
+                throw std::runtime_error("Could not resolve host: " + host);
+            }
+            
+            // Use the first resolved endpoint
+            auto endpoint = *endpoints.begin();
+            
+            LOG_INFO("Beast server: Binding to endpoint: ", endpoint.endpoint());
+            tcp::acceptor acceptor{*io_context_, endpoint.endpoint()};
             
             acceptor.non_blocking(true);
+            
+            LOG_INFO("Beast server: Successfully bound to port, signaling ready");
+            // Signal that server is ready (acceptor is bound to port)
+            {
+                std::lock_guard<std::mutex> lock(ready_mutex_);
+                server_ready_ = true;
+            }
+            ready_cv_.notify_one();
             
             while (running_) {
                 tcp::socket socket{*io_context_};
@@ -210,8 +252,22 @@ private:
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
             }
+        } catch (const std::exception& e) {
+            LOG_ERROR("Beast server: Exception during startup: ", e.what());
+            // Signal failure (server not ready)
+            {
+                std::lock_guard<std::mutex> lock(ready_mutex_);
+                server_failed_ = true;
+            }
+            ready_cv_.notify_one();
         } catch (...) {
-            // Server error
+            LOG_ERROR("Beast server: Unknown exception during startup");
+            // Signal failure (server not ready)
+            {
+                std::lock_guard<std::mutex> lock(ready_mutex_);
+                server_failed_ = true;
+            }
+            ready_cv_.notify_one();
         }
     }
     
@@ -334,9 +390,13 @@ private:
     std::string cert_path_;
     std::string key_path_;
     std::atomic<bool> running_;
+    std::atomic<bool> server_ready_;
+    std::atomic<bool> server_failed_;
     std::thread server_thread_;
     std::unique_ptr<net::io_context> io_context_;
     std::map<std::string, request_handler> routes_;
+    std::mutex ready_mutex_;
+    std::condition_variable ready_cv_;
 };
 
 /**
