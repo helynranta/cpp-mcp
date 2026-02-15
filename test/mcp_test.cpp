@@ -17,6 +17,11 @@
 using namespace mcp;
 using json = nlohmann::ordered_json;
 
+namespace {
+constexpr auto kServerStartupDelay = std::chrono::milliseconds(100);
+constexpr auto kSseWaitTimeout = std::chrono::seconds(5);
+}
+
 // Test message format
 struct MessageFormatTest {
     MessageFormatTest() {
@@ -194,7 +199,7 @@ struct VersioningTest {
         
         // Start server (non-blocking mode)
         server_->start(false);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(kServerStartupDelay);
 
         client_ = std::make_unique<sse_client>("http://localhost:" + std::to_string(port_));
     }
@@ -291,7 +296,7 @@ BOOST_AUTO_TEST_CASE(UnsupportedVersion) {
         });
         
         BOOST_TEST_MESSAGE("Waiting for SSE endpoint in UnsupportedVersion test");
-        auto endpoint_status = msg_endpoint.wait_for(std::chrono::seconds(5));
+        auto endpoint_status = msg_endpoint.wait_for(kSseWaitTimeout);
         if (endpoint_status != std::future_status::ready) {
             BOOST_TEST_MESSAGE("Timed out waiting for SSE endpoint in UnsupportedVersion test");
             auto client = sse_client_ptr->load(std::memory_order_acquire);
@@ -315,7 +320,7 @@ BOOST_AUTO_TEST_CASE(UnsupportedVersion) {
         BOOST_CHECK_EQUAL(res.status_code / 100, 2);
         
         BOOST_TEST_MESSAGE("Waiting for SSE response in UnsupportedVersion test");
-        auto sse_status = sse_response.wait_for(std::chrono::seconds(5));
+        auto sse_status = sse_response.wait_for(kSseWaitTimeout);
         if (sse_status != std::future_status::ready) {
             BOOST_TEST_MESSAGE("Timed out waiting for SSE response in UnsupportedVersion test");
             auto client = sse_client_ptr->load(std::memory_order_acquire);
@@ -331,7 +336,7 @@ BOOST_AUTO_TEST_CASE(UnsupportedVersion) {
         BOOST_CHECK_EQUAL(mcp_res["error"]["code"].get<int>(), static_cast<int>(error_code::invalid_params));
 
         // Give the callback a moment to finish and return before stopping
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(kServerStartupDelay);
         
         // Stop SSE client to interrupt the blocking Get() call
         auto client = sse_client_ptr->load(std::memory_order_acquire);
@@ -391,7 +396,7 @@ struct PingTest {
         
         // Start server (non-blocking mode)
         server_->start(false);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(kServerStartupDelay);
 
         json client_capabilities = {
             {"roots", {{"listChanged", true}}},
@@ -494,7 +499,7 @@ BOOST_AUTO_TEST_CASE(DirectPing) {
         });
 
         BOOST_TEST_MESSAGE("Waiting for SSE endpoint in PingOverSSE test");
-        auto endpoint_status = msg_endpoint.wait_for(std::chrono::seconds(5));
+        auto endpoint_status = msg_endpoint.wait_for(kSseWaitTimeout);
         if (endpoint_status != std::future_status::ready) {
             BOOST_TEST_MESSAGE("Timed out waiting for SSE endpoint in PingOverSSE test");
             auto client = sse_client_ptr->load(std::memory_order_acquire);
@@ -517,7 +522,7 @@ BOOST_AUTO_TEST_CASE(DirectPing) {
         BOOST_CHECK_EQUAL(ping_res.status_code / 100, 2);
 
         BOOST_TEST_MESSAGE("Waiting for SSE response in PingOverSSE test");
-        auto sse_status = sse_response.wait_for(std::chrono::seconds(5));
+        auto sse_status = sse_response.wait_for(kSseWaitTimeout);
         if (sse_status != std::future_status::ready) {
             BOOST_TEST_MESSAGE("Timed out waiting for SSE response in PingOverSSE test");
             auto client = sse_client_ptr->load(std::memory_order_acquire);
