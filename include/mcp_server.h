@@ -600,6 +600,10 @@ private:
 
     // Check if origin validation should be performed for this request
     bool should_validate_origin(const http::request_data& req) const;
+
+    // Validate MCP-Protocol-Version header (MCP 2025-06-18+)
+    bool validate_protocol_version_header(const http::request_data& req, const std::string& session_id,
+                                          http::response_builder& res) const;
 };
 
 } // namespace mcp
