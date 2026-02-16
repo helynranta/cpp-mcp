@@ -242,10 +242,10 @@ BOOST_AUTO_TEST_CASE(ToolResultWithStructuredContent) {
     // Simulate tool result with structured content
     json structured_data = {{"temperature", 22.5}, {"conditions", "Partly cloudy"}, {"humidity", 65}};
 
-    json tool_result = {{"content",
-                         json::array({{{"type", "text"}, {"text", "Weather: 22.5°C, Partly cloudy, Humidity: 65%"}}})},
-                        {"structuredContent", structured_data},
-                        {"isError", false}};
+    json tool_result = {
+        {"content", json::array({{{"type", "text"}, {"text", "Weather: 22.5°C, Partly cloudy, Humidity: 65%"}}})},
+        {"structuredContent", structured_data},
+        {"isError", false}};
 
     // Verify result has both content and structuredContent
     BOOST_CHECK(tool_result.contains("content"));
@@ -290,10 +290,10 @@ BOOST_AUTO_TEST_CASE(ComplexStructuredContentSupported) {
                   {"properties", {{"id", {{"type", "number"}}}, {"name", {{"type", "string"}}}}}}}}},
               {"count", {{"type", "number"}}}}}}},
           {"metadata",
-           {{"type", "object"}, {"properties", {{"timestamp", {{"type", "string"}}}, {"version", {{"type", "string"}}}}}}}}}};
+           {{"type", "object"},
+            {"properties", {{"timestamp", {{"type", "string"}}}, {"version", {{"type", "string"}}}}}}}}}};
 
-    tool api_tool =
-        tool_builder("api_tool").with_description("API tool").with_output_schema(complex_schema).build();
+    tool api_tool = tool_builder("api_tool").with_description("API tool").with_output_schema(complex_schema).build();
 
     // Verify complex schema
     json tool_json = api_tool.to_json();
@@ -302,10 +302,9 @@ BOOST_AUTO_TEST_CASE(ComplexStructuredContentSupported) {
     // Create complex structured result
     json complex_result = {{"status", "success"},
                            {"data",
-                            {{"users",
-                              json::array({{{"id", 1}, {"name", "Alice"}},
-                                           {{"id", 2}, {"name", "Bob"}},
-                                           {{"id", 3}, {"name", "Charlie"}}})},
+                            {{"users", json::array({{{"id", 1}, {"name", "Alice"}},
+                                                    {{"id", 2}, {"name", "Bob"}},
+                                                    {{"id", 3}, {"name", "Charlie"}}})},
                              {"count", 3}}},
                            {"metadata", {{"timestamp", "2026-02-16T20:30:00Z"}, {"version", "1.0.0"}}}};
 
@@ -325,10 +324,10 @@ BOOST_AUTO_TEST_CASE(ArrayOutputSchemaSupported) {
     // Define array output schema
     json array_schema = {
         {"type", "array"},
-        {"items", {{"type", "object"}, {"properties", {{"id", {{"type", "number"}}}, {"value", {{"type", "string"}}}}}}}};
+        {"items",
+         {{"type", "object"}, {"properties", {{"id", {{"type", "number"}}}, {"value", {{"type", "string"}}}}}}}};
 
-    tool list_tool =
-        tool_builder("list_tool").with_description("List items").with_output_schema(array_schema).build();
+    tool list_tool = tool_builder("list_tool").with_description("List items").with_output_schema(array_schema).build();
 
     // Verify array schema
     json tool_json = list_tool.to_json();
@@ -354,7 +353,8 @@ BOOST_AUTO_TEST_CASE(DualContentFormatBestPractice) {
     // Tool with output schema
     json schema = {
         {"type", "object"},
-        {"properties", {{"result", {{"type", "number"}}}, {"unit", {{"type", "string"}}}, {"timestamp", {{"type", "string"}}}}}};
+        {"properties",
+         {{"result", {{"type", "number"}}}, {"unit", {{"type", "string"}}}, {"timestamp", {{"type", "string"}}}}}};
 
     tool calculator = tool_builder("calculator")
                           .with_description("Calculator")
@@ -368,11 +368,11 @@ BOOST_AUTO_TEST_CASE(DualContentFormatBestPractice) {
     // Best practice: Provide both formats
     // - text content for backward compatibility and human readability
     // - structured content for programmatic access
-    json tool_result = {{"content",
-                         json::array({{{"type", "text"},
-                                       {"text", "Calculation result: 42 units (timestamp: 2026-02-16T20:30:00Z)"}}})},
-                        {"structuredContent", structured},
-                        {"isError", false}};
+    json tool_result = {
+        {"content",
+         json::array({{{"type", "text"}, {"text", "Calculation result: 42 units (timestamp: 2026-02-16T20:30:00Z)"}}})},
+        {"structuredContent", structured},
+        {"isError", false}};
 
     // Verify both formats present
     BOOST_CHECK(tool_result.contains("content"));
