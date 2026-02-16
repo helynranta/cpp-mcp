@@ -1,7 +1,7 @@
 /**
  * @file mcp_progress.cpp
  * @brief Implementation of progress notification support
- * 
+ *
  * This file provides the implementation for progress tracking
  * according to the Model Context Protocol specification.
  */

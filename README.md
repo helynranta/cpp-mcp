@@ -1202,6 +1202,85 @@ srv_conf.ssl.server_private_key_path = "./server.key.pem";
  mcp::sse_client client("https://localhost:8888");
  ```
 
+## Code Style and Formatting
+
+This project follows a modern C++ style guide to ensure consistency and maintainability across the codebase.
+
+### Style Guidelines
+
+**Naming Conventions:**
+- `snake_case` for variables, functions, and namespaces
+- `PascalCase` for class/struct names
+- Descriptive, meaningful names for all symbols
+
+**Modern C++ Practices:**
+- Use `auto` for local variable type deduction where it improves readability
+- Prefer trailing return types for functions (except simple getters/setters)
+- Use C++23 features and idioms
+- Follow RAII principles for resource management
+
+**File Naming:**
+- `.h` for header files (current standard)
+- `.cpp` for source files
+- `.cppm` for module interfaces (when using C++20 modules)
+
+### Formatting Tools
+
+The project uses automated formatting to maintain consistency:
+
+**EditorConfig** (`.editorconfig`):
+- Basic whitespace and indentation rules
+- 4 spaces for C++ files
+- UTF-8 encoding, LF line endings
+- Trim trailing whitespace
+
+**clang-format** (`.clang-format`):
+- Based on LLVM coding style
+- 120 character line limit
+- 4-space indentation
+- Enforces consistent spacing, alignment, and bracing
+
+### Running Formatting Locally
+
+Before submitting code, ensure it's properly formatted:
+
+```bash
+# Check if files need formatting (dry-run)
+clang-format --dry-run --Werror src/**/*.cpp include/**/*.h
+
+# Format all C++ files in-place
+find src include examples test -name "*.cpp" -o -name "*.h" | xargs clang-format -i
+
+# Or format specific files
+clang-format -i src/mcp_server.cpp include/mcp_server.h
+```
+
+**Recommended IDE/Editor Integration:**
+- **VS Code**: Install "C/C++" and "EditorConfig" extensions
+- **CLion**: Built-in support for `.editorconfig` and clang-format
+- **Vim/Neovim**: Use `vim-clang-format` plugin
+- **Emacs**: Use `clang-format.el`
+
+Most modern editors will automatically apply formatting on save when configured.
+
+### CI Enforcement
+
+All pull requests must pass automated style checks in CI:
+- clang-format verifies code formatting
+- Builds fail on non-conforming code
+- Ensures consistency across all contributions
+
+See `.github/workflows/test.yml` for the complete CI configuration.
+
+### Why These Conventions?
+
+**Readability**: Consistent style makes code easier to read and understand
+**Maintainability**: Automated formatting reduces bike-shedding and merge conflicts
+**Modern C++**: Following modern practices improves code quality and safety
+**Community Standards**: Based on widely-adopted LLVM style guide
+
+For detailed development guidelines, see [AGENTS.md](AGENTS.md).
+
 ## License
 
 This framework is provided under the MIT license. For details, please see the LICENSE file.

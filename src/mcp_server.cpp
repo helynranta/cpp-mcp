@@ -1,19 +1,21 @@
 /**
  * @file mcp_server.cpp
  * @brief Implementation of the MCP server
- * 
+ *
  * This file implements the server-side functionality for the Model Context Protocol.
  * Follows the 2025-03-26 basic protocol specification.
  */
 
 #include "mcp_server.h"
+
 #include <random>
 
 namespace mcp {
 
 namespace {
 bool interruptible_sleep(const std::stop_token& stoken, std::chrono::milliseconds duration) {
-    constexpr auto kStopCheckInterval = std::chrono::milliseconds(100); // Balance shutdown responsiveness and CPU overhead
+    constexpr auto kStopCheckInterval = std::chrono::milliseconds(
+        100); // Balance shutdown responsiveness and CPU overhead
     while (!stoken.stop_requested() && duration > std::chrono::milliseconds::zero()) {
         auto step = duration > kStopCheckInterval ? kStopCheckInterval : duration;
         std::this_thread::sleep_for(step);
@@ -27,24 +29,15 @@ int heartbeat_jitter_ms() {
     thread_local std::uniform_int_distribution<int> dist(0, 499);
     return dist(rng);
 }
-}
-
+} // namespace
 
 server::server(const server::configuration& conf)
-    : host_(conf.host)
-    , port_(conf.port)
-    , name_(conf.name)
-    , version_(conf.version)
-    , sse_endpoint_(conf.sse_endpoint)
-    , msg_endpoint_(conf.msg_endpoint)
-    , mcp_endpoint_(conf.mcp_endpoint)
-    , request_timeout_seconds_(conf.request_timeout_seconds)
-    , thread_pool_(conf.threadpool_size)
-    , validate_origin_(conf.security.validate_origin)
-    , allowed_origins_(conf.security.allowed_origins)
-    , enable_tool_confirmation_(conf.security.enable_tool_confirmation)
-{
-    #ifdef MCP_SSL
+    : host_(conf.host), port_(conf.port), name_(conf.name), version_(conf.version), sse_endpoint_(conf.sse_endpoint),
+      msg_endpoint_(conf.msg_endpoint), mcp_endpoint_(conf.mcp_endpoint),
+      request_timeout_seconds_(conf.request_timeout_seconds), thread_pool_(conf.threadpool_size),
+      validate_origin_(conf.security.validate_origin), allowed_origins_(conf.security.allowed_origins),
+      enable_tool_confirmation_(conf.security.enable_tool_confirmation) {
+#ifdef MCP_SSL
     if (conf.ssl.server_cert_path && conf.ssl.server_private_key_path) {
         if (!std::filesystem::exists(*conf.ssl.server_cert_path)) {
             LOG_ERROR("SSL certificate file '", *conf.ssl.server_cert_path, "' not found");
@@ -54,15 +47,13 @@ server::server(const server::configuration& conf)
             LOG_ERROR("SSL key file '", *conf.ssl.server_private_key_path, "' not found");
         }
 
-        http_server_ = http::create_server(true,
-            *conf.ssl.server_cert_path,
-            *conf.ssl.server_private_key_path);
+        http_server_ = http::create_server(true, *conf.ssl.server_cert_path, *conf.ssl.server_private_key_path);
     } else {
         http_server_ = http::create_server();
     }
-    #else
-     http_server_ = http::create_server();
-    #endif
+#else
+    http_server_ = http::create_server();
+#endif
 }
 
 server::~server() {
@@ -75,14 +66,13 @@ server::~server() {
     stop();
 }
 
-
 bool server::start(bool blocking) {
     if (running_) {
-        return true;  // Already running
+        return true; // Already running
     }
-    
+
     LOG_INFO("Starting MCP server on ", host_, ":", port_);
-    
+
     // Setup CORS handling with Origin validation (MCP 2025-03-26 security)
     http_server_->register_options(".*", [this](const http::request_data& req, http::response_builder& res) {
         // Handle Origin validation for OPTIONS requests
@@ -110,35 +100,40 @@ bool server::start(bool blocking) {
         res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept, Origin");
         res.set_status(204); // No Content
     });
-    
+
     // Setup unified MCP endpoint (Streamable HTTP transport - MCP 2025-03-26)
-    http_server_->register_get(mcp_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
-        this->handle_mcp(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"GET ", req.path, " HTTP/1.1\"");
-    });
-    
-    http_server_->register_post(mcp_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
-        this->handle_mcp(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"POST ", req.path, " HTTP/1.1\"");
-    });
-    
-    http_server_->register_delete(mcp_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
-        this->handle_mcp(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"DELETE ", req.path, " HTTP/1.1\"");
-    });
-    
+    http_server_->register_get(
+        mcp_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
+            this->handle_mcp(req, res);
+            LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"GET ", req.path, " HTTP/1.1\"");
+        });
+
+    http_server_->register_post(
+        mcp_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
+            this->handle_mcp(req, res);
+            LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"POST ", req.path, " HTTP/1.1\"");
+        });
+
+    http_server_->register_delete(
+        mcp_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
+            this->handle_mcp(req, res);
+            LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"DELETE ", req.path, " HTTP/1.1\"");
+        });
+
     // Setup legacy JSON-RPC endpoint (deprecated)
-    http_server_->register_post(msg_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
-        this->handle_jsonrpc(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"POST ", req.path, " HTTP/1.1\"");
-    });
+    http_server_->register_post(
+        msg_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
+            this->handle_jsonrpc(req, res);
+            LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"POST ", req.path, " HTTP/1.1\"");
+        });
 
     // Setup legacy SSE endpoint (deprecated)
-    http_server_->register_get(sse_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
-        this->handle_sse(req, res);
-        LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"GET ", req.path, " HTTP/1.1\"");
-    });
-    
+    http_server_->register_get(
+        sse_endpoint_.c_str(), [this](const http::request_data& req, http::response_builder& res) {
+            this->handle_sse(req, res);
+            LOG_INFO(req.remote_addr, ":", req.remote_port, " - \"GET ", req.path, " HTTP/1.1\"");
+        });
+
     // Start resource check thread (only start in non-blocking mode)
     if (!blocking) {
         maintenance_thread_run_ = true;
@@ -166,7 +161,7 @@ bool server::start(bool blocking) {
             }
         });
     }
-    
+
     // Start server
     if (blocking) {
         running_ = true;
@@ -196,7 +191,7 @@ void server::stop() {
     if (!running_) {
         return;
     }
-    
+
     LOG_INFO("Stopping MCP server on ", host_, ":", port_);
     running_ = false;
 
@@ -208,22 +203,22 @@ void server::stop() {
         }
         maintenance_cond_.notify_one();
         maintenance_thread_->request_stop();
-        maintenance_thread_.reset();  // jthread joins automatically on destruction
+        maintenance_thread_.reset(); // jthread joins automatically on destruction
     }
-    
+
     // Copy all dispatchers and threads to avoid holding the lock for too long
     std::vector<std::shared_ptr<event_dispatcher>> dispatchers_to_close;
     std::vector<std::unique_ptr<std::jthread>> threads_to_stop;
-    
+
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        
+
         // Copy all dispatchers
         dispatchers_to_close.reserve(session_dispatchers_.size());
         for (const auto& [_, dispatcher] : session_dispatchers_) {
             dispatchers_to_close.push_back(dispatcher);
         }
-        
+
         // Move all threads (jthread will request_stop and join on destruction)
         threads_to_stop.reserve(sse_threads_.size());
         for (auto& [_, thread] : sse_threads_) {
@@ -231,7 +226,7 @@ void server::stop() {
                 threads_to_stop.push_back(std::move(thread));
             }
         }
-        
+
         // Clear the maps
         session_dispatchers_.clear();
         sse_threads_.clear();
@@ -241,38 +236,38 @@ void server::stop() {
 
     LOG_INFO("Server stop cleanup: dispatchers=", dispatchers_to_close.size(),
              ", sse_threads=", threads_to_stop.size());
-    
+
     // Close all dispatchers to gracefully disconnect SSE clients
     for (const auto& dispatcher : dispatchers_to_close) {
         if (dispatcher && !dispatcher->is_closed()) {
             dispatcher->close();
         }
     }
-    
+
     // Request stop on all SSE threads - they will exit their loops
     for (auto& thread : threads_to_stop) {
         if (thread) {
             thread->request_stop();
         }
     }
-    
+
     // jthread automatically joins on destruction when threads_to_stop goes out of scope
     // The threads will exit cleanly because:
     // 1. Dispatchers are closed (wait_event returns false)
     // 2. stop_requested() returns true
     // 3. alive_ is set to false (checked in lambdas)
     LOG_INFO("Server stop cleanup: joining ", threads_to_stop.size(), " SSE threads");
-    threads_to_stop.clear();  // Joins all threads automatically
-    
+    threads_to_stop.clear(); // Joins all threads automatically
+
     // Stop server thread - jthread joins automatically
     if (server_thread_) {
         http_server_->stop();
         server_thread_->request_stop();
-        server_thread_.reset();  // jthread joins automatically on destruction
+        server_thread_.reset(); // jthread joins automatically on destruction
     } else {
         http_server_->stop();
     }
-    
+
     LOG_INFO("MCP server stopped");
 }
 
@@ -304,76 +299,71 @@ void server::register_notification(const std::string& method, notification_handl
 void server::register_resource(const std::string& path, std::shared_ptr<resource> resource) {
     std::lock_guard<std::mutex> lock(mutex_);
     resources_[path] = resource;
-    
+
     // Register methods for resource access
     if (method_handlers_.find("resources/read") == method_handlers_.end()) {
         method_handlers_["resources/read"] = [this](const json& params, const std::string& session_id) -> json {
             if (!params.contains("uri")) {
                 throw mcp_exception(error_code::invalid_params, "Missing 'uri' parameter");
             }
-            
+
             std::string uri = params["uri"];
             auto it = resources_.find(uri);
             if (it == resources_.end()) {
                 throw mcp_exception(error_code::invalid_params, "Resource not found: " + uri);
             }
-            
+
             json contents = json::array();
             contents.push_back(it->second->read());
-            
-            return json{
-                {"contents", contents}
-            };
+
+            return json{{"contents", contents}};
         };
     }
-    
+
     if (method_handlers_.find("resources/list") == method_handlers_.end()) {
         method_handlers_["resources/list"] = [this](const json& params, const std::string& session_id) -> json {
             json resources = json::array();
-        
+
             for (const auto& [uri, res] : resources_) {
                 resources.push_back(res->get_metadata());
             }
-            
-            json result = {
-                {"resources", resources}
-            };
-            
+
+            json result = {{"resources", resources}};
+
             if (params.contains("cursor")) {
                 result["nextCursor"] = "";
             }
-            
+
             return result;
         };
     }
-    
+
     if (method_handlers_.find("resources/subscribe") == method_handlers_.end()) {
         method_handlers_["resources/subscribe"] = [this](const json& params, const std::string& session_id) -> json {
             if (!params.contains("uri")) {
                 throw mcp_exception(error_code::invalid_params, "Missing 'uri' parameter");
             }
-            
+
             std::string uri = params["uri"];
             auto it = resources_.find(uri);
             if (it == resources_.end()) {
                 throw mcp_exception(error_code::invalid_params, "Resource not found: " + uri);
             }
-            
+
             return json::object();
         };
     }
-    
+
     if (method_handlers_.find("resources/templates/list") == method_handlers_.end()) {
-        method_handlers_["resources/templates/list"] = [this](const json& params, const std::string& session_id) -> json {
-            return json::array();
-        };
+        method_handlers_["resources/templates/list"] =
+            [this](const json& params, const std::string& session_id) -> json { return json::array(); };
     }
 }
 
 void server::register_tool(const tool& tool, tool_handler handler) {
     std::lock_guard<std::mutex> lock(mutex_);
     tools_[tool.name] = std::make_pair(tool, handler);
-    
+
     // Register methods for tool listing and calling
     if (method_handlers_.find("tools/list") == method_handlers_.end()) {
         method_handlers_["tools/list"] = [this](const json& params, const std::string& session_id) -> json {
@@ -384,21 +374,21 @@ void server::register_tool(const tool& tool, tool_handler handler) {
             return json{{"tools", tools_json}};
         };
     }
-    
+
     if (method_handlers_.find("tools/call") == method_handlers_.end()) {
         method_handlers_["tools/call"] = [this](const json& params, const std::string& session_id) -> json {
             if (!params.contains("name")) {
                 throw mcp_exception(error_code::invalid_params, "Missing 'name' parameter");
             }
-            
+
             std::string tool_name = params["name"];
             auto it = tools_.find(tool_name);
             if (it == tools_.end()) {
                 throw mcp_exception(error_code::invalid_params, "Tool not found: " + tool_name);
             }
-            
+
             const mcp::tool& tool_def = it->second.first;
-            
+
             json tool_args = params.contains("arguments") ? params["arguments"] : json::array();
 
             if (tool_args.is_string()) {
@@ -409,9 +399,7 @@ void server::register_tool(const tool& tool, tool_handler handler) {
                 }
             }
 
-            json tool_result = {
-                {"isError", false}
-            };
+            json tool_result = {{"isError", false}};
 
             try {
                 // Check if tool requires confirmation (MCP 2025-03-26 safety)
@@ -419,26 +407,21 @@ void server::register_tool(const tool& tool, tool_handler handler) {
                     if (tool_confirmation_handler_) {
                         bool confirmed = tool_confirmation_handler_(tool_name, tool_args, session_id);
                         if (!confirmed) {
-                            throw mcp_exception(error_code::invalid_request, 
-                                "Tool execution denied: user confirmation required but not granted");
+                            throw mcp_exception(error_code::invalid_request,
+                                                "Tool execution denied: user confirmation required but not granted");
                         }
                     } else {
                         // If no confirmation handler is set but tool requires confirmation, deny execution
                         LOG_WARNING("Tool '", tool_name, "' requires confirmation but no handler is set");
-                        throw mcp_exception(error_code::invalid_request, 
-                            "Tool execution denied: confirmation required but no handler configured");
+                        throw mcp_exception(error_code::invalid_request,
+                                            "Tool execution denied: confirmation required but no handler configured");
                     }
                 }
-                
+
                 tool_result["content"] = it->second.second(tool_args, session_id);
             } catch (const std::exception& e) {
                 tool_result["isError"] = true;
-                tool_result["content"] = json::array({
-                    {
-                        {"type", "text"},
-                        {"text", e.what()}
-                    }
-                });
+                tool_result["content"] = json::array({{{"type", "text"}, {"text", e.what()}}});
             }
 
             return tool_result;
@@ -454,11 +437,11 @@ void server::register_session_cleanup(const std::string& key, session_cleanup_ha
 std::vector<tool> server::get_tools() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<tool> tools;
-    
+
     for (const auto& [name, tool_pair] : tools_) {
         tools.push_back(tool_pair.first);
     }
-    
+
     return tools;
 }
 
@@ -475,19 +458,19 @@ void server::set_cancellation_handler(cancellation_handler handler) {
 void server::handle_sse(const http::request_data& req, http::response_builder& res) {
     std::string session_id = generate_session_id();
     std::string session_uri = msg_endpoint_ + "?session_id=" + session_id;
-    
+
     // Setup SSE response headers
     res.set_header("Content-Type", "text/event-stream");
     res.set_header("Cache-Control", "no-cache");
     res.set_header("Connection", "keep-alive");
     res.set_header("Access-Control-Allow-Origin", "*");
-    
+
     // Create session-specific event dispatcher
     auto session_dispatcher = std::make_shared<event_dispatcher>();
-    
+
     // Initialize activity time
     session_dispatcher->update_activity();
-    
+
     // Add session dispatcher to mapping table
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -495,47 +478,48 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
         // Initialize session to uninitialized lifecycle state
         session_lifecycle_[session_id] = lifecycle_state::uninitialized;
     }
-    
+
     // Create session thread - use jthread with stop_token for cooperative cancellation
     // Capture alive_ for safe access in the thread
     auto alive = alive_;
-    auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri, session_dispatcher](std::stop_token stoken) {
+    auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri,
+                                                  session_dispatcher](std::stop_token stoken) {
         try {
             // Send initial session URI
             if (!interruptible_sleep(stoken, std::chrono::milliseconds(500))) {
                 return;
             }
-            
+
             // Check if server is still alive or stop requested
             if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire)) {
                 return;
             }
-            
+
             std::stringstream ss;
             ss << "event: endpoint\r\ndata: " << session_uri << "\r\n\r\n";
             session_dispatcher->send_event(ss.str());
-            
+
             // Update activity time (after sending message)
             session_dispatcher->update_activity();
-            
+
             // Send periodic heartbeats to detect connection status
             int heartbeat_count = 0;
-            while (!stoken.stop_requested() && 
-                   alive && alive->load(std::memory_order_acquire) && 
-                   running_ && !session_dispatcher->is_closed()) {
+            while (!stoken.stop_requested() && alive && alive->load(std::memory_order_acquire) && running_ &&
+                   !session_dispatcher->is_closed()) {
                 auto heartbeat_sleep = std::chrono::seconds(5) + std::chrono::milliseconds(heartbeat_jitter_ms());
-                if (!interruptible_sleep(stoken, std::chrono::duration_cast<std::chrono::milliseconds>(heartbeat_sleep))) {
+                if (!interruptible_sleep(stoken,
+                                         std::chrono::duration_cast<std::chrono::milliseconds>(heartbeat_sleep))) {
                     break;
                 } // NOTE: DO NOT set it the same as the timeout of wait_event
-                
+
                 if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire) ||
                     session_dispatcher->is_closed() || !running_) {
                     break;
                 }
-                
+
                 std::stringstream heartbeat;
                 heartbeat << "event: heartbeat\r\ndata: " << heartbeat_count++ << "\r\n\r\n";
-                
+
                 try {
                     bool sent = session_dispatcher->send_event(heartbeat.str());
                     if (!sent) {
@@ -544,7 +528,7 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
                         }
                         break;
                     }
-                    
+
                     // Update activity time (heartbeat successful)
                     session_dispatcher->update_activity();
                 } catch (const std::exception& e) {
@@ -559,36 +543,37 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
                 LOG_ERROR("SSE session thread exception: ", session_id, ", ", e.what());
             }
         }
-        
+
         // Only call close_session if server is still alive
         if (alive && alive->load(std::memory_order_acquire)) {
             close_session(session_id);
         }
     });
-    
+
     // Store thread
     {
         std::lock_guard<std::mutex> lock(mutex_);
         sse_threads_[session_id] = std::move(thread);
     }
-    
+
     // Setup chunked content provider - capture alive_ by value (shared_ptr) for safe access
     // Note: 'alive' was already captured above for the SSE thread
-    res.set_chunked_content_provider("text/event-stream", [this, alive, session_id, session_dispatcher](size_t /* offset */, http::streaming_data_sink& sink) {
+    res.set_chunked_content_provider("text/event-stream", [this, alive, session_id, session_dispatcher](
+                                                              size_t /* offset */, http::streaming_data_sink& sink) {
         try {
             // Check if server is still alive before accessing any members
             if (!alive || !alive->load(std::memory_order_acquire)) {
                 return false;
             }
-            
+
             // Check if session is closed - directly get status from dispatcher, reduce lock contention
             if (session_dispatcher->is_closed()) {
                 return false;
             }
-            
+
             // Update activity time (received request)
             session_dispatcher->update_activity();
-            
+
             // Wait for event
             bool result = session_dispatcher->wait_event(&sink);
             if (!result) {
@@ -599,7 +584,7 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
                 }
                 return false;
             }
-            
+
             // Update activity time (successfully received message)
             session_dispatcher->update_activity();
 
@@ -621,13 +606,13 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
     res.set_header("Access-Control-Allow-Origin", "*");
     res.set_header("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.set_header("Access-Control-Allow-Headers", "Content-Type");
-    
+
     // Handle OPTIONS request (CORS pre-flight)
     if (req.method == "OPTIONS") {
         res.set_status(204); // No Content
         return;
     }
-    
+
     // Get session ID
     auto it = req.params.find("session_id");
     std::string session_id = it != req.params.end() ? it->second : "";
@@ -642,12 +627,12 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
                 dispatcher = disp_it->second;
             }
         }
-        
+
         if (dispatcher) {
             dispatcher->update_activity();
         }
     }
-    
+
     // Parse request
     json req_json;
     try {
@@ -658,21 +643,21 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
         res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
         return;
     }
-    
+
     // MCP 2025-06-18: JSON-RPC batching is NOT supported
     // Reject batch requests (arrays) with appropriate error
     if (req_json.is_array()) {
         LOG_ERROR("Batch requests not supported per MCP 2025-06-18 (received array with ", req_json.size(), " items)");
         res.set_status(400);
-        json error_response = response::create_error(
-            nullptr,  // No ID for batch errors
-            error_code::invalid_request,
-            "JSON-RPC batching is not supported in MCP 2025-06-18+. Please send individual requests instead of arrays."
-        ).to_json();
+        json error_response = response::create_error(nullptr, // No ID for batch errors
+                                                     error_code::invalid_request,
+                                                     "JSON-RPC batching is not supported in MCP 2025-06-18+. Please "
+                                                     "send individual requests instead of arrays.")
+                                  .to_json();
         res.set_content(error_response.dump(), "application/json");
         return;
     }
-    
+
     // Handle single request (existing logic)
     // Check if session exists
     std::shared_ptr<event_dispatcher> dispatcher;
@@ -693,7 +678,7 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
         }
         dispatcher = disp_it->second;
     }
-    
+
     // Create request object
     request mcp_req;
     try {
@@ -702,28 +687,23 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
         if (!validate_request_message(req_json, validation_error)) {
             LOG_ERROR("Invalid JSON-RPC request: ", validation_error);
             res.set_status(400);
-            json error_response = response::create_error(
-                req_json.contains("id") ? req_json["id"] : nullptr,
-                error_code::invalid_request,
-                validation_error
-            ).to_json();
+            json error_response = response::create_error(req_json.contains("id") ? req_json["id"] : nullptr,
+                                                         error_code::invalid_request, validation_error)
+                                      .to_json();
             res.set_content(error_response.dump(), "application/json");
             return;
         }
-        
+
         mcp_req.jsonrpc = req_json["jsonrpc"].get<std::string>();
         if (req_json.contains("id") && !req_json["id"].is_null()) {
             mcp_req.id = req_json["id"];
-            
+
             // Check for duplicate request ID
             if (!request_id_tracker_.add_request_id(session_id, mcp_req.id)) {
                 LOG_ERROR("Duplicate request ID: ", mcp_req.id.dump());
                 res.set_status(400);
-                json error_response = response::create_error(
-                    mcp_req.id,
-                    error_code::invalid_request,
-                    "Duplicate request ID"
-                ).to_json();
+                json error_response =
+                    response::create_error(mcp_req.id, error_code::invalid_request, "Duplicate request ID").to_json();
                 res.set_content(error_response.dump(), "application/json");
                 return;
             }
@@ -738,40 +718,38 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
         res.set_content("{\"error\":\"Invalid request format\"}", "application/json");
         return;
     }
-    
+
     // If it is a notification (no ID), process it directly and return 202 status code
     if (mcp_req.is_notification()) {
         // Process it asynchronously in the thread pool
-        thread_pool_.enqueue([this, mcp_req, session_id]() {
-            process_request(mcp_req, session_id);
-        });
-        
+        thread_pool_.enqueue([this, mcp_req, session_id]() { process_request(mcp_req, session_id); });
+
         // Return 202 Accepted
         res.set_status(202);
         res.set_content("Accepted", "text/plain");
         return;
     }
-    
+
     // For requests with ID, process it asynchronously in the thread pool and return the result via SSE
     thread_pool_.enqueue([this, mcp_req, session_id, dispatcher]() {
         // Process the request
         json response_json = process_request(mcp_req, session_id);
-        
+
         // Remove request ID from tracker after processing
         if (!mcp_req.is_notification()) {
             request_id_tracker_.remove_request_id(session_id, mcp_req.id);
         }
-        
+
         // Send response via SSE
         std::stringstream ss;
         ss << "event: message\r\ndata: " << response_json.dump() << "\r\n\r\n";
         bool result = dispatcher->send_event(ss.str());
-        
+
         if (!result) {
             LOG_ERROR("Failed to send response via SSE: session_id=", session_id);
         }
     });
-    
+
     // Return 202 Accepted
     res.set_status(202);
     res.set_content("Accepted", "text/plain");
@@ -782,15 +760,13 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
     if (batch_json.empty()) {
         LOG_ERROR("Received empty batch array");
         res.set_status(400);
-        json error_response = response::create_error(
-            nullptr,
-            error_code::invalid_request,
-            "Invalid Request: batch cannot be empty"
-        ).to_json();
+        json error_response = response::create_error(nullptr, error_code::invalid_request,
+                                                     "Invalid Request: batch cannot be empty")
+                                  .to_json();
         res.set_content(error_response.dump(), "application/json");
         return;
     }
-    
+
     // Check if session exists (required for batch processing)
     std::shared_ptr<event_dispatcher> dispatcher;
     {
@@ -804,16 +780,16 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
         }
         dispatcher = disp_it->second;
     }
-    
+
     // Parse all batch items
     std::vector<request> requests;
     std::vector<size_t> request_indices; // Track which items are requests (not notifications)
     bool has_requests = false;
     bool parse_error = false;
-    
+
     for (size_t i = 0; i < batch_json.size(); ++i) {
         const auto& item = batch_json[i];
-        
+
         try {
             // Validate each batch item
             std::string validation_error;
@@ -822,13 +798,13 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
                 parse_error = true;
                 break;
             }
-            
+
             request mcp_req;
             mcp_req.jsonrpc = item["jsonrpc"].get<std::string>();
-            
+
             if (item.contains("id") && !item["id"].is_null()) {
                 mcp_req.id = item["id"];
-                
+
                 // Check for duplicate request ID
                 if (!request_id_tracker_.add_request_id(session_id, mcp_req.id)) {
                     LOG_ERROR("Duplicate request ID in batch: ", mcp_req.id.dump());
@@ -836,15 +812,15 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
                     break;
                 }
             }
-            
+
             mcp_req.method = item["method"].get<std::string>();
-            
+
             if (item.contains("params")) {
                 mcp_req.params = item["params"];
             }
-            
+
             requests.push_back(mcp_req);
-            
+
             // Track if this is a request (not a notification)
             if (!mcp_req.is_notification()) {
                 request_indices.push_back(i);
@@ -856,47 +832,43 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
             break;
         }
     }
-    
+
     // If there was a parse error, return error response
     if (parse_error) {
         res.set_status(400);
-        json error_response = response::create_error(
-            nullptr,
-            error_code::invalid_request,
-            "Invalid Request: malformed batch item"
-        ).to_json();
+        json error_response = response::create_error(nullptr, error_code::invalid_request,
+                                                     "Invalid Request: malformed batch item")
+                                  .to_json();
         res.set_content(error_response.dump(), "application/json");
         return;
     }
-    
+
     // If batch contains only notifications, process them and return 202
     if (!has_requests) {
         LOG_INFO("Processing notification-only batch with ", requests.size(), " items");
-        
+
         // Process all notifications asynchronously
         for (const auto& mcp_req : requests) {
-            thread_pool_.enqueue([this, mcp_req, session_id]() {
-                process_request(mcp_req, session_id);
-            });
+            thread_pool_.enqueue([this, mcp_req, session_id]() { process_request(mcp_req, session_id); });
         }
-        
+
         // Return 202 Accepted for notification-only batch
         res.set_status(202);
         res.set_content("Accepted", "text/plain");
         return;
     }
-    
+
     // Process batch with requests: process all and collect responses
     LOG_INFO("Processing batch with ", requests.size(), " items (", request_indices.size(), " requests)");
-    
+
     // Process all items asynchronously and send batch response via SSE
     thread_pool_.enqueue([this, requests, request_indices, session_id, dispatcher]() {
         json batch_response = json::array();
-        
+
         // Process each request
         for (size_t i = 0; i < requests.size(); ++i) {
             const auto& mcp_req = requests[i];
-            
+
             if (mcp_req.is_notification()) {
                 // Process notification without response
                 process_request(mcp_req, session_id);
@@ -904,22 +876,22 @@ void server::handle_batch_jsonrpc(const json& batch_json, const std::string& ses
                 // Process request and collect response
                 json response_json = process_request(mcp_req, session_id);
                 batch_response.push_back(response_json);
-                
+
                 // Remove request ID from tracker after processing (only for non-notifications)
                 request_id_tracker_.remove_request_id(session_id, mcp_req.id);
             }
         }
-        
+
         // Send batch response via SSE
         std::stringstream ss;
         ss << "event: message\r\ndata: " << batch_response.dump() << "\r\n\r\n";
         bool result = dispatcher->send_event(ss.str());
-        
+
         if (!result) {
             LOG_ERROR("Failed to send batch response via SSE: session_id=", session_id);
         }
     });
-    
+
     // Return 202 Accepted
     res.set_status(202);
     res.set_content("Accepted", "text/plain");
@@ -944,18 +916,18 @@ void server::handle_mcp(const http::request_data& req, http::response_builder& r
 void server::handle_mcp_get(const http::request_data& req, http::response_builder& res) {
     // GET request establishes SSE connection for receiving responses
     // This is the same as the legacy /sse endpoint but with Mcp-Session-Id header support
-    
+
     // Extract session ID from header (if client wants to reconnect to existing session)
     std::string session_id = extract_session_id(req);
-    
+
     // If no session ID provided, generate a new one
     if (session_id.empty()) {
         session_id = generate_session_id();
     }
-    
+
     // Set session ID in response header
     set_session_id_header(res, session_id);
-    
+
     // Check if session already exists (reconnection scenario)
     bool is_new_session = false;
     {
@@ -965,15 +937,15 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
             is_new_session = true;
         }
     }
-    
+
     // For new sessions, use the MCP endpoint for messages
     std::string session_uri = mcp_endpoint_ + "?session_id=" + session_id;
-    
+
     // Setup SSE response headers
     res.set_header("Content-Type", "text/event-stream");
     res.set_header("Cache-Control", "no-cache");
     res.set_header("Connection", "keep-alive");
-    
+
     // Set CORS headers based on Origin validation (MCP 2025-03-26 security)
     auto origin = req.get_header("Origin");
     if (origin && is_origin_allowed(*origin)) {
@@ -984,14 +956,14 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
         res.set_header("Access-Control-Allow-Origin", "*");
     }
     res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
-    
+
     // Create or retrieve session-specific event dispatcher
     std::shared_ptr<event_dispatcher> session_dispatcher;
-    
+
     if (is_new_session) {
         session_dispatcher = std::make_shared<event_dispatcher>();
         session_dispatcher->update_activity();
-        
+
         // Add session dispatcher to mapping table
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -999,49 +971,51 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
             // Initialize session to uninitialized lifecycle state
             session_lifecycle_[session_id] = lifecycle_state::uninitialized;
         }
-        
+
         // Create session thread for heartbeats - use jthread for automatic joining
         auto alive = alive_;
-        auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri, session_dispatcher](std::stop_token stoken) {
+        auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri,
+                                                      session_dispatcher](std::stop_token stoken) {
             try {
                 // Send initial session endpoint
                 if (!interruptible_sleep(stoken, std::chrono::milliseconds(500))) {
                     return;
                 }
-                
+
                 // Check if server is still alive or stop requested
                 if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire)) {
                     return;
                 }
-                
+
                 std::stringstream ss;
                 ss << "event: endpoint\r\ndata: " << session_uri << "\r\n\r\n";
                 session_dispatcher->send_event(ss.str());
                 session_dispatcher->update_activity();
-                
+
                 // Send periodic heartbeats
                 int heartbeat_count = 0;
-                while (!stoken.stop_requested() &&
-                       alive && alive->load(std::memory_order_acquire) && 
-                       running_ && !session_dispatcher->is_closed()) {
+                while (!stoken.stop_requested() && alive && alive->load(std::memory_order_acquire) && running_ &&
+                       !session_dispatcher->is_closed()) {
                     auto heartbeat_sleep = std::chrono::seconds(5) + std::chrono::milliseconds(heartbeat_jitter_ms());
-                    if (!interruptible_sleep(stoken, std::chrono::duration_cast<std::chrono::milliseconds>(heartbeat_sleep))) {
+                    if (!interruptible_sleep(stoken,
+                                             std::chrono::duration_cast<std::chrono::milliseconds>(heartbeat_sleep))) {
                         break;
                     }
-                    
+
                     if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire) ||
                         session_dispatcher->is_closed() || !running_) {
                         break;
                     }
-                    
+
                     std::stringstream heartbeat;
                     heartbeat << "event: heartbeat\r\ndata: " << heartbeat_count++ << "\r\n\r\n";
-                    
+
                     try {
                         bool sent = session_dispatcher->send_event(heartbeat.str());
                         if (!sent) {
                             if (alive && alive->load(std::memory_order_acquire)) {
-                                LOG_WARNING("Failed to send heartbeat, client may have closed connection: ", session_id);
+                                LOG_WARNING("Failed to send heartbeat, client may have closed connection: ",
+                                            session_id);
                             }
                             break;
                         }
@@ -1058,13 +1032,13 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
                     LOG_ERROR("SSE session thread exception: ", session_id, ", ", e.what());
                 }
             }
-            
+
             // Only call close_session if server is still alive
             if (alive && alive->load(std::memory_order_acquire)) {
                 close_session(session_id);
             }
         });
-        
+
         // Store thread
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -1083,22 +1057,23 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
             return;
         }
     }
-    
+
     // Setup chunked content provider for SSE - capture alive_ for safe access
     auto alive = alive_;
-    res.set_chunked_content_provider("text/event-stream", [this, alive, session_id, session_dispatcher](size_t /* offset */, http::streaming_data_sink& sink) {
+    res.set_chunked_content_provider("text/event-stream", [this, alive, session_id, session_dispatcher](
+                                                              size_t /* offset */, http::streaming_data_sink& sink) {
         try {
             // Check if server is still alive before accessing any members
             if (!alive || !alive->load(std::memory_order_acquire)) {
                 return false;
             }
-            
+
             if (session_dispatcher->is_closed()) {
                 return false;
             }
-            
+
             session_dispatcher->update_activity();
-            
+
             bool result = session_dispatcher->wait_event(&sink);
             if (!result) {
                 if (alive && alive->load(std::memory_order_acquire)) {
@@ -1107,7 +1082,7 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
                 }
                 return false;
             }
-            
+
             session_dispatcher->update_activity();
             return true;
         } catch (const std::exception& e) {
@@ -1123,7 +1098,7 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
 void server::handle_mcp_post(const http::request_data& req, http::response_builder& res) {
     // POST request sends JSON-RPC messages (requests or notifications)
     // This is similar to the legacy /message endpoint but with enhanced header support
-    
+
     // Validate Origin header for DNS rebinding mitigation (MCP 2025-03-26 security)
     if (should_validate_origin(req)) {
         auto origin = req.get_header("Origin");
@@ -1137,7 +1112,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
             }
         }
     }
-    
+
     // Setup response headers
     // Set CORS headers based on Origin validation
     auto origin = req.get_header("Origin");
@@ -1150,35 +1125,37 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
     res.set_header("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept");
     res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
-    
+
     // Handle OPTIONS request (CORS pre-flight)
     if (req.method == "OPTIONS") {
         res.set_status(204); // No Content
         return;
     }
-    
+
     // Validate Accept header per MCP 2025-03-26 Streamable HTTP specification
     // The Accept header should include application/json and/or text/event-stream
     auto accept = req.get_header("Accept");
     if (accept) {
         // Check if Accept header includes supported types
-        bool accepts_json = accept->find("application/json") != std::string::npos || 
+        bool accepts_json = accept->find("application/json") != std::string::npos ||
+                            accept->find("*/*") != std::string::npos;
+        bool accepts_sse = accept->find("text/event-stream") != std::string::npos ||
                            accept->find("*/*") != std::string::npos;
-        bool accepts_sse = accept->find("text/event-stream") != std::string::npos || 
-                          accept->find("*/*") != std::string::npos;
-        
+
         if (!accepts_json && !accepts_sse) {
             LOG_WARNING("POST /mcp received unsupported Accept header: ", *accept);
             res.set_status(406); // Not Acceptable
             res.set_header("Content-Type", "application/json");
-            res.set_content("{\"error\":\"Not Acceptable. Accept header must include application/json or text/event-stream\"}", "application/json");
+            res.set_content(
+                "{\"error\":\"Not Acceptable. Accept header must include application/json or text/event-stream\"}",
+                "application/json");
             return;
         }
     }
-    
+
     // Extract session ID from header or query parameter
     std::string session_id = extract_session_id(req);
-    
+
     // Update session activity time
     if (!session_id.empty()) {
         std::shared_ptr<event_dispatcher> dispatcher;
@@ -1189,12 +1166,12 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
                 dispatcher = disp_it->second;
             }
         }
-        
+
         if (dispatcher) {
             dispatcher->update_activity();
         }
     }
-    
+
     // Parse request
     json req_json;
     try {
@@ -1206,22 +1183,22 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
         res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
         return;
     }
-    
+
     // MCP 2025-06-18: JSON-RPC batching is NOT supported
     // Reject batch requests (arrays) with appropriate error
     if (req_json.is_array()) {
         LOG_ERROR("Batch requests not supported per MCP 2025-06-18 (received array with ", req_json.size(), " items)");
         res.set_status(400);
         res.set_header("Content-Type", "application/json");
-        json error_response = response::create_error(
-            nullptr,  // No ID for batch errors
-            error_code::invalid_request,
-            "JSON-RPC batching is not supported in MCP 2025-06-18+. Please send individual requests instead of arrays."
-        ).to_json();
+        json error_response = response::create_error(nullptr, // No ID for batch errors
+                                                     error_code::invalid_request,
+                                                     "JSON-RPC batching is not supported in MCP 2025-06-18+. Please "
+                                                     "send individual requests instead of arrays.")
+                                  .to_json();
         res.set_content(error_response.dump(), "application/json");
         return;
     }
-    
+
     // Handle single request
     // Check if session exists (or if this is a ping request)
     std::shared_ptr<event_dispatcher> dispatcher;
@@ -1236,7 +1213,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
                 res.set_content("Accepted", "text/plain");
                 return;
             }
-            
+
             // Session not found - return 404
             LOG_ERROR("Session not found: ", session_id);
             res.set_status(404);
@@ -1246,10 +1223,10 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
         }
         dispatcher = disp_it->second;
     }
-    
+
     // Set session ID in response
     set_session_id_header(res, session_id);
-    
+
     // Create request object
     request mcp_req;
     try {
@@ -1259,29 +1236,24 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
             LOG_ERROR("Invalid JSON-RPC request: ", validation_error);
             res.set_status(400);
             res.set_header("Content-Type", "application/json");
-            json error_response = response::create_error(
-                req_json.contains("id") ? req_json["id"] : nullptr,
-                error_code::invalid_request,
-                validation_error
-            ).to_json();
+            json error_response = response::create_error(req_json.contains("id") ? req_json["id"] : nullptr,
+                                                         error_code::invalid_request, validation_error)
+                                      .to_json();
             res.set_content(error_response.dump(), "application/json");
             return;
         }
-        
+
         mcp_req.jsonrpc = req_json["jsonrpc"].get<std::string>();
         if (req_json.contains("id") && !req_json["id"].is_null()) {
             mcp_req.id = req_json["id"];
-            
+
             // Check for duplicate request ID
             if (!request_id_tracker_.add_request_id(session_id, mcp_req.id)) {
                 LOG_ERROR("Duplicate request ID: ", mcp_req.id.dump());
                 res.set_status(400);
                 res.set_header("Content-Type", "application/json");
-                json error_response = response::create_error(
-                    mcp_req.id,
-                    error_code::invalid_request,
-                    "Duplicate request ID"
-                ).to_json();
+                json error_response =
+                    response::create_error(mcp_req.id, error_code::invalid_request, "Duplicate request ID").to_json();
                 res.set_content(error_response.dump(), "application/json");
                 return;
             }
@@ -1297,7 +1269,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
         res.set_content("{\"error\":\"Invalid request\"}", "application/json");
         return;
     }
-    
+
     // Check if this is a notification (no ID)
     if (mcp_req.is_notification()) {
         // Process notification asynchronously
@@ -1308,53 +1280,53 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
                 LOG_ERROR("Exception processing notification: ", e.what());
             }
         });
-        
+
         // Return 202 Accepted for notifications
         res.set_status(202);
         res.set_header("Content-Type", "text/plain");
         res.set_content("Accepted", "text/plain");
         return;
     }
-    
+
     // Process request asynchronously and send response via SSE
     thread_pool_.enqueue([this, mcp_req, session_id, dispatcher]() {
         try {
             json result = this->process_request(mcp_req, session_id);
-            
+
             // Remove request ID from tracker
             if (!mcp_req.is_notification()) {
                 request_id_tracker_.remove_request_id(session_id, mcp_req.id);
             }
-            
+
             // Send response via SSE
             std::stringstream ss;
             ss << "event: message\r\ndata: " << result.dump() << "\r\n\r\n";
             bool send_result = dispatcher->send_event(ss.str());
-            
+
             if (!send_result) {
-                LOG_ERROR("Failed to send response via SSE: session_id=", session_id, ", request_id=", mcp_req.id.dump());
+                LOG_ERROR("Failed to send response via SSE: session_id=", session_id,
+                          ", request_id=", mcp_req.id.dump());
             }
         } catch (const std::exception& e) {
             LOG_ERROR("Exception processing request: ", e.what());
-            
+
             // Remove request ID from tracker on error
             if (!mcp_req.is_notification()) {
                 request_id_tracker_.remove_request_id(session_id, mcp_req.id);
             }
-            
+
             // Send error response
-            json error_response = response::create_error(
-                mcp_req.is_notification() ? nullptr : mcp_req.id,
-                error_code::internal_error,
-                std::string("Internal error: ") + e.what()
-            ).to_json();
-            
+            json error_response = response::create_error(mcp_req.is_notification() ? nullptr : mcp_req.id,
+                                                         error_code::internal_error,
+                                                         std::string("Internal error: ") + e.what())
+                                      .to_json();
+
             std::stringstream ss;
             ss << "event: message\r\ndata: " << error_response.dump() << "\r\n\r\n";
             dispatcher->send_event(ss.str());
         }
     });
-    
+
     // Return 202 Accepted (response will be sent via SSE)
     res.set_status(202);
     res.set_header("Content-Type", "text/plain");
@@ -1363,7 +1335,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
 
 void server::handle_mcp_delete(const http::request_data& req, http::response_builder& res) {
     // DELETE request terminates a session
-    
+
     // Validate Origin header for DNS rebinding mitigation (MCP 2025-03-26 security)
     if (should_validate_origin(req)) {
         auto origin = req.get_header("Origin");
@@ -1377,7 +1349,7 @@ void server::handle_mcp_delete(const http::request_data& req, http::response_bui
             }
         }
     }
-    
+
     // Setup response headers
     // Set CORS headers based on Origin validation
     auto origin = req.get_header("Origin");
@@ -1388,10 +1360,10 @@ void server::handle_mcp_delete(const http::request_data& req, http::response_bui
         res.set_header("Access-Control-Allow-Origin", "*");
     }
     res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
-    
+
     // Extract session ID from header or query parameter
     std::string session_id = extract_session_id(req);
-    
+
     if (session_id.empty()) {
         // No session ID provided
         res.set_status(400);
@@ -1399,7 +1371,7 @@ void server::handle_mcp_delete(const http::request_data& req, http::response_bui
         res.set_content("{\"error\":\"Session ID required\"}", "application/json");
         return;
     }
-    
+
     // Check if session exists
     bool session_exists = false;
     {
@@ -1409,7 +1381,7 @@ void server::handle_mcp_delete(const http::request_data& req, http::response_bui
             session_exists = true;
         }
     }
-    
+
     if (!session_exists) {
         // Session not found
         res.set_status(404);
@@ -1417,13 +1389,13 @@ void server::handle_mcp_delete(const http::request_data& req, http::response_bui
         res.set_content("{\"error\":\"Session not found\"}", "application/json");
         return;
     }
-    
+
     // Set session ID in response
     set_session_id_header(res, session_id);
-    
+
     // Close the session
     close_session(session_id);
-    
+
     // Return 204 No Content on success
     res.set_status(204);
 }
@@ -1444,20 +1416,20 @@ json server::process_request(const request& req, const std::string& session_id) 
             // Handle cancellation notification per MCP 2025-03-26
             if (req.params.contains("requestId")) {
                 json request_id = req.params["requestId"];
-                std::string reason = req.params.contains("reason") && req.params["reason"].is_string() 
-                    ? req.params["reason"].get<std::string>() 
-                    : "No reason provided";
-                
-                LOG_INFO("Received cancellation notification for request: ", request_id.dump(), 
-                         ", reason: ", reason, ", session: ", session_id);
-                
+                std::string reason = req.params.contains("reason") && req.params["reason"].is_string()
+                                         ? req.params["reason"].get<std::string>()
+                                         : "No reason provided";
+
+                LOG_INFO("Received cancellation notification for request: ", request_id.dump(), ", reason: ", reason,
+                         ", session: ", session_id);
+
                 // Call cancellation handler if registered
                 cancellation_handler handler;
                 {
                     std::lock_guard<std::mutex> lock(mutex_);
                     handler = cancellation_handler_;
                 }
-                
+
                 if (handler) {
                     try {
                         handler(request_id, reason, session_id);
@@ -1468,7 +1440,8 @@ json server::process_request(const request& req, const std::string& session_id) 
                     }
                 }
             } else {
-                LOG_WARNING("Received malformed cancellation notification (missing requestId) for session: ", session_id);
+                LOG_WARNING("Received malformed cancellation notification (missing requestId) for session: ",
+                            session_id);
             }
         }
         // Handle other notifications registered via register_notification
@@ -1481,7 +1454,7 @@ json server::process_request(const request& req, const std::string& session_id) 
                     handler = it->second;
                 }
             }
-            
+
             if (handler) {
                 try {
                     handler(req.params, session_id);
@@ -1494,24 +1467,22 @@ json server::process_request(const request& req, const std::string& session_id) 
         }
         return json::object();
     }
-    
+
     // Process method call
     try {
         LOG_INFO("Processing method call: ", req.method);
-        
+
         // Get current lifecycle state
         auto current_state = get_session_lifecycle_state(session_id);
-        
+
         // Enforce lifecycle rules per MCP 2025-03-26
         if (req.method == "initialize") {
             // Initialize can only be sent when uninitialized
             if (current_state != lifecycle_state::uninitialized) {
                 LOG_ERROR("Initialize request received in invalid state: ", session_id);
-                return response::create_error(
-                    req.id,
-                    error_code::invalid_request,
-                    "Initialize already called for this session"
-                ).to_json();
+                return response::create_error(req.id, error_code::invalid_request,
+                                              "Initialize already called for this session")
+                    .to_json();
             }
             return handle_initialize(req, session_id);
         } else if (req.method == "ping") {
@@ -1522,13 +1493,11 @@ json server::process_request(const request& req, const std::string& session_id) 
         // All other requests require ready state (after initialized notification)
         if (current_state != lifecycle_state::ready) {
             LOG_WARNING("Request received before session ready: ", session_id, ", method: ", req.method);
-            return response::create_error(
-                req.id,
-                error_code::invalid_request,
-                "Session not ready - initialize handshake not complete"
-            ).to_json();
+            return response::create_error(req.id, error_code::invalid_request,
+                                          "Session not ready - initialize handshake not complete")
+                .to_json();
         }
-        
+
         // Find registered method handler
         method_handler handler;
         {
@@ -1538,48 +1507,34 @@ json server::process_request(const request& req, const std::string& session_id) 
                 handler = it->second;
             }
         }
-        
+
         if (handler) {
             // Call handler
-            LOG_INFO("Calling method handler: ", req.method);            
+            LOG_INFO("Calling method handler: ", req.method);
             json result = handler(req.params, session_id);
-            
+
             // Create success response
             LOG_INFO("Method call successful: ", req.method);
             return response::create_success(req.id, result).to_json();
         }
-        
+
         // Method not found
         LOG_WARNING("Method not found: ", req.method);
-        return response::create_error(
-            req.id,
-            error_code::method_not_found,
-            "Method not found: " + req.method
-        ).to_json();
+        return response::create_error(req.id, error_code::method_not_found, "Method not found: " + req.method)
+            .to_json();
     } catch (const mcp_exception& e) {
         // MCP exception
         LOG_ERROR("MCP exception: ", e.what(), ", code: ", static_cast<int>(e.code()));
-        return response::create_error(
-            req.id,
-            e.code(),
-            e.what()
-        ).to_json();
+        return response::create_error(req.id, e.code(), e.what()).to_json();
     } catch (const std::exception& e) {
         // Other exceptions
         LOG_ERROR("Exception while processing request: ", e.what());
-        return response::create_error(
-            req.id,
-            error_code::internal_error,
-            "Internal error: " + std::string(e.what())
-        ).to_json();
+        return response::create_error(req.id, error_code::internal_error, "Internal error: " + std::string(e.what()))
+            .to_json();
     } catch (...) {
         // Unknown exception
         LOG_ERROR("Unknown exception while processing request");
-        return response::create_error(
-            req.id,
-            error_code::internal_error,
-            "Unknown internal error"
-        ).to_json();
+        return response::create_error(req.id, error_code::internal_error, "Unknown internal error").to_json();
     }
 }
 
@@ -1589,11 +1544,9 @@ json server::handle_initialize(const request& req, const std::string& session_id
     // Version negotiation
     if (!params.contains("protocolVersion") || !params["protocolVersion"].is_string()) {
         LOG_ERROR("Missing or invalid protocolVersion parameter");
-        return response::create_error(
-            req.id, 
-            error_code::invalid_params, 
-            "Expected string for 'protocolVersion' parameter"
-        ).to_json();
+        return response::create_error(req.id, error_code::invalid_params,
+                                      "Expected string for 'protocolVersion' parameter")
+            .to_json();
     }
 
     std::string requested_version = params["protocolVersion"].get<std::string>();
@@ -1601,21 +1554,15 @@ json server::handle_initialize(const request& req, const std::string& session_id
 
     if (requested_version != MCP_VERSION) {
         LOG_ERROR("Unsupported protocol version: ", requested_version, ", server supports: ", MCP_VERSION);
-        return response::create_error(
-            req.id, 
-            error_code::invalid_params, 
-            "Unsupported protocol version",
-            {
-                {"supported", {MCP_VERSION}},
-                {"requested", params["protocolVersion"]}
-            }
-        ).to_json();
+        return response::create_error(req.id, error_code::invalid_params, "Unsupported protocol version",
+                                      {{"supported", {MCP_VERSION}}, {"requested", params["protocolVersion"]}})
+            .to_json();
     }
 
     // Extract client info
     std::string client_name = "UnknownClient";
     std::string client_version = "UnknownVersion";
-    
+
     if (params.contains("clientInfo")) {
         if (params["clientInfo"].contains("name")) {
             client_name = params["clientInfo"]["name"];
@@ -1624,35 +1571,28 @@ json server::handle_initialize(const request& req, const std::string& session_id
             client_version = params["clientInfo"]["version"];
         }
     }
-    
+
     // Log connection
     LOG_INFO("Client connected: ", client_name, " ", client_version);
-    
+
     // Store client capabilities for this session
     if (params.contains("capabilities")) {
         std::lock_guard<std::mutex> lock(mutex_);
         session_client_capabilities_[session_id] = params["capabilities"];
         LOG_INFO("Stored client capabilities for session: ", session_id);
     }
-    
+
     // Transition session to initializing state
     set_session_lifecycle_state(session_id, lifecycle_state::initializing);
     LOG_INFO("Session ", session_id, " transitioned to initializing state");
-    
-    // Return server info and capabilities
-    json server_info = {
-        {"name", name_},
-        {"version", version_}
-    };
 
-    json result = {
-        {"protocolVersion", MCP_VERSION},
-        {"capabilities", capabilities_},
-        {"serverInfo", server_info}
-    };
+    // Return server info and capabilities
+    json server_info = {{"name", name_}, {"version", version_}};
+
+    json result = {{"protocolVersion", MCP_VERSION}, {"capabilities", capabilities_}, {"serverInfo", server_info}};
 
     LOG_INFO("Initialization successful, waiting for notifications/initialized notification");
-    
+
     return response::create_success(req.id, result).to_json();
 }
 
@@ -1674,18 +1614,18 @@ void server::send_jsonrpc(const std::string& session_id, const json& message) {
         }
         dispatcher = it->second;
     }
-    
+
     // Confirm dispatcher is still valid
     if (!dispatcher || dispatcher->is_closed()) {
         LOG_WARNING("Cannot send to closed session: ", session_id);
         return;
     }
-    
+
     // Send message
     std::stringstream ss;
     ss << "event: message\r\ndata: " << message.dump() << "\r\n\r\n";
     bool result = dispatcher->send_event(ss.str());
-    
+
     if (!result) {
         LOG_ERROR("Failed to send message to session: ", session_id);
     }
@@ -1706,7 +1646,7 @@ lifecycle_state server::get_session_lifecycle_state(const std::string& session_i
     if (session_id.empty()) {
         return lifecycle_state::uninitialized;
     }
-    
+
     try {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = session_lifecycle_.find(session_id);
@@ -1726,7 +1666,7 @@ void server::set_session_lifecycle_state(const std::string& session_id, lifecycl
         LOG_WARNING("Cannot set lifecycle state for empty session_id");
         return;
     }
-    
+
     try {
         std::lock_guard<std::mutex> lock(mutex_);
         // Check if session still exists
@@ -1760,35 +1700,35 @@ std::string server::generate_session_id() const {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, 15);
-    
+
     std::stringstream ss;
     ss << std::hex;
-    
+
     // UUID format: 8-4-4-4-12 hexadecimal digits
     for (int i = 0; i < 8; ++i) {
         ss << dis(gen);
     }
     ss << "-";
-    
+
     for (int i = 0; i < 4; ++i) {
         ss << dis(gen);
     }
     ss << "-";
-    
+
     for (int i = 0; i < 4; ++i) {
         ss << dis(gen);
     }
     ss << "-";
-    
+
     for (int i = 0; i < 4; ++i) {
         ss << dis(gen);
     }
     ss << "-";
-    
+
     for (int i = 0; i < 12; ++i) {
         ss << dis(gen);
     }
-    
+
     return ss.str();
 }
 
@@ -1798,13 +1738,13 @@ std::string server::extract_session_id(const http::request_data& req) const {
     if (header && !header->empty()) {
         return *header;
     }
-    
+
     // Fallback to query parameter for backward compatibility
     auto param_it = req.params.find("session_id");
     if (param_it != req.params.end() && !param_it->second.empty()) {
         return param_it->second;
     }
-    
+
     return "";
 }
 
@@ -1815,13 +1755,14 @@ void server::set_session_id_header(http::response_builder& res, const std::strin
 }
 
 void server::check_inactive_sessions() {
-    if (!running_) return;
-    
+    if (!running_)
+        return;
+
     const auto now = std::chrono::steady_clock::now();
     const auto timeout = std::chrono::minutes(60); // 1 hour inactive then close
-    
+
     std::vector<std::string> sessions_to_close;
-    
+
     {
         std::lock_guard<std::mutex> lock(mutex_);
         for (const auto& [session_id, dispatcher] : session_dispatchers_) {
@@ -1831,11 +1772,11 @@ void server::check_inactive_sessions() {
             }
         }
     }
-    
+
     // Close inactive sessions
     for (const auto& session_id : sessions_to_close) {
         LOG_INFO("Closing inactive session: ", session_id);
-        
+
         close_session(session_id);
     }
 }
@@ -1863,9 +1804,8 @@ void server::clear_session_state(const std::string& session_id) {
     session_state_.erase(session_id);
 }
 
-
 void server::close_session(const std::string& session_id) {
-     // Clean up resources safely
+    // Clean up resources safely
     try {
         LOG_INFO("close_session begin: ", session_id);
         for (const auto& [key, handler] : session_cleanup_handler_) {
@@ -1875,38 +1815,38 @@ void server::close_session(const std::string& session_id) {
         // Copy resources to be processed
         std::shared_ptr<event_dispatcher> dispatcher_to_close;
         std::unique_ptr<std::jthread> thread_to_release;
-        
+
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            
+
             // Get dispatcher pointer
             auto dispatcher_it = session_dispatchers_.find(session_id);
             if (dispatcher_it != session_dispatchers_.end()) {
                 dispatcher_to_close = dispatcher_it->second;
                 session_dispatchers_.erase(dispatcher_it);
             }
-            
+
             // Get thread pointer
             auto thread_it = sse_threads_.find(session_id);
             if (thread_it != sse_threads_.end()) {
                 thread_to_release = std::move(thread_it->second);
                 sse_threads_.erase(thread_it);
             }
-            
+
             // Clean up lifecycle state, client capabilities, and session state
             session_lifecycle_.erase(session_id);
             session_client_capabilities_.erase(session_id);
             session_state_.erase(session_id);
         }
-        
+
         // Clear request IDs for this session
         request_id_tracker_.clear_session(session_id);
-        
+
         // Close dispatcher outside the lock
         if (dispatcher_to_close && !dispatcher_to_close->is_closed()) {
             dispatcher_to_close->close();
         }
-        
+
         // Release thread resources
         // NOTE: Don't try to join if called from the same thread (would cause deadlock)
         if (thread_to_release) {
@@ -1922,7 +1862,7 @@ void server::close_session(const std::string& session_id) {
                 LOG_INFO("close_session joining thread for: ", session_id);
                 // Safe to request stop and join
                 thread_to_release->request_stop();
-                thread_to_release.reset();  // jthread joins automatically
+                thread_to_release.reset(); // jthread joins automatically
             }
         }
         LOG_INFO("close_session end: ", session_id);
@@ -1940,44 +1880,42 @@ bool server::is_origin_allowed(const std::string& origin) const {
     if (origin.empty()) {
         return false;
     }
-    
+
     // If allowed_origins is empty, allow all origins (not recommended for production)
     if (allowed_origins_.empty()) {
         return true;
     }
-    
+
     // Check if the origin matches any allowed origin
     for (const auto& allowed : allowed_origins_) {
         if (origin == allowed) {
             return true;
         }
-        
+
         // Also check with port variations for localhost
         // e.g., "http://localhost:8080" should match "http://localhost"
-        if (allowed.find("localhost") != std::string::npos || 
-            allowed.find("127.0.0.1") != std::string::npos) {
-            
+        if (allowed.find("localhost") != std::string::npos || allowed.find("127.0.0.1") != std::string::npos) {
             // Extract scheme and host from allowed origin
             size_t scheme_end = allowed.find("://");
             if (scheme_end != std::string::npos) {
                 std::string allowed_scheme = allowed.substr(0, scheme_end);
                 std::string allowed_rest = allowed.substr(scheme_end + 3);
-                
+
                 // Extract scheme from request origin
                 size_t origin_scheme_end = origin.find("://");
                 if (origin_scheme_end != std::string::npos) {
                     std::string origin_scheme = origin.substr(0, origin_scheme_end);
                     std::string origin_rest = origin.substr(origin_scheme_end + 3);
-                    
+
                     // Match scheme
                     if (origin_scheme == allowed_scheme) {
                         // Check if origin starts with allowed host (ignoring port)
                         size_t origin_port_pos = origin_rest.find(':');
-                        std::string origin_host = origin_port_pos != std::string::npos 
-                            ? origin_rest.substr(0, origin_port_pos) 
-                            : origin_rest;
-                        
-                        if (origin_host == allowed_rest || 
+                        std::string origin_host = origin_port_pos != std::string::npos
+                                                      ? origin_rest.substr(0, origin_port_pos)
+                                                      : origin_rest;
+
+                        if (origin_host == allowed_rest ||
                             (allowed_rest == "localhost" && origin_host == "localhost") ||
                             (allowed_rest == "127.0.0.1" && origin_host == "127.0.0.1")) {
                             return true;
@@ -1987,7 +1925,7 @@ bool server::is_origin_allowed(const std::string& origin) const {
             }
         }
     }
-    
+
     return false;
 }
 
@@ -1996,13 +1934,13 @@ bool server::should_validate_origin(const http::request_data& req) const {
     if (!validate_origin_) {
         return false;
     }
-    
+
     // Only validate POST and DELETE requests (state-changing operations)
     // GET requests for SSE don't need Origin validation
     if (req.method == "POST" || req.method == "DELETE") {
         return true;
     }
-    
+
     return false;
 }
 

@@ -54,6 +54,38 @@ cd build && ctest -R mcp_tests -V
 - **Document public APIs** - All public functions and classes must have documentation comments
 - **Keep functions focused** - Each function should do one thing well
 - **Avoid code duplication** - Extract common code into reusable functions
+- **Follow style guidelines** - Code must pass clang-format checks before merging
+
+#### Code Style Enforcement
+
+All code contributions must adhere to the project's formatting standards:
+
+**Naming Conventions:**
+- `snake_case` for variables, functions, and namespaces
+- `PascalCase` for class/struct names
+
+**Modern C++ Practices:**
+- Use `auto` for local variable type deduction where appropriate
+- Prefer trailing return types for non-trivial functions
+- Follow RAII principles
+
+**Automated Formatting:**
+The project uses clang-format (LLVM-based) to enforce consistent formatting:
+
+```bash
+# Before committing, format your changes
+find src include -name "*.cpp" -o -name "*.h" | xargs clang-format -i
+
+# Check formatting (what CI will run)
+clang-format --dry-run --Werror src/**/*.cpp include/**/*.h
+```
+
+**CI Integration:**
+- All PRs must pass clang-format checks
+- Non-conforming code will fail CI builds
+- Configure your editor to format on save (see README.md for editor setup)
+
+See [README.md - Code Style and Formatting](README.md#code-style-and-formatting) for complete formatting guidelines and tool setup.
 
 ### 3. Testing Requirements
 
@@ -113,16 +145,18 @@ Tasks are organized as GitHub issues with specific labels:
 3. **Understand the requirements** - Read the issue description and acceptance criteria carefully
 4. **Write tests first (TDD)** - Start by writing failing tests
 5. **Implement the feature** - Write minimal code to pass the tests
-6. **Run tests locally** - Ensure all tests pass before pushing
-7. **Update documentation** - Update relevant docs if APIs changed
-8. **Create a pull request** - Include a clear description of changes
-9. **Address review feedback** - Respond to code review comments promptly
+6. **Format your code** - Run clang-format on changed files before committing
+7. **Run tests locally** - Ensure all tests pass before pushing
+8. **Update documentation** - Update relevant docs if APIs changed
+9. **Create a pull request** - Include a clear description of changes
+10. **Address review feedback** - Respond to code review comments promptly
 
 ### Code Review Process
 
 All code changes must be reviewed:
 - **Self-review** - Review your own changes before submitting
 - **Automated checks** - CI/CD pipeline must pass (builds on Linux and Windows)
+- **Style compliance** - clang-format checks must pass in CI
 - **Peer review** - At least one approval required from another contributor
 - **Test validation** - All tests must pass in CI
 

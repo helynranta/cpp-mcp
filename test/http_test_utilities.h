@@ -1,7 +1,7 @@
 /**
  * @file http_test_utilities.h
  * @brief Shared test utilities for HTTP abstraction testing
- * 
+ *
  * This file provides mock implementations of HTTP abstraction interfaces
  * that can be reused across multiple test files.
  */
@@ -10,9 +10,10 @@
 #define HTTP_TEST_UTILITIES_H
 
 #include "mcp_http_abstraction.h"
-#include <string>
-#include <map>
+
 #include <functional>
+#include <map>
+#include <string>
 
 namespace mcp {
 namespace http {
@@ -25,7 +26,7 @@ class MockDataSink : public streaming_data_sink {
 public:
     std::string written_data;
     bool should_succeed = true;
-    
+
     bool write(const char* data, size_t size) override {
         if (should_succeed) {
             written_data.append(data, size);
@@ -45,23 +46,18 @@ public:
     std::string content_type;
     bool has_chunked_provider = false;
     std::function<bool(size_t, streaming_data_sink&)> chunked_provider;
-    
-    void set_status(int code) override {
-        status = code;
-    }
-    
-    void set_header(const std::string& name, const std::string& value) override {
-        headers[name] = value;
-    }
-    
+
+    void set_status(int code) override { status = code; }
+
+    void set_header(const std::string& name, const std::string& value) override { headers[name] = value; }
+
     void set_content(const std::string& content, const std::string& type) override {
         body = content;
         content_type = type;
     }
-    
-    void set_chunked_content_provider(
-        const std::string& type,
-        std::function<bool(size_t, streaming_data_sink&)> provider) override {
+
+    void set_chunked_content_provider(const std::string& type,
+                                      std::function<bool(size_t, streaming_data_sink&)> provider) override {
         content_type = type;
         chunked_provider = provider;
         has_chunked_provider = true;
