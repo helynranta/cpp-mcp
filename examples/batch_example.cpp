@@ -1,22 +1,22 @@
 /**
  * @file batch_example.cpp
  * @brief JSON-RPC batch request example - DEPRECATED
- * 
- * ⚠️ **DEPRECATED**: This example demonstrates JSON-RPC batch request support 
+ *
+ * ⚠️ **DEPRECATED**: This example demonstrates JSON-RPC batch request support
  * which was part of MCP 2025-03-26 but was REMOVED in MCP 2025-06-18.
- * 
+ *
  * **This file is kept for historical reference only.**
- * 
+ *
  * Starting with MCP 2025-06-18, JSON-RPC batching is NOT supported.
  * The server will reject batch requests (arrays) with HTTP 400 error.
- * 
+ *
  * See MCP specification changelog:
  * https://modelcontextprotocol.io/specification/2025-06-18/changelog
- * 
+ *
  * For current examples, see:
  * - server_example.cpp - Server setup and single request handling
  * - streamable_http_client_example.cpp - Client usage
- * 
+ *
  * Original description (MCP 2025-03-26):
  * This example demonstrates JSON-RPC batch request support (MCP 2025-03-26 requirement).
  * Shows how the MCP server handles batch requests according to the JSON-RPC 2.0 specification.
@@ -65,7 +65,7 @@ int main() {
     std::cout << "This file is kept for historical reference only." << std::endl;
     std::cout << "=====================================================================" << std::endl;
     std::cout << std::endl;
-    
+
     std::cout << "JSON-RPC Batch Request Examples (DEPRECATED)" << std::endl;
     std::cout << "================================" << std::endl;
 
