@@ -73,3 +73,12 @@ target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR}/include)
 if(OPENSSL_FOUND)
     target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
 endif()
+
+# structured_tool_example - demonstrates MCP 2025-06-18 structured tool outputs
+set(TARGET structured_tool_example)
+add_executable(${TARGET} structured_tool_example.cpp)
+target_link_libraries(${TARGET} PRIVATE mcp)
+target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+if(OPENSSL_FOUND)
+    target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
+endif()
