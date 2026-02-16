@@ -1,7 +1,7 @@
 /**
  * @file mcp_message.h
  * @brief Core definitions for the Model Context Protocol (MCP) framework
- * 
+ *
  * This file contains the core structures and definitions for the MCP protocol.
  * Implements the 2025-03-26 basic protocol specification.
  */
@@ -9,13 +9,13 @@
 #ifndef MCP_MESSAGE_H
 #define MCP_MESSAGE_H
 
-#include <string>
-#include <vector>
-#include <map>
+#include <atomic>
 #include <functional>
+#include <map>
 #include <memory>
 #include <stdexcept>
-#include <atomic>
+#include <string>
+#include <vector>
 
 // Include the JSON library for parsing and generating JSON
 #include "json.hpp"
@@ -30,20 +30,19 @@ constexpr const char* MCP_VERSION = "2025-03-26";
 
 // MCP error codes (JSON-RPC 2.0 standard codes)
 enum class error_code {
-    parse_error = -32700,           // Invalid JSON
-    invalid_request = -32600,       // Invalid Request object
-    method_not_found = -32601,      // Method not found
-    invalid_params = -32602,        // Invalid method parameters
-    internal_error = -32603,        // Internal JSON-RPC error
-    server_error_start = -32000,    // Server error start
-    server_error_end = -32099       // Server error end
+    parse_error = -32700,        // Invalid JSON
+    invalid_request = -32600,    // Invalid Request object
+    method_not_found = -32601,   // Method not found
+    invalid_params = -32602,     // Invalid method parameters
+    internal_error = -32603,     // Internal JSON-RPC error
+    server_error_start = -32000, // Server error start
+    server_error_end = -32099    // Server error end
 };
 
 // MCP exception class
 class mcp_exception : public std::runtime_error {
 public:
-    mcp_exception(error_code code, const std::string& message)
-        : std::runtime_error(message), code_(code) {}
+    mcp_exception(error_code code, const std::string& message) : std::runtime_error(message), code_(code) {}
 
     error_code code() const { return code_; }
 
@@ -57,7 +56,7 @@ struct request {
     json id;
     std::string method;
     json params;
-    
+
     // Create a request
     static request create(const std::string& method, const json& params = json::object()) {
         request req;
@@ -67,7 +66,7 @@ struct request {
         req.params = params;
         return req;
     }
-    
+
     // Create a request with a specific ID
     static request create_with_id(const json& id, const std::string& method, const json& params = json::object()) {
         request req;
@@ -77,7 +76,7 @@ struct request {
         req.params = params;
         return req;
     }
-    
+
     // Create a notification (no response expected)
     static request create_notification(const std::string& method, const json& params = json::object()) {
         request req;
@@ -87,27 +86,22 @@ struct request {
         req.params = params;
         return req;
     }
-    
+
     // Check if this is a notification
-    bool is_notification() const {
-        return id.is_null();
-    }
-    
+    bool is_notification() const { return id.is_null(); }
+
     // Convert to JSON
     json to_json() const {
-        json j = {
-            {"jsonrpc", jsonrpc},
-            {"method", method}
-        };
-        
+        json j = {{"jsonrpc", jsonrpc}, {"method", method}};
+
         if (!params.empty()) {
             j["params"] = params;
         }
-        
+
         if (!is_notification()) {
             j["id"] = id;
         }
-        
+
         return j;
     }
 
@@ -119,7 +113,7 @@ struct request {
         req.params = j["params"];
         return req;
     }
-    
+
 private:
     // Generate a unique ID
     static json generate_id() {
@@ -134,7 +128,7 @@ struct response {
     json id;
     json result;
     json error;
-    
+
     // Create a success response
     static response create_success(const json& req_id, const json& result_data = json::object()) {
         response res;
@@ -143,42 +137,35 @@ struct response {
         res.result = result_data;
         return res;
     }
-    
+
     // Create an error response
-    static response create_error(const json& req_id, error_code code, const std::string& message, const json& data = json::object()) {
+    static response create_error(const json& req_id, error_code code, const std::string& message,
+                                 const json& data = json::object()) {
         response res;
         res.jsonrpc = "2.0";
         res.id = req_id;
-        res.error = {
-            {"code", static_cast<int>(code)},
-            {"message", message}
-        };
-        
+        res.error = {{"code", static_cast<int>(code)}, {"message", message}};
+
         if (!data.empty()) {
             res.error["data"] = data;
         }
-        
+
         return res;
     }
-    
+
     // Check if this is an error response
-    bool is_error() const {
-        return !error.empty();
-    }
-    
+    bool is_error() const { return !error.empty(); }
+
     // Convert to JSON
     json to_json() const {
-        json j = {
-            {"jsonrpc", jsonrpc},
-            {"id", id}
-        };
-        
+        json j = {{"jsonrpc", jsonrpc}, {"id", id}};
+
         if (is_error()) {
             j["error"] = error;
         } else {
             j["result"] = result;
         }
-        
+
         return j;
     }
 

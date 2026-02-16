@@ -1,26 +1,26 @@
 /**
  * @file agent_example.cpp
  * @brief AI Agent example using MCP server and LLM integration
- * 
+ *
  * This example demonstrates how to create an AI agent that:
  * - Runs an MCP server with tools (e.g., calculator)
  * - Connects to an external LLM API (OpenAI, OpenRouter, etc.) using Boost.Beast HTTP client
  * - Allows the LLM to call MCP tools to answer user queries
  * - Implements a simple chat loop with tool execution
- * 
+ *
  * Source code: https://github.com/helynranta/cpp-mcp/blob/main/examples/agent_example.cpp
  * Related APIs:
  * - MCP Server: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_server.h
  * - MCP SSE Client: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_sse_client.h
  * - HTTP Client (Boost.Beast): https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_http_factory.h
  */
+#include "mcp_http_factory.h"
 #include "mcp_server.h"
 #include "mcp_sse_client.h"
-#include "mcp_http_factory.h"
 
 #if defined(_WIN32)
-#include <io.h>
-#include <fcntl.h>
+    #include <fcntl.h>
+    #include <io.h>
 #endif
 
 struct Config {
@@ -29,7 +29,8 @@ struct Config {
     std::string endpoint = "/v1/chat/completions";
     std::string api_key = "sk-";
     std::string model = "gpt-3.5-turbo";
-    std::string system_prompt = "You are a helpful agent with access to some tools. Please think what tools you need to use to answer the question before you choose them";
+    std::string system_prompt = "You are a helpful agent with access to some tools. Please think what tools you need "
+                                "to use to answer the question before you choose them";
     int max_tokens = 2048;
     double temperature = 0.0;
 
@@ -118,7 +119,7 @@ static mcp::json calculator_handler(const mcp::json& params, const std::string& 
 
     std::string operation = params["operation"];
     double result = 0.0;
-    
+
     if (operation == "add") {
         if (!params.contains("a") || !params.contains("b")) {
             throw mcp::mcp_exception(mcp::error_code::invalid_params, "Missing 'a' or 'b' parameter");
@@ -145,16 +146,11 @@ static mcp::json calculator_handler(const mcp::json& params, const std::string& 
     } else {
         throw mcp::mcp_exception(mcp::error_code::invalid_params, "Unknown operation: " + operation);
     }
-    
-    return {
-        {
-            {"type", "text"},
-            {"text", std::to_string(result)}
-        }
-    };
+
+    return {{{"type", "text"}, {"text", std::to_string(result)}}};
 }
 
-static bool readline_utf8(std::string & line, bool multiline_input) {
+static bool readline_utf8(std::string& line, bool multiline_input) {
 #if defined(_WIN32)
     std::wstring wline;
     if (!std::getline(std::wcin, wline)) {
@@ -193,20 +189,18 @@ static bool readline_utf8(std::string & line, bool multiline_input) {
 static mcp::json ask_tool(const mcp::json& messages, const mcp::json& tools, int max_retries = 3) {
     // Create HTTP client using Boost.Beast
     static auto client = mcp::http::create_client(config.base_url);
-    
+
     // Set default headers
     mcp::http::headers_map headers;
     headers.emplace("Authorization", "Bearer " + config.api_key);
     client->set_default_headers(headers);
 
-    mcp::json body = {
-        {"model", config.model},
-        {"max_tokens", config.max_tokens},
-        {"temperature", config.temperature},
-        {"messages", messages},
-        {"tools", tools},
-        {"tool_choice", "auto"}
-    };
+    mcp::json body = {{"model", config.model},
+                      {"max_tokens", config.max_tokens},
+                      {"temperature", config.temperature},
+                      {"messages", messages},
+                      {"tools", tools},
+                      {"tool_choice", "auto"}};
 
     std::string body_str = body.dump();
 
@@ -225,10 +219,12 @@ static mcp::json ask_tool(const mcp::json& messages, const mcp::json& tools, int
                 mcp::json message = json_data["choices"][0]["message"];
                 return message;
             } catch (const std::exception& e) {
-                std::cerr << std::string(__func__) << ": Failed to parse response: error=" << std::string(e.what()) << ", body=" << res.body << std::endl;
+                std::cerr << std::string(__func__) << ": Failed to parse response: error=" << std::string(e.what())
+                          << ", body=" << res.body << std::endl;
             }
         } else {
-            std::cerr << std::string(__func__) << ": Failed to send request: status=" << std::to_string(res.status_code) << ", body=" << res.body << std::endl;
+            std::cerr << std::string(__func__) << ": Failed to send request: status=" << std::to_string(res.status_code)
+                      << ", body=" << res.body << std::endl;
         }
 
         retry++;
@@ -268,7 +264,7 @@ static void display_message(const mcp::json& message) {
                 throw std::invalid_argument("Invalid content type: " + item["type"].get<std::string>());
             }
         }
-    } else if (!content.empty()){
+    } else if (!content.empty()) {
         throw std::invalid_argument("Invalid content type");
     }
 
@@ -283,7 +279,7 @@ static void display_message(const mcp::json& message) {
 }
 
 int main(int argc, char* argv[]) {
-#if defined (_WIN32)
+#if defined(_WIN32)
     SetConsoleCP(CP_UTF8);
     SetConsoleOutputCP(CP_UTF8);
     _setmode(_fileno(stdin), _O_WTEXT); // wide character input mode
@@ -292,51 +288,45 @@ int main(int argc, char* argv[]) {
     // Global config
     config = parse_config(argc, argv);
 
-    // Create example server with Calculator tool    
+    // Create example server with Calculator tool
     mcp::server::configuration srv_conf;
     srv_conf.port = config.port;
     srv_conf.host = "localhost";
 
     mcp::server server(srv_conf);
     server.set_server_info("ExampleServer", "0.1.0");
-    mcp::json capabilities = {
-        {"tools", mcp::json::object()}
-    };
+    mcp::json capabilities = {{"tools", mcp::json::object()}};
     server.set_capabilities(capabilities);
 
     mcp::tool calc_tool = mcp::tool_builder("calculator")
-        .with_description("Perform basic calculations")
-        .with_string_param("operation", "Operation to perform (add, subtract, multiply, divide)")
-        .with_number_param("a", "First operand")
-        .with_number_param("b", "Second operand")
-        .build();
+                              .with_description("Perform basic calculations")
+                              .with_string_param("operation", "Operation to perform (add, subtract, multiply, divide)")
+                              .with_number_param("a", "First operand")
+                              .with_number_param("b", "Second operand")
+                              .build();
 
     server.register_tool(calc_tool, calculator_handler);
 
     mcp::json tools = mcp::json::array();
 
     for (const auto& tool : server.get_tools()) {
-        mcp::json converted_tool = {
-            {"type", "function"},
-            {"function", {
-                {"name", tool.name},
-                {"description", tool.description},
-                {"parameters", {
-                    {"type", "object"},
-                    {"properties", tool.parameters_schema["properties"]},
-                    {"required", tool.parameters_schema["required"]}
-                }}
-            }}
-        };
+        mcp::json converted_tool = {{"type", "function"},
+                                    {"function",
+                                     {{"name", tool.name},
+                                      {"description", tool.description},
+                                      {"parameters",
+                                       {{"type", "object"},
+                                        {"properties", tool.parameters_schema["properties"]},
+                                        {"required", tool.parameters_schema["required"]}}}}}};
         tools.push_back(converted_tool);
     }
 
     // Start server
-    server.start(false);  // Non-blocking mode
+    server.start(false); // Non-blocking mode
 
     // Create a client
     mcp::sse_client client("http://localhost:" + std::to_string(config.port));
-    
+
     // Set timeout
     client.set_timeout(10);
 
@@ -361,10 +351,7 @@ int main(int argc, char* argv[]) {
     mcp::json messages;
 
     if (!config.system_prompt.empty()) {
-        mcp::json system_message = {
-            {"role", "system"},
-            {"content", config.system_prompt}
-        };
+        mcp::json system_message = {{"role", "system"}, {"content", config.system_prompt}};
         messages.push_back(system_message);
     }
 
@@ -375,10 +362,7 @@ int main(int argc, char* argv[]) {
         std::string prompt;
         readline_utf8(prompt, false);
 
-        messages.push_back({
-            {"role", "user"},
-            {"content", prompt}
-        });
+        messages.push_back({{"role", "user"}, {"content", prompt}});
 
         // Maximum steps calling tools without user input
         int steps = config.max_steps;
@@ -416,24 +400,18 @@ int main(int argc, char* argv[]) {
                     std::cout << "\nResult for " << tool_name << ": ";
 
                     // Add response to messages
-                    messages.push_back({
-                        {"role", "tool"},
-                        {"tool_call_id", tool_call["id"]},
-                        {"content", content}
-                    });
+                    messages.push_back({{"role", "tool"}, {"tool_call_id", tool_call["id"]}, {"content", content}});
                 } catch (const std::exception& e) {
                     // Handle error
-                    messages.push_back({
-                        {"role", "tool"},
-                        {"tool_call_id", tool_call["id"]},
-                        {"content", "Error: " + std::string(e.what())}
-                    });
+                    messages.push_back({{"role", "tool"},
+                                        {"tool_call_id", tool_call["id"]},
+                                        {"content", "Error: " + std::string(e.what())}});
                 }
 
                 display_message(messages.back());
             }
         }
     }
-    
+
     return 0;
 }
