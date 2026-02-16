@@ -106,10 +106,9 @@ int main() {
 
         return {{"content",
                  json::array({{{"type", "text"},
-                               {"text",
-                                std::string("API Query Results:\n") + "Status: " +
-                                    structured_response["status"].get<std::string>() + "\n" + "Items found: " +
-                                    std::to_string(structured_response["data"]["count"].get<int>()) + "\n"}}})},
+                               {"text", std::string("API Query Results:\n") + "Status: " +
+                                            structured_response["status"].get<std::string>() + "\n" + "Items found: " +
+                                            std::to_string(structured_response["data"]["count"].get<int>()) + "\n"}}})},
                 {"structuredContent", structured_response},
                 {"isError", false}};
     });
