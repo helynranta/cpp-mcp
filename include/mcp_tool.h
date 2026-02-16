@@ -26,6 +26,13 @@ struct tool {
     std::string description;
     json parameters_schema;
 
+    // MCP 2025-06-18: Optional display name and output schema
+    bool has_title = false;
+    std::string title;
+
+    bool has_output_schema = false;
+    json output_schema;
+
     // Optional metadata annotations
     bool has_read_only = false;
     bool read_only_value = false;
@@ -46,6 +53,16 @@ struct tool {
     // Convert to JSON for API documentation
     json to_json() const {
         json result = {{"name", name}, {"description", description}, {"inputSchema", parameters_schema}};
+
+        // MCP 2025-06-18: Add title if present
+        if (has_title) {
+            result["title"] = title;
+        }
+
+        // MCP 2025-06-18: Add output schema if present
+        if (has_output_schema) {
+            result["outputSchema"] = output_schema;
+        }
 
         // Add annotations if any are set
         if (has_read_only || has_destructive || has_cost || has_latency) {
@@ -182,6 +199,22 @@ public:
     tool_builder& with_confirmation_required(bool value = true);
 
     /**
+     * @brief Set the tool title (MCP 2025-06-18)
+     * @param title Optional display name for the tool
+     * @return Reference to this builder
+     * @note Added in MCP 2025-06-18 for better UI/UX
+     */
+    tool_builder& with_title(const std::string& title);
+
+    /**
+     * @brief Set the output schema for the tool (MCP 2025-06-18)
+     * @param schema JSON schema defining the structure of tool outputs
+     * @return Reference to this builder
+     * @note Added in MCP 2025-06-18 for structured tool outputs
+     */
+    tool_builder& with_output_schema(const json& schema);
+
+    /**
      * @brief Build the tool
      * @return The constructed tool
      */
@@ -208,6 +241,13 @@ private:
 
     // Security flags (MCP 2025-03-26)
     bool requires_confirmation_ = false;
+
+    // MCP 2025-06-18: Title and output schema
+    bool has_title_ = false;
+    std::string title_;
+
+    bool has_output_schema_ = false;
+    json output_schema_;
 
     // Helper to add a parameter of any type
     tool_builder& add_param(const std::string& name, const std::string& description, const std::string& type,

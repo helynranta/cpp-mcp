@@ -36,6 +36,7 @@ set(TEST_SOURCES
     streamable_http_client_test.cpp
     batch_rejection_test.cpp
     protocol_version_header_test.cpp
+    structured_tool_output_test.cpp
 )
 
 # Create test executable

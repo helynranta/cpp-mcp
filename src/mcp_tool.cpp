@@ -101,6 +101,18 @@ tool_builder& tool_builder::with_confirmation_required(bool value) {
     return *this;
 }
 
+tool_builder& tool_builder::with_title(const std::string& title) {
+    has_title_ = true;
+    title_ = title;
+    return *this;
+}
+
+tool_builder& tool_builder::with_output_schema(const json& schema) {
+    has_output_schema_ = true;
+    output_schema_ = schema;
+    return *this;
+}
+
 tool tool_builder::build() const {
     tool t;
     t.name = name_;
@@ -132,6 +144,17 @@ tool tool_builder::build() const {
 
     // Set security flags (MCP 2025-03-26)
     t.requires_confirmation = requires_confirmation_;
+
+    // MCP 2025-06-18: Set title and output schema if present
+    t.has_title = has_title_;
+    if (has_title_) {
+        t.title = title_;
+    }
+
+    t.has_output_schema = has_output_schema_;
+    if (has_output_schema_) {
+        t.output_schema = output_schema_;
+    }
 
     return t;
 }
