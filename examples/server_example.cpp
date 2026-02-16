@@ -3,7 +3,7 @@
  * @brief MCP server example with multiple tools
  *
  * This example demonstrates how to create an MCP server, register tools and resources,
- * and handle client requests. Follows the 2025-03-26 basic protocol specification.
+ * and handle client requests. Follows the 2025-06-18 protocol specification.
  *
  * Demonstrates:
  * - Creating and configuring an MCP server with Boost.Beast

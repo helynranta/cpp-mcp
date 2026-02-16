@@ -17,7 +17,7 @@
  * Related APIs:
  * - SSE Client: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_sse_client.h
  *
- * Follows the 2025-03-26 basic protocol specification.
+ * Follows the 2025-06-18 protocol specification.
  */
 
 #include "mcp_sse_client.h"

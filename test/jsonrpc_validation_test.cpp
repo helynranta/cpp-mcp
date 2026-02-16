@@ -3,7 +3,7 @@
  * @brief Tests for JSON-RPC 2.0 message validation
  *
  * This file contains tests for JSON-RPC validation according to the specification
- * and MCP 2025-03-26 requirements.
+ * and MCP 2025-06-18 requirements.
  */
 
 #include "mcp_jsonrpc_validation.h"

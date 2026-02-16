@@ -3,7 +3,7 @@
  * @brief TDD tests for streamable_http_client
  *
  * This file contains tests for the Streamable HTTP client implementation
- * following MCP 2025-03-26 specification.
+ * following MCP 2025-06-18 specification.
  */
 
 #include "mcp_server.h"

@@ -1,6 +1,6 @@
-# HTTP Transport and Tool Safety Hardening (MCP 2025-03-26)
+# HTTP Transport and Tool Safety Hardening (MCP 2025-06-18)
 
-This document describes the security features implemented for HTTP transport and tool execution safety in accordance with MCP 2025-03-26 specification.
+This document describes the security features implemented for HTTP transport and tool execution safety in accordance with MCP 2025-06-18 specification.
 
 ## HTTP Transport Security
 
@@ -227,6 +227,6 @@ Tests are provided in `test/tool_safety_test.cpp`:
 
 ## References
 
-- [MCP 2025-03-26 Specification](https://spec.modelcontextprotocol.io/)
+- [MCP 2025-06-18 Specification](https://spec.modelcontextprotocol.io/)
 - [OWASP DNS Rebinding Prevention](https://cheatsheetseries.owasp.org/cheatsheets/DNS_Rebinding_Prevention_Cheat_Sheet.html)
 - [MDN CORS Documentation](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)

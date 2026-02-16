@@ -1,6 +1,6 @@
 /**
  * @file tool_safety_test.cpp
- * @brief Tests for tool execution safety features (MCP 2025-03-26)
+ * @brief Tests for tool execution safety features (MCP 2025-06-18)
  *
  * This file tests tool confirmation requirements, safety controls,
  * and trust model for tool annotations.
