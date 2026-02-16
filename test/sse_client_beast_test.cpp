@@ -41,6 +41,7 @@ struct SseClientBeastTest {
         config.version = "1.0.0";
         
         server_ = std::make_unique<server>(config);
+        server_->set_capabilities({{"tools", json::object()}});
         
         // Register a simple echo tool
         tool echo_tool = tool_builder("echo")
@@ -128,8 +129,10 @@ BOOST_AUTO_TEST_CASE(CanCallTools) {
     // Call echo tool
     json result = client.call_tool("echo", {{"message", "Hello Beast!"}});
     
-    BOOST_CHECK(result.contains("echo"));
-    BOOST_CHECK_EQUAL(result["echo"], "Hello Beast!");
+    BOOST_CHECK(result.contains("content"));
+    BOOST_CHECK(!result.value("isError", true));
+    BOOST_CHECK(result["content"].contains("echo"));
+    BOOST_CHECK_EQUAL(result["content"]["echo"], "Hello Beast!");
 }
 
 /**
@@ -151,7 +154,9 @@ BOOST_AUTO_TEST_CASE(DualClientPatternPreserved) {
     // Multiple tool calls should work (testing POST client)
     for (int i = 0; i < 5; i++) {
         json result = client.call_tool("echo", {{"message", "test"}});
-        BOOST_CHECK(result.contains("echo"));
+        BOOST_CHECK(result.contains("content"));
+        BOOST_CHECK(!result.value("isError", true));
+        BOOST_CHECK(result["content"].contains("echo"));
     }
     
     // SSE should still be running
