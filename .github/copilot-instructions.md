@@ -16,21 +16,36 @@ This repository implements the Model Context Protocol (MCP) in C++23. When contr
 ```bash
 # Clone with vcpkg (if not already done)
 git submodule update --init --recursive
+```
 
+### Using CMake Presets (Recommended)
+
+```bash
+# Development with tests (Release)
+cmake --preset dev-release
+cmake --build --preset dev-release
+ctest --preset dev-release
+
+# Development with tests (Debug)
+cmake --preset dev-debug
+cmake --build --preset dev-debug
+ctest --preset dev-debug
+
+# List all available presets
+cmake --list-presets
+```
+
+### Manual Configuration (Alternative)
+
+```bash
 # Configure with tests enabled
 cmake -B build -DMCP_BUILD_TESTS=ON \
   -DVCPKG_MANIFEST_FEATURES="tests" \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
-```
 
-### Build
-```bash
 # Build the project
 cmake --build build --config Release -j$(nproc)
-```
 
-### Test
-```bash
 # Run all tests
 cd build && ctest -V
 

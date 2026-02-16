@@ -56,9 +56,83 @@ All Boost components are version 1.90.0 and managed through vcpkg manifest mode 
 
 ### Build Instructions
 
-#### Using vcpkg (Recommended)
+#### Using CMake Presets (Recommended)
 
-Building with vcpkg ensures all dependencies are automatically installed:
+This project provides CMake presets for standardized builds. Presets simplify configuration and ensure consistency across development and CI environments.
+
+**Prerequisites:** Ensure `VCPKG_ROOT` environment variable points to your vcpkg installation.
+
+**Available Presets:**
+
+Development presets:
+- `dev-debug` - Debug build with tests enabled
+- `dev-release` - Release build with tests enabled
+- `sanitizer-address` - Debug with AddressSanitizer (Linux/macOS only)
+- `sanitizer-undefined` - Debug with UndefinedBehaviorSanitizer (Linux/macOS only)
+- `coverage` - Debug with code coverage instrumentation (Linux/macOS only)
+
+Production presets:
+- `release` - Optimized release build without tests
+- `ssl` - Release build with SSL support
+
+CI presets:
+- `ci-linux` - CI build for Linux
+- `ci-windows` - CI build for Windows
+
+**Quick Start:**
+
+```bash
+# Configure using a preset
+cmake --preset dev-release
+
+# Build
+cmake --build --preset dev-release
+
+# Run tests
+ctest --preset dev-release
+```
+
+**Common Usage Examples:**
+
+```bash
+# Development with tests (Debug)
+cmake --preset dev-debug
+cmake --build --preset dev-debug
+ctest --preset dev-debug
+
+# Development with tests (Release)
+cmake --preset dev-release
+cmake --build --preset dev-release
+ctest --preset dev-release
+
+# Production release build
+cmake --preset release
+cmake --build --preset release
+
+# Build with SSL support
+cmake --preset ssl
+cmake --build --preset ssl
+
+# Run sanitizers (Linux/macOS)
+cmake --preset sanitizer-address
+cmake --build --preset sanitizer-address
+ctest --preset sanitizer-address
+
+# Code coverage (Linux/macOS)
+cmake --preset coverage
+cmake --build --preset coverage
+ctest --preset coverage
+# Then generate coverage report with lcov/gcov
+```
+
+**List all available presets:**
+```bash
+cmake --list-presets
+```
+
+#### Manual CMake Configuration (Alternative)
+
+If you prefer not to use presets or need custom configuration:
 
 ```bash
 # Configure with vcpkg toolchain
@@ -68,13 +142,7 @@ cmake -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cma
 cmake --build build --config Release
 ```
 
-On Linux, you can typically use:
-```bash
-cmake -B build -DCMAKE_TOOLCHAIN_FILE=/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake
-cmake --build build --config Release
-```
-
-#### Build with tests:
+**Build with tests:**
 ```bash
 cmake -B build \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
@@ -82,9 +150,10 @@ cmake -B build \
   -DVCPKG_MANIFEST_FEATURES="tests"
 
 cmake --build build --config Release
+cd build && ctest -V
 ```
 
-#### Build with SSL support:
+**Build with SSL support:**
 ```bash
 cmake -B build \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
@@ -104,27 +173,6 @@ Then build without the vcpkg toolchain file:
 ```bash
 cmake -B build
 cmake --build build --config Release
-```
-
-#### Running Tests
-
-Build and run the test suite to verify the installation:
-
-```bash
-# Configure with tests enabled
-cmake -B build \
-  -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
-  -DMCP_BUILD_TESTS=ON \
-  -DVCPKG_MANIFEST_FEATURES="tests"
-
-# Build tests
-cmake --build build --config Release
-
-# Run all tests
-cd build && ctest -V
-
-# Run specific test suite with Boost.Test
-./test/mcp_tests --run_test=BeastClientTest
 ```
 
 ### Boost Integration Details
