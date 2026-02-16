@@ -225,6 +225,9 @@ private:
     // Session ID for Streamable HTTP transport
     std::string session_id_;
 
+    // Negotiated protocol version (MCP 2025-06-18+)
+    std::string negotiated_version_;
+
     // HTTP client (for JSON-RPC POST requests to /mcp)
     std::unique_ptr<http::client_interface> http_client_;
 

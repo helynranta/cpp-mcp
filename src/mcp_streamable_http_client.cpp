@@ -98,6 +98,16 @@ bool streamable_http_client::initialize(const std::string& client_name, const st
 
         json result = send_jsonrpc(req);
 
+        // Store negotiated protocol version (MCP 2025-06-18+)
+        if (result.contains("protocolVersion") && result["protocolVersion"].is_string()) {
+            negotiated_version_ = result["protocolVersion"].get<std::string>();
+            LOG_INFO("Protocol version negotiated: ", negotiated_version_);
+        } else {
+            // Default to current version if not provided
+            negotiated_version_ = MCP_VERSION;
+            LOG_WARNING("Server did not return protocolVersion, defaulting to: ", negotiated_version_);
+        }
+
         server_capabilities_ = result["capabilities"];
 
         request notification = request::create_notification("initialized");
@@ -558,6 +568,12 @@ http::headers_map streamable_http_client::build_request_headers() {
     // Add Mcp-Session-Id header if we have a session
     if (!session_id_.empty()) {
         headers.emplace("Mcp-Session-Id", session_id_);
+    }
+
+    // Add MCP-Protocol-Version header (MCP 2025-06-18+)
+    // This header is REQUIRED in all requests after initialization
+    if (!negotiated_version_.empty()) {
+        headers.emplace("MCP-Protocol-Version", negotiated_version_);
     }
 
     // Add default headers

@@ -1156,6 +1156,13 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
     // Extract session ID from header or query parameter
     std::string session_id = extract_session_id(req);
 
+    // Validate MCP-Protocol-Version header (MCP 2025-06-18+)
+    // This must happen AFTER session ID extraction but BEFORE processing the request
+    if (!validate_protocol_version_header(req, session_id, res)) {
+        // Validation failed, response already set by validator
+        return;
+    }
+
     // Update session activity time
     if (!session_id.empty()) {
         std::shared_ptr<event_dispatcher> dispatcher;
@@ -1582,6 +1589,15 @@ json server::handle_initialize(const request& req, const std::string& session_id
         LOG_INFO("Stored client capabilities for session: ", session_id);
     }
 
+    // Store negotiated protocol version for this session (MCP 2025-06-18+)
+    // This will be used to validate the MCP-Protocol-Version header in subsequent requests
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        json version_state = {{"negotiated_version", requested_version}};
+        session_state_[session_id] = version_state;
+        LOG_INFO("Stored negotiated protocol version for session: ", session_id, ", version: ", requested_version);
+    }
+
     // Transition session to initializing state
     set_session_lifecycle_state(session_id, lifecycle_state::initializing);
     LOG_INFO("Session ", session_id, " transitioned to initializing state");
@@ -1947,6 +1963,76 @@ bool server::should_validate_origin(const http::request_data& req) const {
 void server::set_tool_confirmation_handler(tool_confirmation_handler handler) {
     std::lock_guard<std::mutex> lock(mutex_);
     tool_confirmation_handler_ = handler;
+}
+
+bool server::validate_protocol_version_header(const http::request_data& req, const std::string& session_id,
+                                              http::response_builder& res) const {
+    // Per MCP 2025-06-18: MCP-Protocol-Version header is REQUIRED in all HTTP requests after initialization
+    //
+    // However, for backward compatibility, we should:
+    // 1. Accept requests without the header (assume 2025-03-26)
+    // 2. Reject requests with invalid/unsupported version
+    // 3. Reject requests where version doesn't match negotiated version
+
+    // If no session ID, this is an initial connection - header not required yet
+    if (session_id.empty()) {
+        return true;
+    }
+
+    // Get the MCP-Protocol-Version header
+    auto version_header = req.get_header("MCP-Protocol-Version");
+
+    // Get the negotiated version from session state
+    std::string negotiated_version;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto state_it = session_state_.find(session_id);
+        if (state_it != session_state_.end() && state_it->second.contains("negotiated_version")) {
+            negotiated_version = state_it->second["negotiated_version"].get<std::string>();
+        }
+    }
+
+    // If no header provided
+    if (!version_header || version_header->empty()) {
+        // Backward compatibility: assume 2025-03-26 if no header
+        // This allows legacy clients to continue working
+        LOG_WARNING("MCP-Protocol-Version header missing for session: ", session_id,
+                    ", assuming 2025-03-26 for backward compatibility");
+        return true;
+    }
+
+    // List of supported versions
+    const std::vector<std::string> supported_versions = {"2025-03-26", "2025-06-18", "2025-11-25"};
+
+    // Check if the version is supported
+    bool is_supported = std::find(supported_versions.begin(), supported_versions.end(), *version_header) !=
+                        supported_versions.end();
+
+    if (!is_supported) {
+        LOG_ERROR("Unsupported MCP-Protocol-Version header: ", *version_header);
+        res.set_status(400); // Bad Request
+        res.set_header("Content-Type", "application/json");
+        json error_response = {{"error", "Unsupported protocol version"},
+                               {"version_received", *version_header},
+                               {"supported_versions", supported_versions}};
+        res.set_content(error_response.dump(), "application/json");
+        return false;
+    }
+
+    // If we have a negotiated version, verify the header matches it
+    if (!negotiated_version.empty() && *version_header != negotiated_version) {
+        LOG_ERROR("Protocol version mismatch: header=", *version_header, ", negotiated=", negotiated_version);
+        res.set_status(400); // Bad Request
+        res.set_header("Content-Type", "application/json");
+        json error_response = {{"error", "Protocol version mismatch"},
+                               {"version_in_header", *version_header},
+                               {"negotiated_version", negotiated_version}};
+        res.set_content(error_response.dump(), "application/json");
+        return false;
+    }
+
+    // All checks passed
+    return true;
 }
 
 } // namespace mcp
