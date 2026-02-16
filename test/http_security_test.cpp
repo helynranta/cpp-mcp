@@ -1,6 +1,6 @@
 /**
  * @file http_security_test.cpp
- * @brief Tests for HTTP transport security features (MCP 2025-03-26)
+ * @brief Tests for HTTP transport security features (MCP 2025-06-18)
  *
  * This file tests Origin header validation, DNS rebinding mitigation,
  * and other HTTP transport security features.

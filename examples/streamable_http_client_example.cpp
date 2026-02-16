@@ -2,7 +2,7 @@
  * @file streamable_http_client_example.cpp
  * @brief Example demonstrating the Streamable HTTP client
  *
- * This example shows how to use the Streamable HTTP client (MCP 2025-03-26 specification)
+ * This example shows how to use the Streamable HTTP client (MCP 2025-06-18 specification)
  * as an alternative to the SSE client. It demonstrates:
  * - Using the unified /mcp endpoint
  * - Session management with Mcp-Session-Id header
@@ -63,7 +63,7 @@ void demonstrate_sse_client() {
 
 void demonstrate_streamable_http_client() {
     std::cout << "\n========================================\n";
-    std::cout << "Demonstrating Streamable HTTP Client (MCP 2025-03-26)\n";
+    std::cout << "Demonstrating Streamable HTTP Client (MCP 2025-06-18)\n";
     std::cout << "========================================\n";
 
     // Create Streamable HTTP client (uses /mcp endpoint)
@@ -169,7 +169,7 @@ int main() {
     std::cout << "  - Uses /message endpoint for requests\n";
     std::cout << "  - Session ID in query parameters\n";
     std::cout << "\n";
-    std::cout << "Streamable HTTP Client (MCP 2025-03-26):\n";
+    std::cout << "Streamable HTTP Client (MCP 2025-06-18):\n";
     std::cout << "  - Uses unified /mcp endpoint\n";
     std::cout << "  - Session ID in Mcp-Session-Id header\n";
     std::cout << "  - Includes Accept header (application/json, text/event-stream)\n";

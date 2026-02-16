@@ -1,9 +1,9 @@
 /**
  * @file streamable_http_transport_test.cpp
- * @brief Test Streamable HTTP transport compliance with MCP 2025-03-26 specification
+ * @brief Test Streamable HTTP transport compliance with MCP 2025-06-18 specification
  *
  * Tests unified /mcp endpoint, Mcp-Session-Id header semantics, GET/POST/DELETE methods,
- * and session lifecycle according to the MCP 2025-03-26 specification.
+ * and session lifecycle according to the MCP 2025-06-18 specification.
  */
 
 #include "mcp_http_factory.h"

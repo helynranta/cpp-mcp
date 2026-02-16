@@ -2,7 +2,7 @@
 
 > ⚠️ **WARNING**: This is a purely vibe-coded experimental fork. Use at your own risk!
 
-[Model Context Protocol (MCP)](https://spec.modelcontextprotocol.io/specification/2025-03-26/architecture/) is an open protocol that provides a standardized way for AI models and agents to interact with various resources, tools, and services. This framework implements the core functionality of the MCP protocol, conforming to the 2025-03-26 basic protocol specification.
+[Model Context Protocol (MCP)](https://spec.modelcontextprotocol.io/specification/2025-06-18/architecture/) is an open protocol that provides a standardized way for AI models and agents to interact with various resources, tools, and services. This framework implements the core functionality of the MCP protocol, conforming to the 2025-06-18 protocol specification with backward compatibility for 2025-03-26.
 
 For the full specification and protocol details, see the [MCP GitHub repository](https://github.com/modelcontextprotocol/modelcontextprotocol).
 
@@ -10,17 +10,17 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 
 - **JSON-RPC 2.0 Communication**: Request/response communication based on JSON-RPC 2.0 standard
 - ~~**Batch Request Support**~~: **DEPRECATED** - Batch requests were removed in MCP 2025-06-18 (previously supported in 2025-03-26)
-- **Streamable HTTP Transport**: Full support for MCP 2025-03-26 Streamable HTTP transport with unified `/mcp` endpoint
+- **Streamable HTTP Transport**: Full support for MCP 2025-06-18 Streamable HTTP transport with unified `/mcp` endpoint
   - Single endpoint for GET, POST, and DELETE methods
   - `Mcp-Session-Id` header-based session management
   - SSE (Server-Sent Events) streaming for real-time responses
   - Backward compatible with legacy `/sse` and `/message` endpoints
-- **HTTP Transport Security (MCP 2025-03-26)**:
+- **HTTP Transport Security (MCP 2025-06-18)**:
   - Origin header validation for DNS rebinding mitigation
   - Configurable allowed origins with localhost defaults
   - Secure CORS handling with origin reflection
   - See [SECURITY.md](SECURITY.md) for details
-- **Tool Execution Safety (MCP 2025-03-26)**:
+- **Tool Execution Safety (MCP 2025-06-18)**:
   - Optional user confirmation hooks for sensitive tools
   - Configurable tool execution policies
   - Trust model for tool annotations as untrusted metadata
@@ -242,7 +242,7 @@ For more information, see:
 
 ## HTTP Transport
 
-This framework implements the MCP 2025-03-26 Streamable HTTP transport specification with a unified `/mcp` endpoint.
+This framework implements the MCP 2025-06-18 Streamable HTTP transport specification with a unified `/mcp` endpoint.
 
 ### Streamable HTTP Endpoint
 
@@ -421,14 +421,14 @@ Defines the abstract interface for MCP clients, which all concrete client implem
 - Backward compatible with older MCP implementations
 
 #### Streamable HTTP Client (`mcp_streamable_http_client.h`, `mcp_streamable_http_client.cpp`)
-**Modern transport (MCP 2025-03-26)** - Client implementation using the Streamable HTTP transport specification.
+**Modern transport (MCP 2025-06-18)** - Client implementation using the Streamable HTTP transport specification.
 
 - Uses unified `/mcp` endpoint for all operations
 - Session ID in `Mcp-Session-Id` header
 - Includes `Accept: application/json, text/event-stream` header
 - Supports explicit session termination via DELETE method
 - Server returns HTTP 202 Accepted for async processing
-- Fully compatible with MCP 2025-03-26 specification
+- Fully compatible with MCP 2025-06-18 specification
 
 **Recommended for new applications** - Provides better reliability, session management, and aligns with the latest MCP specification.
 
@@ -587,7 +587,7 @@ cmake --build build --target sse_client_example
 
 ### Streamable HTTP Client Example ([`examples/streamable_http_client_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/streamable_http_client_example.cpp))
 
-**New in MCP 2025-03-26** - Demonstrates both SSE (legacy) and Streamable HTTP (modern) transports side-by-side:
+**New in MCP 2025-06-18** - Demonstrates both SSE (legacy) and Streamable HTTP (modern) transports side-by-side:
 - Compare SSE client vs. Streamable HTTP client
 - See differences in endpoint usage (`/sse` + `/message` vs. unified `/mcp`)
 - Session management (query parameters vs. `Mcp-Session-Id` header)
@@ -754,7 +754,7 @@ mcp::json hello_handler(const mcp::json& params, const std::string /* session_id
     // Server will catch exceptions and return error contents
     // For example, you can use `throw mcp::mcp_exception(mcp::error_code::invalid_params, "Invalid name");` to report an error
 
-    // Content should be a JSON array, see: https://modelcontextprotocol.io/specification/2025-03-26/server/tools#tool-result
+    // Content should be a JSON array, see: https://modelcontextprotocol.io/specification/2025-06-18/server/tools#tool-result
     return {
         {
             {"type", "text"},
@@ -825,9 +825,9 @@ json result = client.call_tool("tool_name", {
 });
 ```
 
-### Using the Streamable HTTP Client (MCP 2025-03-26)
+### Using the Streamable HTTP Client (MCP 2025-06-18)
 
-The Streamable HTTP client implements the modern MCP 2025-03-26 transport specification. **Recommended for new applications**.
+The Streamable HTTP client implements the modern MCP 2025-06-18 transport specification. **Recommended for new applications**.
 
 ```cpp
 #include "mcp_streamable_http_client.h"
@@ -865,7 +865,7 @@ client.close_session();
 - Unified `/mcp` endpoint for all operations
 - Session ID in `Mcp-Session-Id` header (cleaner than query parameters)
 - Explicit session termination support
-- Better alignment with MCP 2025-03-26 specification
+- Better alignment with MCP 2025-06-18 specification
 - Returns HTTP 202 Accepted for async processing
 
 ### Using the Stdio Client

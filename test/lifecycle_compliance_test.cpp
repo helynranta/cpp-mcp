@@ -1,9 +1,9 @@
 /**
  * @file lifecycle_compliance_test.cpp
- * @brief Test lifecycle compliance with MCP 2025-03-26 specification
+ * @brief Test lifecycle compliance with MCP 2025-06-18 specification
  *
  * Tests initialization lifecycle, batch request rejection, and capability gating
- * according to the MCP 2025-03-26 specification.
+ * according to the MCP 2025-06-18 specification.
  */
 
 #include "mcp_http_factory.h"
@@ -134,7 +134,7 @@ BOOST_AUTO_TEST_CASE(RejectInitializeInBatch) {
                          {"id", 1},
                          {"method", "initialize"},
                          {"params",
-                          {{"protocolVersion", "2025-03-26"},
+                          {{"protocolVersion", "2025-06-18"},
                            {"capabilities", json::object()},
                            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}}}};
 
@@ -197,7 +197,7 @@ BOOST_AUTO_TEST_CASE(RejectDuplicateInitialize) {
                          {"id", 1},
                          {"method", "initialize"},
                          {"params",
-                          {{"protocolVersion", "2025-03-26"},
+                          {{"protocolVersion", "2025-06-18"},
                            {"capabilities", json::object()},
                            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}}}};
 
@@ -227,7 +227,7 @@ BOOST_AUTO_TEST_CASE(RequireInitializedNotification) {
                          {"id", 1},
                          {"method", "initialize"},
                          {"params",
-                          {{"protocolVersion", "2025-03-26"},
+                          {{"protocolVersion", "2025-06-18"},
                            {"capabilities", json::object()},
                            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}}}};
 
@@ -259,7 +259,7 @@ BOOST_AUTO_TEST_CASE(SuccessfulLifecycleSequence) {
                          {"id", 1},
                          {"method", "initialize"},
                          {"params",
-                          {{"protocolVersion", "2025-03-26"},
+                          {{"protocolVersion", "2025-06-18"},
                            {"capabilities", json::object()},
                            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}}}};
 
@@ -311,7 +311,7 @@ BOOST_AUTO_TEST_CASE(CancellationNotificationHandling) {
                          {"id", 1},
                          {"method", "initialize"},
                          {"params",
-                          {{"protocolVersion", "2025-03-26"},
+                          {{"protocolVersion", "2025-06-18"},
                            {"capabilities", json::object()},
                            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}}}};
 
