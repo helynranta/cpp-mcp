@@ -127,18 +127,9 @@ struct StreamableHttpTransportTest {
             cv.wait_for(lock, std::chrono::seconds(3), [&] { return got_endpoint; });
         }
         
-        // Stop the client before detaching to avoid crashes during teardown
-        auto client = client_ptr.load(std::memory_order_acquire);
-        if (client) {
-            client->stop();
-        }
-        
+        // Join the thread to ensure it completes before sse_client is destroyed
         if (sse_thread.joinable()) {
-            // Give it a moment to exit after stop()
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            if (sse_thread.joinable()) {
-                sse_thread.detach();
-            }
+            sse_thread.join();
         }
         
         return endpoint;
@@ -371,10 +362,9 @@ BOOST_AUTO_TEST_CASE(LegacySseEndpointWorks) {
                     endpoint = endpoint_data;
                     got_endpoint = true;
                     cv.notify_one();
+                    return false; // Stop reading after getting endpoint
                 }
             }
-            
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             return true;
         });
         
@@ -386,18 +376,9 @@ BOOST_AUTO_TEST_CASE(LegacySseEndpointWorks) {
         cv.wait_for(lock, std::chrono::seconds(3), [&] { return got_endpoint; });
     }
     
-    // Stop the client before detaching to avoid crashes during teardown
-    auto client = client_ptr.load(std::memory_order_acquire);
-    if (client) {
-        client->stop();
-    }
-    
+    // Join the thread to ensure it completes before sse_client is destroyed
     if (sse_thread.joinable()) {
-        // Give it a moment to exit after stop()
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        if (sse_thread.joinable()) {
-            sse_thread.detach();
-        }
+        sse_thread.join();
     }
     
     BOOST_CHECK(!endpoint.empty());
