@@ -235,6 +235,7 @@
     {
       "name": "ci-windows",
       "configurePreset": "ci-windows",
+      "configuration": "Release",
       "description": "Run tests for CI Windows",
       "output": {
         "outputOnFailure": true,
