@@ -295,7 +295,24 @@ The MCP C++ library includes the following main components:
 Defines the abstract interface for MCP clients, which all concrete client implementations inherit from.
 
 #### SSE Client (`mcp_sse_client.h`, `mcp_sse_client.cpp`)
-Client implementation that communicates with MCP servers using HTTP and Server-Sent Events (SSE).
+**Legacy transport** - Client implementation that communicates with MCP servers using HTTP and Server-Sent Events (SSE).
+
+- Uses `/sse` endpoint for SSE connection
+- Uses `/message` endpoint for JSON-RPC requests
+- Session ID passed as query parameter
+- Backward compatible with older MCP implementations
+
+#### Streamable HTTP Client (`mcp_streamable_http_client.h`, `mcp_streamable_http_client.cpp`)
+**Modern transport (MCP 2025-03-26)** - Client implementation using the Streamable HTTP transport specification.
+
+- Uses unified `/mcp` endpoint for all operations
+- Session ID in `Mcp-Session-Id` header
+- Includes `Accept: application/json, text/event-stream` header
+- Supports explicit session termination via DELETE method
+- Server returns HTTP 202 Accepted for async processing
+- Fully compatible with MCP 2025-03-26 specification
+
+**Recommended for new applications** - Provides better reliability, session management, and aligns with the latest MCP specification.
 
 #### Stdio Client (`mcp_stdio_client.h`, `mcp_stdio_client.cpp`)
 Client implementation that communicates with MCP servers using standard input/output, capable of launching subprocesses and communicating with them.
@@ -436,7 +453,7 @@ The server listens on `http://localhost:8888` by default. You can verify it's wo
 
 ### SSE Client Example ([`examples/sse_client_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/sse_client_example.cpp))
 
-Example MCP client connecting to a server via Server-Sent Events:
+Example MCP client connecting to a server via Server-Sent Events (legacy transport):
 - Connect to an MCP server using HTTP/SSE transport
 - Get server information and capabilities
 - List available tools
@@ -449,6 +466,27 @@ cmake --build build --target sse_client_example
 # First start the server in another terminal
 ./build/examples/sse_client_example
 ```
+
+### Streamable HTTP Client Example ([`examples/streamable_http_client_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/streamable_http_client_example.cpp))
+
+**New in MCP 2025-03-26** - Demonstrates both SSE (legacy) and Streamable HTTP (modern) transports side-by-side:
+- Compare SSE client vs. Streamable HTTP client
+- See differences in endpoint usage (`/sse` + `/message` vs. unified `/mcp`)
+- Session management (query parameters vs. `Mcp-Session-Id` header)
+- Explicit session termination with Streamable HTTP
+- Recommended transport for new applications
+
+**Build and run:**
+```bash
+cmake --build build --target streamable_http_client_example
+./build/examples/streamable_http_client_example
+```
+
+**Key differences highlighted:**
+- SSE Client uses `/sse` and `/message` endpoints with session ID in query parameters
+- Streamable HTTP Client uses unified `/mcp` endpoint with `Mcp-Session-Id` header
+- Streamable HTTP returns HTTP 202 Accepted for async processing
+- Streamable HTTP supports explicit session termination via DELETE method
 
 ### Stdio Client Example ([`examples/stdio_client_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/stdio_client_example.cpp))
 
@@ -639,6 +677,8 @@ mcp::json result = client.call_tool("hello", params);
 
 The SSE client uses HTTP and Server-Sent Events (SSE) to communicate with MCP servers. This is a communication method based on Web standards, suitable for communicating with servers that support HTTP/SSE.
 
+**Note**: This is the legacy transport. For new applications, consider using the Streamable HTTP client (see below).
+
 ```cpp
 #include "mcp_sse_client.h"
 
@@ -662,6 +702,49 @@ json result = client.call_tool("tool_name", {
     {"param2", 42}
 });
 ```
+
+### Using the Streamable HTTP Client (MCP 2025-03-26)
+
+The Streamable HTTP client implements the modern MCP 2025-03-26 transport specification. **Recommended for new applications**.
+
+```cpp
+#include "mcp_streamable_http_client.h"
+
+// Create a client, specifying the server address and port
+// Uses unified /mcp endpoint by default
+mcp::streamable_http_client client("http://localhost:8080");
+
+// Optional: Customize the endpoint (defaults to "/mcp")
+// mcp::streamable_http_client client("http://localhost:8080", "/custom-mcp-endpoint");
+
+// Set an authentication token (if needed)
+client.set_auth_token("your_auth_token");
+
+// Set custom request headers (if needed)
+client.set_header("X-Custom-Header", "value");
+
+// Initialize the client
+if (!client.initialize("My Client", "1.0.0")) {
+    // Handle initialization failure
+}
+
+// Call a tool
+json result = client.call_tool("tool_name", {
+    {"param1", "value1"},
+    {"param2", 42}
+});
+
+// Explicitly close the session when done (optional but recommended)
+// This is a unique feature of Streamable HTTP transport
+client.close_session();
+```
+
+**Key advantages of Streamable HTTP:**
+- Unified `/mcp` endpoint for all operations
+- Session ID in `Mcp-Session-Id` header (cleaner than query parameters)
+- Explicit session termination support
+- Better alignment with MCP 2025-03-26 specification
+- Returns HTTP 202 Accepted for async processing
 
 ### Using the Stdio Client
 
