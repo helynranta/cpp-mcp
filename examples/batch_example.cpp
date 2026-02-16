@@ -1,7 +1,23 @@
 /**
  * @file batch_example.cpp
- * @brief JSON-RPC batch request example
+ * @brief JSON-RPC batch request example - DEPRECATED
  * 
+ * ⚠️ **DEPRECATED**: This example demonstrates JSON-RPC batch request support 
+ * which was part of MCP 2025-03-26 but was REMOVED in MCP 2025-06-18.
+ * 
+ * **This file is kept for historical reference only.**
+ * 
+ * Starting with MCP 2025-06-18, JSON-RPC batching is NOT supported.
+ * The server will reject batch requests (arrays) with HTTP 400 error.
+ * 
+ * See MCP specification changelog:
+ * https://modelcontextprotocol.io/specification/2025-06-18/changelog
+ * 
+ * For current examples, see:
+ * - server_example.cpp - Server setup and single request handling
+ * - streamable_http_client_example.cpp - Client usage
+ * 
+ * Original description (MCP 2025-03-26):
  * This example demonstrates JSON-RPC batch request support (MCP 2025-03-26 requirement).
  * Shows how the MCP server handles batch requests according to the JSON-RPC 2.0 specification.
  * 
@@ -34,7 +50,22 @@ void print_batch_example(const std::string& title, const json& batch) {
 }
 
 int main() {
-    std::cout << "JSON-RPC Batch Request Examples" << std::endl;
+    std::cout << "=====================================================================" << std::endl;
+    std::cout << "⚠️  WARNING: JSON-RPC BATCH SUPPORT DEPRECATED" << std::endl;
+    std::cout << "=====================================================================" << std::endl;
+    std::cout << std::endl;
+    std::cout << "This example demonstrates batch requests from MCP 2025-03-26," << std::endl;
+    std::cout << "which is NO LONGER SUPPORTED in MCP 2025-06-18+." << std::endl;
+    std::cout << std::endl;
+    std::cout << "The MCP server will now REJECT batch requests (arrays) with:" << std::endl;
+    std::cout << "  - HTTP 400 Bad Request" << std::endl;
+    std::cout << "  - Error: 'JSON-RPC batching is not supported in MCP 2025-06-18+'" << std::endl;
+    std::cout << std::endl;
+    std::cout << "This file is kept for historical reference only." << std::endl;
+    std::cout << "=====================================================================" << std::endl;
+    std::cout << std::endl;
+    
+    std::cout << "JSON-RPC Batch Request Examples (DEPRECATED)" << std::endl;
     std::cout << "================================" << std::endl;
     
     // Example 1: Batch with multiple requests
