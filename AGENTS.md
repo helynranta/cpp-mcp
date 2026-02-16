@@ -70,10 +70,20 @@ cd build && ctest -R mcp_tests -V
 **Running Tests:**
 
 ```bash
-# Configure with tests enabled (vcpkg will automatically install Boost.Test)
+# Using CMake presets (recommended)
+cmake --preset dev-release
+cmake --build --preset dev-release
+ctest --preset dev-release
+
+# Or for debug builds
+cmake --preset dev-debug
+cmake --build --preset dev-debug
+ctest --preset dev-debug
+
+# Manual configuration (alternative)
 cmake -B build -DMCP_BUILD_TESTS=ON \
   -DVCPKG_MANIFEST_FEATURES="tests" \
-  -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
+  -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 
 # Build
 cmake --build build --config Release
@@ -363,9 +373,37 @@ Maintain TESTING_IMPLEMENTATION_PLAN.md and related docs:
 ### Common Commands
 
 ```bash
+# Using CMake Presets (Recommended)
+
+# Development with tests
+cmake --preset dev-release
+cmake --build --preset dev-release
+ctest --preset dev-release
+
+# Debug build
+cmake --preset dev-debug
+cmake --build --preset dev-debug
+ctest --preset dev-debug
+
+# Sanitizers (Linux/macOS only)
+cmake --preset sanitizer-address
+cmake --build --preset sanitizer-address
+ctest --preset sanitizer-address
+
+# Code coverage (Linux/macOS only)
+cmake --preset coverage
+cmake --build --preset coverage
+ctest --preset coverage
+
+# List all presets
+cmake --list-presets
+
+# Manual Configuration (Alternative)
+
 # Setup
 git submodule update --init --recursive
 cmake -B build -DMCP_BUILD_TESTS=ON \
+  -DVCPKG_MANIFEST_FEATURES="tests" \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 
 # Build
@@ -375,7 +413,7 @@ cmake --build build --config Release -j$(nproc)
 cd build && ctest -V
 
 # Run specific test
-cd build && ctest -R mcp_catch2_tests -V
+cd build && ctest -R mcp_tests -V
 
 # Clean build
 rm -rf build && cmake -B build ...

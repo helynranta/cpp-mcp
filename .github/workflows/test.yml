@@ -33,20 +33,13 @@ jobs:
         vcpkgJsonGlob: 'vcpkg.json'
     
     - name: Configure CMake
-      run: |
-        cmake -B build \
-          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
-          -DMCP_BUILD_TESTS=ON \
-          -DVCPKG_MANIFEST_FEATURES="tests" \
-          -DCMAKE_BUILD_TYPE=Release
+      run: cmake --preset ci-linux
     
     - name: Build
-      run: cmake --build build --config Release -j$(nproc)
+      run: cmake --build --preset ci-linux
     
     - name: Run Boost.Test tests
-      run: |
-        cd build
-        ctest --output-on-failure -C Release -R mcp_tests
+      run: ctest --preset ci-linux
   
   test-windows:
     name: Test on Windows
@@ -73,17 +66,10 @@ jobs:
         vcpkgJsonGlob: 'vcpkg.json'
     
     - name: Configure CMake
-      run: |
-        cmake -B build `
-          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
-          -DMCP_BUILD_TESTS=ON `
-          -DVCPKG_MANIFEST_FEATURES="tests" `
-          -DCMAKE_BUILD_TYPE=Release
+      run: cmake --preset ci-windows
     
     - name: Build
-      run: cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
+      run: cmake --build --preset ci-windows
     
     - name: Run Boost.Test tests
-      run: |
-        cd build
-        ctest --output-on-failure -C Release -R mcp_tests
+      run: ctest --preset ci-windows
