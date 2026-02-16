@@ -1,0 +1,99 @@
+---
+# clang-format configuration for cpp-mcp
+# Based on LLVM coding style with project-specific customizations
+# Enforces modern C++23 best practices
+
+BasedOnStyle: LLVM
+
+# Language and Standard
+Language: Cpp
+Standard: Latest
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+AccessModifierOffset: -4
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+
+# Line Length and Breaking
+ColumnLimit: 120
+BreakBeforeBraces: Attach
+AlwaysBreakAfterReturnType: None
+AlwaysBreakTemplateDeclarations: Yes
+BreakConstructorInitializers: BeforeColon
+
+# Spacing
+SpaceAfterCStyleCast: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesInAngles: Never
+SpacesInContainerLiterals: false
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignEscapedNewlines: Right
+AlignOperands: Align
+AlignTrailingComments: true
+
+# Pointers and References
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+# Include Sorting
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Project headers (in quotes)
+  - Regex:           '^"[a-z_]+'
+    Priority:        1
+  # System/Standard library headers
+  - Regex:           '^<[a-z_]+'
+    Priority:        3
+  # C++ standard library
+  - Regex:           '^<'
+    Priority:        2
+
+# Namespaces
+CompactNamespaces: false
+NamespaceIndentation: None
+
+# Functions
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: All
+AlwaysBreakAfterDefinitionReturnType: None
+
+# Control Flow
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Modern C++ Features
+Cpp11BracedListStyle: true
+FixNamespaceComments: true
+
+# Comments
+ReflowComments: true
+
+# Penalties (fine-tuning line breaking decisions)
+PenaltyBreakAssignment: 50
+PenaltyBreakBeforeFirstCallParameter: 19
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 60
+
+# Misc
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
