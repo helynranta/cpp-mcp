@@ -33,6 +33,7 @@ set(TEST_SOURCES
     beast_adapter_test.cpp
     sse_client_beast_test.cpp
     session_management_test.cpp
+    streamable_http_client_test.cpp
 )
 
 # Create test executable

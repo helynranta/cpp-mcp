@@ -64,3 +64,12 @@ target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR}/include)
 if(OPENSSL_FOUND)
     target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
 endif()
+
+# streamable_http_client_example - demonstrates Streamable HTTP vs SSE transports
+set(TARGET streamable_http_client_example)
+add_executable(${TARGET} streamable_http_client_example.cpp)
+target_link_libraries(${TARGET} PRIVATE mcp)
+target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+if(OPENSSL_FOUND)
+    target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
+endif()
