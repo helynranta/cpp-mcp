@@ -53,8 +53,27 @@ cd build && ctest -V
 cd build && ctest -R mcp_tests -V
 ```
 
-### Linting
-No specific linter is configured. Follow C++23 standards and ensure code compiles without warnings.
+### Linting and Formatting
+
+The project uses **clang-format** for automated code formatting:
+
+```bash
+# Format changed files before committing
+find src include examples test -name "*.cpp" -o -name "*.h" | xargs clang-format -i
+
+# Check formatting (what CI runs)
+clang-format --dry-run --Werror src/**/*.cpp include/**/*.h
+```
+
+**Style Guide:**
+- Based on LLVM preset (.clang-format in project root)
+- 120 character line limit, 4-space indentation
+- Sorted and grouped includes
+- All PRs must pass clang-format CI checks
+
+**EditorConfig:** Basic whitespace rules in .editorconfig (most editors auto-apply)
+
+See [README.md - Code Style and Formatting](../README.md#code-style-and-formatting) for complete formatting guidelines.
 
 ## Technology Stack
 
@@ -80,6 +99,12 @@ No specific linter is configured. Follow C++23 standards and ensure code compile
 - Use `snake_case` for variables, functions, and namespaces
 - Use `PascalCase` for class/struct names
 - Use meaningful, descriptive names
+
+### Code Formatting
+- **All code must be formatted with clang-format before committing**
+- CI enforces formatting - PRs fail if code is not formatted
+- Run `clang-format -i <files>` on changed files before pushing
+- Configure your editor to format on save (recommended)
 
 ### Testing Requirements
 - All new features MUST have tests
