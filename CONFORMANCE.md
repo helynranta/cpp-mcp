@@ -288,6 +288,57 @@ Elicitation (requesting user input during interactions) is an optional MCP featu
 
 ---
 
+## Official MCP Conformance Framework
+
+### Conformance Test Framework
+
+The official MCP conformance framework provides automated testing against the protocol specification:
+
+- **Repository**: https://github.com/modelcontextprotocol/conformance
+- **NPM Package**: `@modelcontextprotocol/conformance`
+- **Current Version**: 0.1.11
+
+**Quick Start:**
+```bash
+# Start your C++ server
+./build/dev-release/examples/server_example
+
+# Run conformance tests in another terminal
+npx @modelcontextprotocol/conformance server --url http://localhost:8080/mcp
+```
+
+**See [CONFORMANCE_TESTING.md](CONFORMANCE_TESTING.md) for complete guide** on:
+- Running all conformance scenarios
+- Interpreting test results
+- Creating expected-failures baseline
+- CI/CD integration
+- Debugging failed tests
+
+### Conformance Coverage Summary
+
+| Scenario Category | Total Scenarios | Passing | Partial | Not Implemented |
+|-------------------|-----------------|---------|---------|-----------------|
+| Core Lifecycle | 3 | 3 ✅ | 0 | 0 |
+| Tools | 11 | 7 ✅ | 2 ⚠️ | 2 ❌ |
+| Resources | 6 | 4 ✅ | 2 ⚠️ | 0 |
+| Prompts | 5 | 5 ✅ | 0 | 0 |
+| Security | 4 | 2 ✅ | 0 | 2 ❌ |
+| **Total** | **29** | **21** | **4** | **4** |
+
+**Coverage Rate**: 72% (21/29) passing, 86% (25/29) implemented
+
+**Not Implemented (By Design):**
+- `tools-call-sampling` - LLM sampling (optional feature)
+- `tools-call-elicitation` - User input elicitation (optional feature)
+- `elicitation-sep1034-defaults` - Elicitation defaults (optional)
+- `elicitation-sep1330-enums` - Elicitation enums (optional)
+
+**Partial Implementation:**
+- `tools-call-with-progress` - Progress notifications (basic support)
+- `resources-subscribe` - Resource subscriptions (basic support)
+- `resources-unsubscribe` - Resource unsubscribe (basic support)
+- `tools-call-audio` - Audio content (basic support)
+
 ## Interoperability Testing
 
 ### Reference Implementations
@@ -308,6 +359,11 @@ The C++ MCP implementation has been designed to be interoperable with:
    - Tool: https://github.com/modelcontextprotocol/inspector
    - Usage: Visual testing and debugging
    - Command: `npx @modelcontextprotocol/inspector`
+
+4. **Official Conformance Framework**
+   - Tool: https://github.com/modelcontextprotocol/conformance
+   - Usage: Automated protocol conformance testing
+   - Command: `npx @modelcontextprotocol/conformance server --url <url>`
 
 ### Interoperability Test Matrix
 
