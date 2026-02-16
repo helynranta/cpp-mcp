@@ -643,25 +643,18 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
         res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
         return;
     }
-
-    // Check if this is a batch request (array)
+    
+    // MCP 2025-06-18: JSON-RPC batching is NOT supported
+    // Reject batch requests (arrays) with appropriate error
     if (req_json.is_array()) {
-        // Check if batch contains initialize method (not allowed per MCP 2025-03-26)
-        for (const auto& item : req_json) {
-            if (item.is_object() && item.contains("method") && item["method"].is_string() &&
-                item["method"] == "initialize") {
-                LOG_ERROR("Initialize method not allowed in batch requests per MCP 2025-03-26");
-                res.set_status(400);
-                json error_response = response::create_error(nullptr, error_code::invalid_request,
-                                                             "Initialize request MUST NOT be part of a JSON-RPC batch")
-                                          .to_json();
-                res.set_content(error_response.dump(), "application/json");
-                return;
-            }
-        }
-
-        // Handle batch request
-        handle_batch_jsonrpc(req_json, session_id, res);
+        LOG_ERROR("Batch requests not supported per MCP 2025-06-18 (received array with ", req_json.size(), " items)");
+        res.set_status(400);
+        json error_response = response::create_error(
+            nullptr,  // No ID for batch errors
+            error_code::invalid_request,
+            "JSON-RPC batching is not supported in MCP 2025-06-18+. Please send individual requests instead of arrays."
+        ).to_json();
+        res.set_content(error_response.dump(), "application/json");
         return;
     }
 
@@ -1190,30 +1183,19 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
         res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
         return;
     }
-
-    // Check if this is a batch request (array)
+    
+    // MCP 2025-06-18: JSON-RPC batching is NOT supported
+    // Reject batch requests (arrays) with appropriate error
     if (req_json.is_array()) {
-        // Check if batch contains initialize method (not allowed per MCP 2025-03-26)
-        for (const auto& item : req_json) {
-            if (item.is_object() && item.contains("method") && item["method"].is_string() &&
-                item["method"] == "initialize") {
-                LOG_ERROR("Initialize method not allowed in batch requests per MCP 2025-03-26");
-                res.set_status(400);
-                res.set_header("Content-Type", "application/json");
-                json error_response = response::create_error(nullptr, error_code::invalid_request,
-                                                             "Initialize request MUST NOT be part of a JSON-RPC batch")
-                                          .to_json();
-                res.set_content(error_response.dump(), "application/json");
-                return;
-            }
-        }
-
-        // Handle batch request
+        LOG_ERROR("Batch requests not supported per MCP 2025-06-18 (received array with ", req_json.size(), " items)");
+        res.set_status(400);
         res.set_header("Content-Type", "application/json");
-        if (!session_id.empty()) {
-            set_session_id_header(res, session_id);
-        }
-        handle_batch_jsonrpc(req_json, session_id, res);
+        json error_response = response::create_error(
+            nullptr,  // No ID for batch errors
+            error_code::invalid_request,
+            "JSON-RPC batching is not supported in MCP 2025-06-18+. Please send individual requests instead of arrays."
+        ).to_json();
+        res.set_content(error_response.dump(), "application/json");
         return;
     }
 

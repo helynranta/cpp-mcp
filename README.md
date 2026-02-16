@@ -9,7 +9,7 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 ## Core Features
 
 - **JSON-RPC 2.0 Communication**: Request/response communication based on JSON-RPC 2.0 standard
-- **Batch Request Support**: Process multiple JSON-RPC requests in a single HTTP call (MCP 2025-03-26 requirement)
+- ~~**Batch Request Support**~~: **DEPRECATED** - Batch requests were removed in MCP 2025-06-18 (previously supported in 2025-03-26)
 - **Streamable HTTP Transport**: Full support for MCP 2025-03-26 Streamable HTTP transport with unified `/mcp` endpoint
   - Single endpoint for GET, POST, and DELETE methods
   - `Mcp-Session-Id` header-based session management
@@ -26,7 +26,7 @@ For the full specification and protocol details, see the [MCP GitHub repository]
   - Trust model for tool annotations as untrusted metadata
   - See [SECURITY.md](SECURITY.md) for details
 - **Lifecycle Management**: Strict initialization lifecycle with state transitions (uninitialized → initializing → ready)
-- **Batch Initialization Protection**: Rejects initialize requests in batches per MCP 2025-03-26 specification
+- ~~**Batch Initialization Protection**~~: **DEPRECATED** - No longer applicable as batch support was removed in MCP 2025-06-18
 - **Capability Negotiation**: Store and respect client capabilities negotiated during initialization
 - **Cancellation Support**: Handle cancellation notifications (notifications/cancelled) with configurable timeout
 - **Resource Abstraction**: Standard interfaces for resources such as files, APIs, etc.
@@ -636,16 +636,20 @@ cmake --build build --target progress_example
 ./build/examples/progress_example
 ```
 
-### Batch Request Example ([`examples/batch_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/batch_example.cpp))
+### ~~Batch Request Example~~ **DEPRECATED** ([`examples/batch_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/batch_example.cpp))
 
-Demonstrates JSON-RPC batch request support (MCP 2025-03-26):
+**⚠️ This example is deprecated as of MCP 2025-06-18.**
+
+JSON-RPC batching was removed from the MCP specification in version 2025-06-18. The server now rejects batch requests (arrays) with HTTP 400 and an error message.
+
+This example is kept for historical reference only. It previously demonstrated:
 - Multiple requests in a single batch
 - Mixed batches (requests + notifications)
 - Notification-only batches
 - Empty batch validation
 - Shows expected server behavior for each scenario
 
-**Build and run:**
+**Build and run (will show deprecation warning):**
 ```bash
 cmake --build build --target batch_example
 ./build/examples/batch_example
@@ -825,26 +829,23 @@ json result = client.call_tool("tool_name", {
 });
 ```
 
-## Batch Request Support
+## ~~Batch Request Support~~ - **DEPRECATED in MCP 2025-06-18**
 
-MCP 2025-03-26 requires implementations to support receiving JSON-RPC batches. This framework fully implements batch request processing according to the JSON-RPC 2.0 specification.
+**⚠️ JSON-RPC batching is NO LONGER SUPPORTED as of MCP 2025-06-18.**
 
-### What is a Batch Request?
+### What Changed?
 
-A batch request allows clients to send multiple JSON-RPC requests in a single HTTP call by wrapping them in a JSON array. This can improve performance by reducing network round-trips.
+MCP 2025-03-26 required implementations to support JSON-RPC batches, but this requirement was **removed in MCP 2025-06-18**. The server now rejects batch requests with:
 
-### Server Behavior
+- **HTTP 400 Bad Request**
+- **Error code**: `-32600` (Invalid Request)
+- **Error message**: "JSON-RPC batching is not supported in MCP 2025-06-18+. Please send individual requests instead of arrays."
 
-The server handles batch requests as follows:
+### Migration Guide
 
-1. **Multiple Requests**: Processes all requests and returns an array of responses in the same order
-2. **Mixed Batches**: Supports requests and notifications together; only requests get responses
-3. **Notification-Only Batches**: Returns HTTP 202 Accepted with no response body
-4. **Empty Batches**: Returns HTTP 400 error (invalid per JSON-RPC 2.0)
-5. **Single Item Batches**: Valid and processed normally
+If you were using batch requests:
 
-### Example Batch Request
-
+**Before (MCP 2025-03-26):**
 ```json
 [
   {
@@ -856,21 +857,54 @@ The server handles batch requests as follows:
     "jsonrpc": "2.0",
     "id": 2,
     "method": "resources/list"
-  },
-  {
-    "jsonrpc": "2.0",
-    "method": "notifications/log",
-    "params": {"message": "Processing batch"}
   }
 ]
 ```
 
+**After (MCP 2025-06-18+):**
+```json
+// Send as separate requests
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list"
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "resources/list"
+}
+```
+
+### Historical Reference (MCP 2025-03-26)
+
+<details>
+<summary>Click to see original batch request documentation</summary>
+
+MCP 2025-03-26 required implementations to support receiving JSON-RPC batches. This framework previously implemented batch request processing according to the JSON-RPC 2.0 specification.
+
+#### What was a Batch Request?
+
+A batch request allowed clients to send multiple JSON-RPC requests in a single HTTP call by wrapping them in a JSON array.
+
+#### Server Behavior (Deprecated)
+
+The server previously handled batch requests as follows:
+
+1. **Multiple Requests**: Processed all requests and returned an array of responses in the same order
+2. **Mixed Batches**: Supported requests and notifications together; only requests got responses
+3. **Notification-Only Batches**: Returned HTTP 202 Accepted with no response body
+4. **Empty Batches**: Returned HTTP 400 error (invalid per JSON-RPC 2.0)
+5. **Single Item Batches**: Valid and processed normally
+
 This batch contains:
-- Two requests (with IDs) that will receive responses
-- One notification (no ID) that will be processed without a response
+- Two requests (with IDs) that would receive responses
+- One notification (no ID) that would be processed without a response
 
-### Expected Response
-
+Expected Response:
 ```json
 [
   {
@@ -886,11 +920,13 @@ This batch contains:
 ]
 ```
 
-The response array contains only the results for the two requests, not for the notification.
+The response array contained only the results for the two requests, not for the notification.
 
-### Testing Batch Support
+</details>
 
-Run the batch example to see all scenarios:
+### Testing (Deprecated)
+
+The batch example (`examples/batch_example.cpp`) still exists for historical reference:
 
 ```bash
 ./build/examples/batch_example

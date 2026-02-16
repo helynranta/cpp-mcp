@@ -34,6 +34,7 @@ set(TEST_SOURCES
     sse_client_beast_test.cpp
     session_management_test.cpp
     streamable_http_client_test.cpp
+    batch_rejection_test.cpp
 )
 
 # Create test executable
