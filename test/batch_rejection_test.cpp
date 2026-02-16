@@ -126,8 +126,8 @@ BOOST_AUTO_TEST_CASE(RejectsBatchRequestArray) {
  * Ensure we didn't break non-batch functionality
  */
 BOOST_AUTO_TEST_CASE(AcceptsSingleRequest) {
-    // Create a single request (not an array)
-    request req = request::create("tools/list", json::object());
+    // Create a single request (not an array) - use ping which doesn't require session
+    request req = request::create("ping", json::object());
     json single_request = req.to_json();
     
     // Send single request to server
@@ -138,20 +138,11 @@ BOOST_AUTO_TEST_CASE(AcceptsSingleRequest) {
         "application/json"
     );
     
-    // Verify server accepted the request
-    BOOST_CHECK_EQUAL(res.status_code, 200);  // OK
+    // Verify server accepted the request (ping returns 202 Accepted)
+    BOOST_CHECK_EQUAL(res.status_code, 202);  // Accepted
     
-    // Parse response
-    json response_json;
-    BOOST_REQUIRE_NO_THROW(response_json = json::parse(res.body));
-    
-    // Verify response is valid (has result, not error)
-    BOOST_CHECK(response_json.contains("result") || response_json.contains("error"));
-    if (response_json.contains("error")) {
-        // If there's an error, it shouldn't be about batching
-        std::string error_message = response_json["error"]["message"];
-        BOOST_CHECK(error_message.find("batch") == std::string::npos);
-    }
+    // For ping, we should get "Accepted" response
+    BOOST_CHECK_EQUAL(res.body, "Accepted");
 }
 
 /**
