@@ -208,6 +208,9 @@ private:
     // Message endpoint
     std::string msg_endpoint_;
 
+    // Negotiated protocol version (MCP 2025-06-18+)
+    std::string negotiated_version_;
+
     // HTTP client (for JSON-RPC POST requests)
     std::unique_ptr<http::client_interface> http_client_;
 
