@@ -62,10 +62,8 @@ struct ProtocolVersionHeaderFixture {
         }
         server_.reset();
     }
-    
-    std::string get_base_url() {
-        return "http://localhost:" + std::to_string(port_);
-    }
+
+    std::string get_base_url() { return "http://localhost:" + std::to_string(port_); }
 };
 
 BOOST_FIXTURE_TEST_SUITE(ProtocolVersionHeaderTestSuite, ProtocolVersionHeaderFixture)
@@ -76,7 +74,7 @@ BOOST_FIXTURE_TEST_SUITE(ProtocolVersionHeaderTestSuite, ProtocolVersionHeaderFi
  */
 BOOST_AUTO_TEST_CASE(ClientCanInitialize) {
     streamable_http_client client(get_base_url());
-    
+
     // Initialize should succeed
     bool success = client.initialize("TestClient", "1.0.0");
     BOOST_CHECK(success);
@@ -89,10 +87,10 @@ BOOST_AUTO_TEST_CASE(ClientCanInitialize) {
  */
 BOOST_AUTO_TEST_CASE(ClientCanSendRequestsAfterInit) {
     streamable_http_client client(get_base_url());
-    
+
     // Initialize
     BOOST_REQUIRE(client.initialize("TestClient", "1.0.0"));
-    
+
     // Send ping request
     bool ping_success = client.ping();
     BOOST_CHECK(ping_success);
@@ -104,13 +102,13 @@ BOOST_AUTO_TEST_CASE(ClientCanSendRequestsAfterInit) {
  */
 BOOST_AUTO_TEST_CASE(ClientNegotiatesVersion) {
     streamable_http_client client(get_base_url());
-    
+
     // Initialize - this should negotiate protocol version
     BOOST_REQUIRE(client.initialize("TestClient", "1.0.0"));
-    
+
     // After init, client should have stored the negotiated version
     // (We'll implement this in the client)
-    
+
     // For now, just verify client works
     BOOST_CHECK(client.is_running());
 }
@@ -124,7 +122,7 @@ BOOST_AUTO_TEST_CASE(ServerValidatesProtocolVersionHeader) {
     // This test will be expanded once we implement server-side validation
     // For now, just verify server is running
     BOOST_CHECK(server_ != nullptr);
-    
+
     // TODO: Once implemented, test that:
     // 1. Server accepts requests with valid MCP-Protocol-Version header
     // 2. Server rejects requests with invalid version (returns 400)
