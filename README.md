@@ -294,6 +294,76 @@ Accept: application/json, text/event-stream
 {"jsonrpc":"2.0","id":1,"method":"tools/list"}
 ```
 
+### Protocol Version Header (MCP 2025-06-18+)
+
+Starting with MCP 2025-06-18, the `MCP-Protocol-Version` header is **required** in all HTTP requests after initialization. This header enables version negotiation and ensures protocol compatibility between clients and servers.
+
+#### Server Behavior
+
+The server validates the `MCP-Protocol-Version` header for all requests:
+
+- **Supported Versions**: `2025-03-26`, `2025-06-18`, `2025-11-25`
+- **Missing Header**: Accepts request with warning (assumes `2025-03-26` for backward compatibility)
+- **Invalid Version**: Returns HTTP 400 Bad Request with error details
+- **Version Mismatch**: Returns HTTP 400 if header doesn't match negotiated version
+
+```cpp
+// Example: Request with protocol version header
+POST /mcp HTTP/1.1
+Host: localhost:8080
+Mcp-Session-Id: abc123-session-id
+MCP-Protocol-Version: 2025-06-18
+Content-Type: application/json
+Accept: application/json, text/event-stream
+
+{"jsonrpc":"2.0","id":1,"method":"ping"}
+```
+
+#### Client Implementation
+
+Both `streamable_http_client` and `sse_client` automatically:
+
+1. **Negotiate version** during initialization (via `protocolVersion` parameter)
+2. **Store negotiated version** from server's `InitializeResult`
+3. **Include header** in all subsequent HTTP requests
+
+```cpp
+// Client automatically handles version negotiation
+streamable_http_client client("http://localhost:8080");
+client.initialize("MyClient", "1.0.0");  // Negotiates version
+
+// All subsequent requests automatically include MCP-Protocol-Version header
+client.ping();  // Header added automatically
+auto result = client.call_tool("my_tool", params);  // Header added automatically
+```
+
+#### Error Responses
+
+If the protocol version is invalid or mismatched:
+
+```json
+// HTTP 400 Bad Request
+{
+  "error": "Unsupported protocol version",
+  "version_received": "invalid-version",
+  "supported_versions": ["2025-03-26", "2025-06-18", "2025-11-25"]
+}
+
+// Or for version mismatch:
+{
+  "error": "Protocol version mismatch",
+  "version_in_header": "2025-03-26",
+  "negotiated_version": "2025-06-18"
+}
+```
+
+#### Backward Compatibility
+
+For clients that don't send the header:
+- Server logs a warning but accepts the request
+- Assumes protocol version `2025-03-26`
+- This allows legacy clients to continue working
+
 ### Backward Compatibility
 
 The framework maintains backward compatibility with legacy endpoints:
