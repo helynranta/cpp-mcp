@@ -8,7 +8,6 @@
  * 3. Maintain backward compatibility with text content
  */
 
-#include "mcp_http_factory.h"
 #include "mcp_server.h"
 #include "mcp_tool.h"
 
@@ -21,11 +20,13 @@ int main() {
     std::cout << "=== MCP 2025-06-18 Structured Tool Output Example ===" << std::endl;
     std::cout << std::endl;
 
-    // Create an HTTP server
-    auto http_server = mcp::http::create_server("0.0.0.0", 8080);
+    // Create server configuration
+    server::configuration srv_conf;
+    srv_conf.port = 8080;
+    srv_conf.host = "0.0.0.0";
 
     // Create an MCP server
-    server mcp_server(http_server);
+    server mcp_server(srv_conf);
 
     // Example 1: Weather tool with structured output schema
     // This demonstrates the new MCP 2025-06-18 features
@@ -104,12 +105,11 @@ int main() {
             {"metadata", {{"timestamp", "2025-06-18T10:30:00Z"}, {"version", "2.0"}}}};
 
         return {{"content",
-                 json::array({
-                     {{"type", "text"},
-                      {"text",
-                       "API Query Results:\n" + "Status: " + structured_response["status"].get<std::string>() + "\n" +
-                           "Items found: " + std::to_string(structured_response["data"]["count"].get<int>()) + "\n"}},
-                 })},
+                 json::array({{{"type", "text"},
+                               {"text",
+                                std::string("API Query Results:\n") + "Status: " +
+                                    structured_response["status"].get<std::string>() + "\n" + "Items found: " +
+                                    std::to_string(structured_response["data"]["count"].get<int>()) + "\n"}}})},
                 {"structuredContent", structured_response},
                 {"isError", false}};
     });
@@ -226,8 +226,8 @@ int main() {
     std::cout << std::endl;
     std::cout << "Press Ctrl+C to stop the server" << std::endl;
 
-    // Run the server
-    mcp_server.run();
+    // Run the server (blocking mode)
+    mcp_server.start(true);
 
     return 0;
 }
