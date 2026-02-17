@@ -84,7 +84,6 @@ BOOST_AUTO_TEST_CASE(ErrorResponseMessageFormat) {
     // Per MCP specification: error objects must contain only 'code' and 'message'
     BOOST_CHECK(!res_json["error"].contains("data"));
 }
-}
 
 // Test notification message format
 BOOST_AUTO_TEST_CASE(NotificationMessageFormat) {
