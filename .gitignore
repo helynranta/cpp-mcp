@@ -109,3 +109,4 @@ poetry.toml
 # Test models for lora adapters
 
 # Local scripts
+vcpkg-cache/
