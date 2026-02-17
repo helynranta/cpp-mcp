@@ -31,6 +31,7 @@
 mcp::json get_time_handler(const mcp::json& params, const std::string& /* session_id */) {
     auto now = std::chrono::system_clock::now();
     auto time_t_now = std::chrono::system_clock::to_time_t(now);
+    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 
     std::string time_str = std::ctime(&time_t_now);
     // Remove trailing newline
@@ -38,28 +39,42 @@ mcp::json get_time_handler(const mcp::json& params, const std::string& /* sessio
         time_str.erase(time_str.length() - 1);
     }
 
-    return {{{"type", "text"}, {"text", time_str}}};
+    // MCP 2025-06-18: Return structured output with schema
+    mcp::json structured_data = {{"timestamp", std::to_string(time_t_now)},
+                                 {"formatted", time_str},
+                                 {"milliseconds", milliseconds.count()}};
+
+    return {{"content", mcp::json::array({{{"type", "text"}, {"text", time_str}}})},
+            {"structuredContent", structured_data},
+            {"isError", false}};
 }
 
 // Echo tool handler
 mcp::json echo_handler(const mcp::json& params, const std::string& /* session_id */) {
-    mcp::json result = params;
+    std::string original_text = params.contains("text") ? params["text"].get<std::string>() : "";
+    std::string processed_text = original_text;
+    bool was_uppercased = false;
+    bool was_reversed = false;
 
-    if (params.contains("text")) {
-        std::string text = params["text"];
-
-        if (params.contains("uppercase") && params["uppercase"].get<bool>()) {
-            std::transform(text.begin(), text.end(), text.begin(), ::toupper);
-            result["text"] = text;
-        }
-
-        if (params.contains("reverse") && params["reverse"].get<bool>()) {
-            std::reverse(text.begin(), text.end());
-            result["text"] = text;
-        }
+    if (params.contains("uppercase") && params["uppercase"].get<bool>()) {
+        std::transform(processed_text.begin(), processed_text.end(), processed_text.begin(), ::toupper);
+        was_uppercased = true;
     }
 
-    return {{{"type", "text"}, {"text", result["text"].get<std::string>()}}};
+    if (params.contains("reverse") && params["reverse"].get<bool>()) {
+        std::reverse(processed_text.begin(), processed_text.end());
+        was_reversed = true;
+    }
+
+    // MCP 2025-06-18: Return structured output with schema
+    mcp::json structured_data = {{"original", original_text},
+                                 {"processed", processed_text},
+                                 {"transformations",
+                                  {{"uppercase", was_uppercased}, {"reverse", was_reversed}}}};
+
+    return {{"content", mcp::json::array({{{"type", "text"}, {"text", processed_text}}})},
+            {"structuredContent", structured_data},
+            {"isError", false}};
 }
 
 // Calculator tool handler
@@ -98,13 +113,27 @@ mcp::json calculator_handler(const mcp::json& params, const std::string& /* sess
         throw mcp::mcp_exception(mcp::error_code::invalid_params, "Unknown operation: " + operation);
     }
 
-    return {{{"type", "text"}, {"text", std::to_string(result)}}};
+    // MCP 2025-06-18: Return structured output with schema
+    mcp::json structured_data = {{"result", result},
+                                 {"operation", operation},
+                                 {"operands", {{"a", params["a"].get<double>()}, {"b", params["b"].get<double>()}}}};
+
+    return {{"content", mcp::json::array({{{"type", "text"}, {"text", std::to_string(result)}}})},
+            {"structuredContent", structured_data},
+            {"isError", false}};
 }
 
 // Custom API endpoint handler
 mcp::json hello_handler(const mcp::json& params, const std::string& /* session_id */) {
     std::string name = params.contains("name") ? params["name"].get<std::string>() : "World";
-    return {{{"type", "text"}, {"text", "Hello, " + name + "!"}}};
+    std::string greeting = "Hello, " + name + "!";
+
+    // MCP 2025-06-18: Return structured output with schema
+    mcp::json structured_data = {{"greeting", greeting}, {"name", name}};
+
+    return {{"content", mcp::json::array({{{"type", "text"}, {"text", greeting}}})},
+            {"structuredContent", structured_data},
+            {"isError", false}};
 }
 
 int main(int argc, char* argv[]) {
@@ -150,34 +179,86 @@ int main(int argc, char* argv[]) {
     mcp::json capabilities = {{"tools", mcp::json::object()}};
     server.set_capabilities(capabilities);
 
-    // Register tools
+    // Register tools with MCP 2025-06-18 output schemas
+
+    // Time tool with output schema
+    mcp::json time_output_schema = {
+        {"type", "object"},
+        {"properties",
+         {{"timestamp", {{"type", "string"}, {"description", "Unix timestamp as string"}}},
+          {"formatted", {{"type", "string"}, {"description", "Human-readable formatted time"}}},
+          {"milliseconds", {{"type", "number"}, {"description", "Milliseconds component"}}}}},
+        {"required", mcp::json::array({"timestamp", "formatted", "milliseconds"})}};
+
     mcp::tool time_tool = mcp::tool_builder("get_time")
-                              .with_description("Get current time")
+                              .with_title("Current Time")
+                              .with_description("Get current time with timestamp and formatted string")
+                              .with_output_schema(time_output_schema)
                               .with_read_only(true)
                               .with_latency(100)
                               .build();
 
+    // Echo tool with output schema
+    mcp::json echo_output_schema = {
+        {"type", "object"},
+        {"properties",
+         {{"original", {{"type", "string"}, {"description", "Original input text"}}},
+          {"processed", {{"type", "string"}, {"description", "Processed output text"}}},
+          {"transformations",
+           {{"type", "object"},
+            {"properties",
+             {{"uppercase", {{"type", "boolean"}, {"description", "Whether uppercase transformation was applied"}}},
+              {"reverse", {{"type", "boolean"}, {"description", "Whether reverse transformation was applied"}}}}}}}}},
+        {"required", mcp::json::array({"original", "processed", "transformations"})}};
+
     mcp::tool echo_tool = mcp::tool_builder("echo")
+                              .with_title("Text Echo and Transform")
+                              .with_title("Text Echo and Transform")
                               .with_description("Echo input with optional transformations")
                               .with_string_param("text", "Text to echo")
                               .with_boolean_param("uppercase", "Convert to uppercase", false)
                               .with_boolean_param("reverse", "Reverse the text", false)
+                              .with_output_schema(echo_output_schema)
                               .with_read_only(true)
                               .with_latency(50)
                               .build();
 
+    // Calculator tool with output schema
+    mcp::json calc_output_schema = {
+        {"type", "object"},
+        {"properties",
+         {{"result", {{"type", "number"}, {"description", "Calculation result"}}},
+          {"operation", {{"type", "string"}, {"description", "Operation performed"}}},
+          {"operands",
+           {{"type", "object"},
+            {"properties",
+             {{"a", {{"type", "number"}, {"description", "First operand"}}},
+              {"b", {{"type", "number"}, {"description", "Second operand"}}}}}}}}},
+        {"required", mcp::json::array({"result", "operation", "operands"})}};
+
     mcp::tool calc_tool = mcp::tool_builder("calculator")
+                              .with_title("Basic Calculator")
                               .with_description("Perform basic calculations")
                               .with_string_param("operation", "Operation to perform (add, subtract, multiply, divide)")
                               .with_number_param("a", "First operand")
                               .with_number_param("b", "Second operand")
+                              .with_output_schema(calc_output_schema)
                               .with_read_only(true)
                               .with_latency(100)
                               .build();
 
+    // Hello tool with output schema
+    mcp::json hello_output_schema = {{"type", "object"},
+                                     {"properties",
+                                      {{"greeting", {{"type", "string"}, {"description", "The greeting message"}}},
+                                       {"name", {{"type", "string"}, {"description", "Name that was greeted"}}}}},
+                                     {"required", mcp::json::array({"greeting", "name"})}};
+
     mcp::tool hello_tool = mcp::tool_builder("hello")
+                               .with_title("Greeting Tool")
                                .with_description("Say hello")
                                .with_string_param("name", "Name to say hello to", "World")
+                               .with_output_schema(hello_output_schema)
                                .with_read_only(true)
                                .with_latency(50)
                                .build();
