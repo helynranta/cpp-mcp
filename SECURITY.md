@@ -1,6 +1,47 @@
-# HTTP Transport and Tool Safety Hardening (MCP 2025-06-18)
+# HTTP Transport and Tool Safety Hardening (MCP 2025-11-25)
 
-This document describes the security features implemented for HTTP transport and tool execution safety in accordance with MCP 2025-06-18 specification.
+This document describes the security features implemented for HTTP transport and tool execution safety in accordance with MCP 2025-11-25 specification.
+
+## 🚨 CRITICAL: No Authentication/Authorization
+
+**⚠️ WARNING**: This implementation intentionally does NOT include authentication or authorization mechanisms, even where they may be required or recommended by the MCP protocol specification or upstream SDKs.
+
+### Why This Matters
+
+- **Personal Use Only**: This server is designed for local, personal use scenarios
+- **Not Production Ready**: Do NOT deploy in multi-user, shared, or production environments
+- **No User Auth**: No user login, session authentication, or access control
+- **No OAuth**: OAuth/RFC 8707 resource indicators not implemented
+- **Open Access**: Any process that can reach the HTTP endpoint can interact with the server
+
+### Deployment Warning
+
+**DO NOT** use this server if:
+- ❌ Multiple users need access
+- ❌ Deploying on shared infrastructure
+- ❌ Exposing to the internet
+- ❌ Handling sensitive data
+- ❌ Production or enterprise use
+
+**ONLY** use this server if:
+- ✅ Running locally on your own machine
+- ✅ Personal development/testing
+- ✅ Trusted, single-user environment
+- ✅ Behind proper firewall/network controls
+
+### What IS Implemented
+
+The following security features ARE implemented and active:
+
+1. **Origin Validation**: Prevents DNS rebinding attacks
+2. **Tool Execution Safety**: User confirmation hooks for sensitive operations
+3. **Input Validation**: JSON-RPC validation and parameter checking
+4. **Session Isolation**: Per-session state management
+5. **CORS Handling**: Secure cross-origin resource sharing
+
+These features provide defense-in-depth but DO NOT replace proper authentication/authorization.
+
+---
 
 ## HTTP Transport Security
 
@@ -227,6 +268,8 @@ Tests are provided in `test/tool_safety_test.cpp`:
 
 ## References
 
-- [MCP 2025-06-18 Specification](https://spec.modelcontextprotocol.io/)
+- [MCP Latest Specification](https://modelcontextprotocol.io/specification/latest/)
+- [MCP 2025-06-18 Changelog](https://modelcontextprotocol.io/specification/2025-06-18/changelog)
+- [MCP Reference Implementation](https://github.com/modelcontextprotocol/modelcontextprotocol)
 - [OWASP DNS Rebinding Prevention](https://cheatsheetseries.owasp.org/cheatsheets/DNS_Rebinding_Prevention_Cheat_Sheet.html)
 - [MDN CORS Documentation](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)

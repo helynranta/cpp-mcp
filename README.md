@@ -2,9 +2,18 @@
 
 > ⚠️ **WARNING**: This is a purely vibe-coded experimental fork. Use at your own risk!
 
-[Model Context Protocol (MCP)](https://spec.modelcontextprotocol.io/specification/2025-06-18/architecture/) is an open protocol that provides a standardized way for AI models and agents to interact with various resources, tools, and services. This framework implements the core functionality of the MCP protocol, conforming to the 2025-06-18 protocol specification with backward compatibility for 2025-03-26.
+> 🚨 **SECURITY WARNING - NO AUTHENTICATION/AUTHORIZATION**: This server is intentionally designed for personal, local use only and does NOT implement any authentication or authorization mechanisms, even where they may be required or recommended by the MCP protocol specification or upstream SDKs. **Do NOT deploy this in multi-user, shared, or production environments!** See [SECURITY.md](SECURITY.md) for details on what security features ARE implemented (origin validation, tool execution safety, DNS rebinding mitigation).
 
-For the full specification and protocol details, see the [MCP GitHub repository](https://github.com/modelcontextprotocol/modelcontextprotocol).
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/specification/latest/) is an open protocol that provides a standardized way for AI models and agents to interact with various resources, tools, and services. This framework implements the core functionality of the MCP protocol, claiming conformance with the **2025-11-25 protocol specification** (core implementation based on 2025-06-18) with backward compatibility for 2025-03-26.
+
+## Specification and Resources
+
+- **📋 Current Specification**: [MCP 2025-11-25 (Latest)](https://modelcontextprotocol.io/specification/latest/)
+- **📝 Protocol Changelog**: [What's New in MCP](https://modelcontextprotocol.io/specification/2025-06-18/changelog)
+- **🔗 Reference Implementation**: [Official MCP Repository](https://github.com/modelcontextprotocol/modelcontextprotocol)
+- **✅ This Project's Changelog**: [CHANGELOG.md](CHANGELOG.md) - Detailed history of protocol upgrades and features
+
+For the full specification and protocol details, see the official MCP resources above.
 
 ## Core Features
 
@@ -38,6 +47,56 @@ For the full specification and protocol details, see the [MCP GitHub repository]
   - Support for both prompt arguments and resource template variables
 - **Extensible Architecture**: Easy to extend with new resource types and tools
 - **Multi-Transport Support**: Supports HTTP and standard input/output (stdio) communication methods
+
+## Protocol Conformance and Testing
+
+This implementation claims conformance with **MCP 2025-11-25** specification with core features based on 2025-06-18 implementation.
+
+### Conformance Status
+
+- **✅ Protocol Version**: 2025-11-25 (claimed), 2025-06-18 (implemented), 2025-03-26 (backward compatible)
+- **✅ Core Features**: JSON-RPC 2.0, lifecycle management, tool execution
+- **✅ HTTP Transport**: Streamable HTTP with SSE, session management
+- **✅ Security Features**: Origin validation, DNS rebinding mitigation, tool safety hooks
+- **✅ Advanced Features**: Elicitation (human-in-the-loop), completion support, structured tool output
+- **⚠️ Authentication**: NOT IMPLEMENTED by design (personal use only)
+- **⚠️ Authorization**: NOT IMPLEMENTED by design (personal use only)
+
+### Test Coverage
+
+- **Total Tests**: 201+ tests
+- **Pass Rate**: 100%
+- **Test Framework**: Boost.Test 1.90.0
+- **CI/CD**: GitHub Actions on Linux and Windows
+
+### Official Conformance Testing
+
+This project is tested against the [official MCP conformance suite](https://github.com/modelcontextprotocol/conformance):
+
+- **Framework Version**: v0.1.11
+- **Test Scenarios**: 29 server scenarios
+- **Coverage**: 
+  - 21/29 fully passing (72%)
+  - 25/29 implemented (86%)
+- **CI Integration**: ✅ Automated conformance tests run on every PR
+
+See [CONFORMANCE.md](CONFORMANCE.md) and [CONFORMANCE_TESTING.md](CONFORMANCE_TESTING.md) for detailed test-to-requirement mapping and how to run conformance tests.
+
+**CI Badge**: ![Tests](https://github.com/helynranta/cpp-mcp/actions/workflows/test.yml/badge.svg) ![Conformance](https://github.com/helynranta/cpp-mcp/actions/workflows/conformance.yml/badge.svg)
+
+### Known Limitations
+
+#### By Design (Not Implemented)
+- **❌ Authentication/Authorization**: Intentionally omitted for personal/local use
+- **❌ OAuth/RFC 8707**: Not implemented
+- **❌ User authentication**: Not implemented
+
+#### Optional Features (Not Yet Implemented)
+- **⚠️ Sampling**: Optional feature not implemented
+- **⚠️ Roots Change Notifications**: Partial (list_roots works, no change notifications)
+- **⚠️ Logging**: Optional feature not implemented
+
+**Security Reminder**: Do NOT use this server in multi-user, shared, or production environments without adding authentication and authorization. See [SECURITY.md](SECURITY.md) for details.
 
 ## How to Build
 
