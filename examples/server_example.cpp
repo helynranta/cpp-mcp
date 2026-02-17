@@ -22,10 +22,23 @@
 
 #include <algorithm>
 #include <chrono>
+#include <csignal>
 #include <ctime>
 #include <filesystem>
 #include <iostream>
 #include <thread>
+
+// Global server pointer for signal handling
+static mcp::server* g_server = nullptr;
+
+void signal_handler(int signal) {
+    if (signal == SIGINT || signal == SIGTERM) {
+        std::cout << "\nReceived signal " << signal << ", stopping server..." << std::endl;
+        if (g_server) {
+            g_server->stop();
+        }
+    }
+}
 
 // Tool handler for getting current time
 mcp::json get_time_handler(const mcp::json& params, const std::string& /* session_id */) {
@@ -169,6 +182,12 @@ int main(int argc, char* argv[]) {
     // srv_conf.ssl.server_private_key_path = "./server.key.pem";
 
     mcp::server server(srv_conf);
+    g_server = &server;
+    
+    // Set up signal handler for graceful shutdown
+    std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
+    
     server.set_server_info("ExampleServer", "1.0.0");
 
     // Set server capabilities
