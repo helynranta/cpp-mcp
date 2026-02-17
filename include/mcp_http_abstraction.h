@@ -9,6 +9,8 @@
 #ifndef MCP_HTTP_ABSTRACTION_H
 #define MCP_HTTP_ABSTRACTION_H
 
+#include <algorithm>
+#include <cctype>
 #include <functional>
 #include <map>
 #include <memory>
@@ -39,14 +41,22 @@ struct request_data {
     std::map<std::string, std::string> params; ///< Query string parameters
 
     /**
-     * @brief Get header value by name
-     * @param name Header name (case-sensitive)
+     * @brief Get header value by name (case-insensitive)
+     * @param name Header name
      * @return Header value if found, empty optional otherwise
+     *
+     * HTTP header field names are case-insensitive per RFC 7230 Section 3.2.
+     * This method performs case-insensitive lookup.
      */
     std::optional<std::string> get_header(const std::string& name) const {
-        auto it = headers.find(name);
-        if (it != headers.end()) {
-            return it->second;
+        // HTTP headers are case-insensitive, so we need case-insensitive comparison
+        for (const auto& [key, value] : headers) {
+            // Case-insensitive comparison (portable across platforms)
+            if (key.size() == name.size() && std::equal(key.begin(), key.end(), name.begin(), [](char a, char b) {
+                    return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b));
+                })) {
+                return value;
+            }
         }
         return std::nullopt;
     }
