@@ -488,40 +488,47 @@ elicitation_result server::request_elicitation(const std::string& session_id, co
     params.requested_schema = requested_schema;
 
     request elicit_req = request::create("elicitation/create", params.to_json());
-
-    LOG_INFO("Sending elicitation request to session: ", session_id);
-
-    // Send request and wait for response
-    // We need to use a promise/future mechanism similar to how the client waits for responses
-    // For now, we'll use the send_request method and rely on the client to respond via the normal
-    // request-response flow. The client's response will come back through the normal message handling.
-
-    // Create a promise to wait for the response
-    std::promise<elicitation_result> result_promise;
-    std::future<elicitation_result> result_future = result_promise.get_future();
-
-    // Store the request ID and promise in a map for later retrieval
     json req_id = elicit_req.id;
 
-    // Register a one-time handler for this specific request ID
-    // We'll need to add a mechanism to track pending elicitation requests
-    // For simplicity in this implementation, we'll use send_request and expect
-    // the response to come through the normal flow
+    LOG_INFO("Sending elicitation request to session: ", session_id, ", request ID: ", req_id.dump());
 
+    // Create promise and future for async response
+    auto promise_ptr = std::make_shared<std::promise<elicitation_result>>();
+    std::future<elicitation_result> result_future = promise_ptr->get_future();
+
+    // Store the promise in pending requests map
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        pending_elicitation_requests_[req_id] = promise_ptr;
+    }
+
+    // Send the request
     send_request(session_id, elicit_req);
 
-    // TODO: In a production implementation, we would need to:
-    // 1. Track the pending request with its promise
-    // 2. Have the response handler resolve the promise when the response arrives
-    // 3. Wait for the promise with a timeout
-    //
-    // For now, we'll throw an error indicating this is not fully implemented
-    // The basic structure is in place for testing the capability declaration
-    // and request format.
+    // Wait for response with timeout
+    auto timeout = std::chrono::seconds(request_timeout_seconds_);
+    auto status = result_future.wait_for(timeout);
 
-    throw mcp_exception(error_code::internal_error,
-                        "Elicitation response handling not yet fully implemented. "
-                        "Request was sent but synchronous waiting for response is not yet supported.");
+    // Remove from pending requests map
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        pending_elicitation_requests_.erase(req_id);
+    }
+
+    if (status == std::future_status::timeout) {
+        LOG_ERROR("Elicitation request timed out for session: ", session_id, ", request ID: ", req_id.dump());
+        throw mcp_exception(error_code::internal_error,
+                            "Elicitation request timed out. User did not respond within " +
+                                std::to_string(request_timeout_seconds_) + " seconds.");
+    }
+
+    // Get the result
+    try {
+        return result_future.get();
+    } catch (const std::exception& e) {
+        LOG_ERROR("Error getting elicitation result: ", e.what());
+        throw;
+    }
 }
 
 void server::handle_sse(const http::request_data& req, http::response_builder& res) {
@@ -1542,6 +1549,48 @@ json server::process_request(const request& req, const std::string& session_id) 
             }
         }
         return json::object();
+    }
+
+    // Check if this is a response to a pending elicitation request
+    if (!req.id.is_null()) {
+        std::shared_ptr<std::promise<elicitation_result>> promise_ptr;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            auto it = pending_elicitation_requests_.find(req.id);
+            if (it != pending_elicitation_requests_.end()) {
+                promise_ptr = it->second;
+                // Don't erase yet - let request_elicitation() do that after getting the result
+            }
+        }
+
+        // If we found a pending elicitation request, this is a response to it
+        if (promise_ptr) {
+            LOG_INFO("Received elicitation response for request ID: ", req.id.dump());
+
+            try {
+                // Parse the elicitation result from the request params
+                // The client sends back a JSON-RPC request with the elicitation response
+                if (req.method == "elicitation/response" || req.params.contains("action")) {
+                    elicitation_result result = elicitation_result::from_json(req.params);
+                    promise_ptr->set_value(result);
+                    return json::object(); // Return empty for responses
+                } else {
+                    // If not a proper elicitation response, treat as error
+                    throw mcp_exception(error_code::invalid_params,
+                                        "Expected elicitation response but got: " + req.method);
+                }
+            } catch (const std::exception& e) {
+                LOG_ERROR("Error parsing elicitation response: ", e.what());
+                try {
+                    promise_ptr->set_exception(std::current_exception());
+                } catch (...) {
+                    // Promise already set, ignore
+                }
+                return response::create_error(req.id, error_code::invalid_params,
+                                              "Invalid elicitation response: " + std::string(e.what()))
+                    .to_json();
+            }
+        }
     }
 
     // Process method call

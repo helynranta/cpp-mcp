@@ -494,6 +494,10 @@ private:
     // Tool confirmation handler (MCP 2025-03-26 safety)
     tool_confirmation_handler tool_confirmation_handler_;
 
+    // Pending elicitation requests (MCP 2025-06-18)
+    // Maps request ID to promise for async elicitation responses
+    std::map<json, std::shared_ptr<std::promise<elicitation_result>>> pending_elicitation_requests_;
+
     // Request timeout in seconds
     unsigned int request_timeout_seconds_;
 
