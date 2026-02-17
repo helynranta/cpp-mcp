@@ -171,6 +171,12 @@ bool server::start(bool blocking) {
             LOG_ERROR("Failed to start server on ", host_, ":", port_);
             return false;
         }
+        
+        // Block until server is stopped
+        // Wait on the maintenance condition variable which will be signaled when stop() is called
+        std::unique_lock<std::mutex> lock(maintenance_mutex_);
+        maintenance_cond_.wait(lock, [this] { return !running_; });
+        
         return true;
     } else {
         // Start server in a separate thread - jthread for automatic joining
@@ -267,6 +273,9 @@ void server::stop() {
     } else {
         http_server_->stop();
     }
+
+    // Notify any blocking wait in start() method
+    maintenance_cond_.notify_all();
 
     LOG_INFO("MCP server stopped");
 }
