@@ -102,7 +102,7 @@ This release implements comprehensive upgrades to conform with the MCP 2025-06-1
 10. **Official Conformance Testing**
     - **Framework**: Integrated with official MCP conformance suite (v0.1.11)
     - **Scenarios**: 29 server scenarios tested
-    - **Coverage**: 21/29 fully passing (72%), 25/29 implemented (86%)
+    - **Coverage**: 22/29 passing (76%), 27/29 implemented (93%)
     - **CI Integration**: GitHub Actions workflow runs conformance tests on every PR
     - **Documentation**: Complete conformance documentation in CONFORMANCE.md and CONFORMANCE_TESTING.md
 
@@ -252,7 +252,7 @@ See [SECURITY.md](SECURITY.md) for more details on security features that ARE im
 
 - **Total Tests**: 201+ tests across all components
 - **Pass Rate**: 100%
-- **Official Conformance**: 72% fully passing, 86% implemented
+- **Official Conformance**: 76% passing (22/29), 93% implemented (27/29)
 - **Continuous Integration**: GitHub Actions on Linux and Windows
 - **Test Framework**: Boost.Test 1.90.0
 

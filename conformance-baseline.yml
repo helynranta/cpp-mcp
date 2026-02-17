@@ -13,19 +13,19 @@
 # See CONFORMANCE_TESTING.md for details on each scenario
 
 server:
-  # Optional features - not yet tested with conformance suite
-  # Note: Elicitation is fully implemented but conformance tests may require
-  # specific client-side implementation patterns not yet integrated
-  - tools-call-elicitation       # Elicitation: fully implemented, may need conformance test updates
-  - elicitation-sep1034-defaults # Elicitation default handling (implemented, may need test updates)
-  - elicitation-sep1330-enums    # Elicitation enum handling (implemented, may need test updates)
-  - tools-call-with-logging      # Logging notifications over stateless transport
-  
   # Optional features - not implemented by design
-  - tools-call-sampling          # LLM sampling (optional, application-specific)
+  - tools-call-sampling          # LLM sampling (optional, application-specific, not planned)
+  - tools-call-with-logging      # Logging notifications (MCP notification, not implemented yet)
   
-  # Partial implementations - basic support present
-  - tools-call-with-progress     # Progress notifications (basic support)
-  - resources-subscribe          # Resource subscriptions (basic support)
-  - resources-unsubscribe        # Resource unsubscribe (basic support)
-  - server-sse-multiple-streams  # Multiple SSE stream handling under conformance harness
+  # Progress notifications - Implementation complete but test still failing
+  # Tool added: test_tool_with_progress with progressToken support
+  # May need additional investigation on why conformance test expects different behavior
+  - tools-call-with-progress     # Implemented but conformance test failing - needs investigation
+  
+  # Resource subscriptions - Partial implementation
+  # Basic subscribe/unsubscribe implemented, but live update delivery may be incomplete
+  - resources-subscribe          # Partial: basic subscription, needs live update testing
+  - resources-unsubscribe        # Partial: basic unsubscribe, needs full testing
+  
+  # Multiple SSE streams - May require specific harness setup
+  - server-sse-multiple-streams  # May need conformance test environment adjustments

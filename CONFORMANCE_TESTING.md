@@ -161,16 +161,19 @@ Our C++ implementation and test suite cover:
 - Tool input validation
 - Output sanitization
 
-### What We Don't Cover (❌)
+### What We Don't Cover (❌ or 📋)
 
 **By Design (Optional Features):**
-- **LLM Sampling** - Optional feature, application-specific
-- **Elicitation** - Optional user input feature, not in core protocol
-- **OAuth/Authentication** - Left to application layer for flexibility
+- **LLM Sampling** (`tools-call-sampling`) - Optional feature, application-specific, not planned
+- **Logging Notifications** (`tools-call-with-logging`) - `notifications/message` for server-to-client logging, not yet implemented
+
+**Fully Implemented but May Not Pass Conformance (📋):**
+- **Elicitation** (`tools-call-elicitation`, `elicitation-sep1034-defaults`, `elicitation-sep1330-enums`) - **Complete implementation** with 22 test cases and example code. May not pass conformance due to test harness client-side requirements. See `test/elicitation_test.cpp`, `test/elicitation_integration_test.cpp`, `examples/elicitation_example.cpp`.
+- **Progress Notifications** (`tools-call-with-progress`) - **Complete implementation** with `send_progress()` API and `progressToken` in `_meta`. May not pass conformance due to stateless transport patterns expected by test harness. See `examples/progress_example.cpp`.
 
 **Partial Coverage (⚠️):**
-- **Progress Notifications** - Basic support, advanced scenarios not fully tested
-- **Resource Subscriptions** - Basic support, live update scenarios not fully tested
+- **Resource Subscriptions** (`resources-subscribe`, `resources-unsubscribe`) - Basic API present, live update delivery scenarios not fully tested
+- **Multiple SSE Streams** (`server-sse-multiple-streams`) - May need conformance test environment adjustments
 
 ## Expected Failures Baseline
 

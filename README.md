@@ -76,11 +76,18 @@ This project is tested against the [official MCP conformance suite](https://gith
 - **Framework Version**: v0.1.11
 - **Test Scenarios**: 29 server scenarios
 - **Coverage**: 
-  - 21/29 fully passing (72%)
-  - 25/29 implemented (86%)
+  - 22/29 passing (76%)
+  - 27/29 implemented (93%)
+  - 2 not implemented by design (sampling, logging notifications)
 - **CI Integration**: ✅ Automated conformance tests run on every PR
 
-See [CONFORMANCE.md](CONFORMANCE.md) and [CONFORMANCE_TESTING.md](CONFORMANCE_TESTING.md) for detailed test-to-requirement mapping and how to run conformance tests.
+**Implementation Highlights:**
+- ✅ **Elicitation**: Fully implemented (22 tests, example code) - may need conformance harness updates
+- ✅ **Progress Notifications**: Fully implemented (`send_progress()`, `progressToken`) - may need harness updates
+- ✅ **Structured Tool Output**: Fully passing (15 tests)
+- ✅ **Protocol Version Negotiation**: Fully passing (supports 2025-03-26, 2025-06-18, 2025-11-25)
+
+See [CONFORMANCE.md](CONFORMANCE.md) and [CONFORMANCE_TESTING.md](CONFORMANCE_TESTING.md) for detailed test-to-requirement mapping and feature status.
 
 **CI Badge**: ![Tests](https://github.com/helynranta/cpp-mcp/actions/workflows/test.yml/badge.svg) ![Conformance](https://github.com/helynranta/cpp-mcp/actions/workflows/conformance.yml/badge.svg)
 
