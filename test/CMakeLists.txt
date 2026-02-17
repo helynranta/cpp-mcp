@@ -39,6 +39,7 @@ set(TEST_SOURCES
     structured_tool_output_test.cpp
     elicitation_test.cpp
     elicitation_integration_test.cpp
+    completion_test.cpp
 )
 
 # Create test executable
