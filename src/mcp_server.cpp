@@ -1120,6 +1120,14 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
 
     // Extract session ID from header or query parameter
     std::string session_id = extract_session_id(req);
+    
+    // Debug: Log session ID extraction
+    if (session_id.empty()) {
+        LOG_WARNING("No session ID found in request. Headers present: ");
+        for (const auto& [key, value] : req.headers) {
+            LOG_WARNING("  ", key, ": ", value.substr(0, std::min(size_t(50), value.size())));
+        }
+    }
 
     // Validate MCP-Protocol-Version header (MCP 2025-06-18+)
     // This must happen AFTER session ID extraction but BEFORE processing the request
