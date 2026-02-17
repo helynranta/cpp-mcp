@@ -14,7 +14,7 @@
 
 server:
   # Optional features - partially implemented
-  - tools-call-elicitation       # Elicitation: data structures complete, full flow WIP
+  - tools-call-elicitation       # Elicitation: data structures complete, full flow in progress
   - elicitation-sep1034-defaults # Elicitation default handling (in progress)
   - elicitation-sep1330-enums    # Elicitation enum handling (in progress)
   
