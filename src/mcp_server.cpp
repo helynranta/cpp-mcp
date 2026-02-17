@@ -164,17 +164,16 @@ bool server::start(bool blocking) {
 
     // Start server
     if (blocking) {
-        running_ = true;
         LOG_INFO("Starting server in blocking mode");
         if (!http_server_->listen(host_.c_str(), port_)) {
-            running_ = false;
             LOG_ERROR("Failed to start server on ", host_, ":", port_);
             return false;
         }
 
-        // Block until server is stopped
+        // Set running to true and block until server is stopped
         // Wait on the maintenance condition variable which will be signaled when stop() is called
         std::unique_lock<std::mutex> lock(maintenance_mutex_);
+        running_ = true;
         maintenance_cond_.wait(lock, [this] { return !running_; });
 
         return true;
@@ -199,7 +198,15 @@ void server::stop() {
     }
 
     LOG_INFO("Stopping MCP server on ", host_, ":", port_);
-    running_ = false;
+
+    // Set running_ to false while holding the mutex for proper synchronization
+    // with the blocking wait in start()
+    {
+        std::lock_guard<std::mutex> lock(maintenance_mutex_);
+        running_ = false;
+    }
+    // Notify any blocking wait in start() method immediately after setting running_ = false
+    maintenance_cond_.notify_all();
 
     // Stop maintenance thread - jthread will request stop and join automatically on reset
     if (maintenance_thread_) {
@@ -273,9 +280,6 @@ void server::stop() {
     } else {
         http_server_->stop();
     }
-
-    // Notify any blocking wait in start() method
-    maintenance_cond_.notify_all();
 
     LOG_INFO("MCP server stopped");
 }
