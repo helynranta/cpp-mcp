@@ -9,6 +9,7 @@
  */
 
 #include "mcp_message.h"
+
 #include <boost/test/unit_test.hpp>
 
 using namespace mcp;
@@ -60,7 +61,7 @@ BOOST_AUTO_TEST_CASE(complete_request_with_context) {
     req.ref_name = "code_review";
     req.argument_name = "language";
     req.argument_value = "py";
-    
+
     // Add context with previously-resolved arguments
     req.context = json::object();
     req.context["arguments"] = json::object();
@@ -97,10 +98,8 @@ BOOST_AUTO_TEST_CASE(complete_request_context_optional) {
  * Test that CompleteRequest can be created from JSON
  */
 BOOST_AUTO_TEST_CASE(complete_request_from_json) {
-    json j = {
-        {"ref", {{"type", "ref/prompt"}, {"name", "code_review"}}},
-        {"argument", {{"name", "language"}, {"value", "py"}}}
-    };
+    json j = {{"ref", {{"type", "ref/prompt"}, {"name", "code_review"}}},
+              {"argument", {{"name", "language"}, {"value", "py"}}}};
 
     auto req = complete_request::from_json(j);
 
@@ -114,11 +113,9 @@ BOOST_AUTO_TEST_CASE(complete_request_from_json) {
  * Test that CompleteRequest can be created from JSON with context
  */
 BOOST_AUTO_TEST_CASE(complete_request_from_json_with_context) {
-    json j = {
-        {"ref", {{"type", "ref/prompt"}, {"name", "code_review"}}},
-        {"argument", {{"name", "language"}, {"value", "py"}}},
-        {"context", {{"arguments", {{"repo", "cpp-mcp"}}}}}
-    };
+    json j = {{"ref", {{"type", "ref/prompt"}, {"name", "code_review"}}},
+              {"argument", {{"name", "language"}, {"value", "py"}}},
+              {"context", {{"arguments", {{"repo", "cpp-mcp"}}}}}};
 
     auto req = complete_request::from_json(j);
 
@@ -189,7 +186,7 @@ BOOST_AUTO_TEST_CASE(complete_result_has_more_true) {
 BOOST_AUTO_TEST_CASE(complete_result_with_meta) {
     complete_result result;
     result.values = {"python"};
-    
+
     // Add _meta field with custom metadata
     result.meta["source"] = "builtin";
     result.meta["cached"] = true;
@@ -222,13 +219,7 @@ BOOST_AUTO_TEST_CASE(complete_result_meta_optional) {
  * Test that CompleteResult can be created from JSON
  */
 BOOST_AUTO_TEST_CASE(complete_result_from_json) {
-    json j = {
-        {"completion", {
-            {"values", {"python", "pytorch"}},
-            {"total", 5},
-            {"hasMore", false}
-        }}
-    };
+    json j = {{"completion", {{"values", {"python", "pytorch"}}, {"total", 5}, {"hasMore", false}}}};
 
     auto result = complete_result::from_json(j);
 
@@ -243,17 +234,8 @@ BOOST_AUTO_TEST_CASE(complete_result_from_json) {
  * Test that CompleteResult can be created from JSON with _meta
  */
 BOOST_AUTO_TEST_CASE(complete_result_from_json_with_meta) {
-    json j = {
-        {"completion", {
-            {"values", {"python"}},
-            {"total", 1},
-            {"hasMore", false}
-        }},
-        {"_meta", {
-            {"source", "builtin"},
-            {"cached", true}
-        }}
-    };
+    json j = {{"completion", {{"values", {"python"}}, {"total", 1}, {"hasMore", false}}},
+              {"_meta", {{"source", "builtin"}, {"cached", true}}}};
 
     auto result = complete_result::from_json(j);
 
@@ -268,12 +250,7 @@ BOOST_AUTO_TEST_CASE(complete_result_from_json_with_meta) {
  * Test that CompleteResult handles optional total field
  */
 BOOST_AUTO_TEST_CASE(complete_result_optional_total) {
-    json j = {
-        {"completion", {
-            {"values", {"python"}},
-            {"hasMore", false}
-        }}
-    };
+    json j = {{"completion", {{"values", {"python"}}, {"hasMore", false}}}};
 
     auto result = complete_result::from_json(j);
 
@@ -285,12 +262,7 @@ BOOST_AUTO_TEST_CASE(complete_result_optional_total) {
  * Test that CompleteResult handles optional hasMore field
  */
 BOOST_AUTO_TEST_CASE(complete_result_optional_has_more) {
-    json j = {
-        {"completion", {
-            {"values", {"python"}},
-            {"total", 1}
-        }}
-    };
+    json j = {{"completion", {{"values", {"python"}}, {"total", 1}}}};
 
     auto result = complete_result::from_json(j);
 
@@ -324,7 +296,7 @@ BOOST_AUTO_TEST_CASE(complete_request_validation) {
     req1.ref_name = "test";
     req1.argument_name = "arg";
     req1.argument_value = "val";
-    
+
     json j1 = req1.to_json();
     BOOST_CHECK(j1["ref"].contains("name"));
     BOOST_CHECK(!j1["ref"].contains("uri"));
@@ -335,7 +307,7 @@ BOOST_AUTO_TEST_CASE(complete_request_validation) {
     req2.ref_uri = "file:///test";
     req2.argument_name = "arg";
     req2.argument_value = "val";
-    
+
     json j2 = req2.to_json();
     BOOST_CHECK(!j2["ref"].contains("name"));
     BOOST_CHECK(j2["ref"].contains("uri"));

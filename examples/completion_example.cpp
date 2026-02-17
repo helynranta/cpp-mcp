@@ -11,6 +11,7 @@
 
 #include "mcp_message.h"
 #include "mcp_server.h"
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -26,8 +27,7 @@ int main() {
     std::cout << "-----------------------------------------------" << std::endl;
 
     json capabilities = {
-        {"tools", json::object()},
-        {"completions", json::object()} // Declare completion support
+        {"tools", json::object()}, {"completions", json::object()} // Declare completion support
     };
 
     json capabilities_json = capabilities;
@@ -43,7 +43,7 @@ int main() {
     req.ref_name = "code_review";
     req.argument_name = "language";
     req.argument_value = "py";
-    
+
     // Add context with previously-resolved arguments
     req.context = json::object();
     req.context["arguments"] = json::object();
@@ -61,16 +61,14 @@ int main() {
 
     // In a real implementation, this would be a registered method handler
     // that checks the ref type and uses the context to provide relevant suggestions
-    
-    std::vector<std::string> all_languages = {
-        "python", "pytorch", "pyside", "pylint", "pyqt",
-        "java", "javascript", "go", "rust", "cpp"
-    };
+
+    std::vector<std::string> all_languages = {"python", "pytorch",    "pyside", "pylint", "pyqt",
+                                              "java",   "javascript", "go",     "rust",   "cpp"};
 
     // Filter based on the current input value
     std::vector<std::string> matching_languages;
     std::string prefix = req.argument_value;
-    
+
     std::cout << "Filtering languages starting with: '" << prefix << "'" << std::endl;
     for (const auto& lang : all_languages) {
         if (lang.find(prefix) == 0) {
@@ -79,13 +77,12 @@ int main() {
     }
 
     std::cout << "Found " << matching_languages.size() << " matches" << std::endl;
-    
+
     // Use context to add repo-specific suggestions
-    if (req.context.contains("arguments") && 
-        req.context["arguments"].contains("repo")) {
+    if (req.context.contains("arguments") && req.context["arguments"].contains("repo")) {
         std::string repo = req.context["arguments"]["repo"].get<std::string>();
         std::cout << "Repository context: " << repo << std::endl;
-        
+
         // For cpp-mcp repo, we might prioritize C++ related completions
         if (repo == "cpp-mcp" && prefix == "py") {
             std::cout << "Note: cpp-mcp is a C++ project, but Python also used for tooling" << std::endl;
@@ -101,7 +98,7 @@ int main() {
     result.values = matching_languages;
     result.total = static_cast<int>(all_languages.size());
     result.has_more = false; // We returned all matches
-    
+
     // Add _meta field with additional metadata
     result.meta["source"] = "builtin";
     result.meta["cached"] = false;
@@ -122,7 +119,7 @@ int main() {
     resource_req.ref_uri = "file:///{repo}/src/{file}";
     resource_req.argument_name = "file";
     resource_req.argument_value = "mcp_";
-    
+
     // Add context with previously-resolved template variables
     resource_req.context = json::object();
     resource_req.context["arguments"] = json::object();
@@ -134,16 +131,14 @@ int main() {
     std::cout << std::endl;
 
     // Simulated file completions
-    std::vector<std::string> files = {
-        "mcp_server.cpp", "mcp_client.cpp", "mcp_message.h", 
-        "mcp_tool.h", "mcp_resource.h"
-    };
+    std::vector<std::string> files = {"mcp_server.cpp", "mcp_client.cpp", "mcp_message.h", "mcp_tool.h",
+                                      "mcp_resource.h"};
 
     complete_result file_result;
     file_result.values = files;
     file_result.total = static_cast<int>(files.size());
     file_result.has_more = false;
-    
+
     // Add _meta with file system metadata
     file_result.meta["source"] = "filesystem";
     file_result.meta["base_path"] = resource_req.context["arguments"]["repo"].get<std::string>() + "/src";
