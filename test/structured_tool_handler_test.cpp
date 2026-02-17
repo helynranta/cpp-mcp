@@ -58,8 +58,7 @@ struct StructuredHandlerFixture {
 BOOST_FIXTURE_TEST_CASE(ServerHandlesNewFormatWithStructuredContent, StructuredHandlerFixture) {
     // Define tool with output schema
     json output_schema = {{"type", "object"},
-                          {"properties",
-                           {{"value", {{"type", "number"}}}, {"unit", {{"type", "string"}}}}},
+                          {"properties", {{"value", {{"type", "number"}}}, {"unit", {{"type", "string"}}}}},
                           {"required", json::array({"value", "unit"})}};
 
     tool test_tool = tool_builder("new_format_tool")
@@ -172,10 +171,7 @@ BOOST_FIXTURE_TEST_CASE(ServerHandlesMixedHandlerFormats, StructuredHandlerFixtu
 
     // Register tool with new format
     json output_schema = {{"type", "object"}, {"properties", {{"count", {{"type", "number"}}}}}};
-    tool new_tool = tool_builder("new_tool")
-                        .with_description("New format")
-                        .with_output_schema(output_schema)
-                        .build();
+    tool new_tool = tool_builder("new_tool").with_description("New format").with_output_schema(output_schema).build();
 
     srv->register_tool(new_tool, [](const json& params, const std::string&) -> json {
         return {{"content", json::array({{{"type", "text"}, {"text", "New: 5"}}})},

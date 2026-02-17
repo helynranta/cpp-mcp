@@ -22,10 +22,23 @@
 
 #include <algorithm>
 #include <chrono>
+#include <csignal>
 #include <ctime>
 #include <filesystem>
 #include <iostream>
 #include <thread>
+
+// Global server pointer for signal handling
+static mcp::server* g_server = nullptr;
+
+void signal_handler(int signal) {
+    if (signal == SIGINT || signal == SIGTERM) {
+        std::cout << "\nReceived signal " << signal << ", stopping server..." << std::endl;
+        if (g_server) {
+            g_server->stop();
+        }
+    }
+}
 
 // Tool handler for getting current time
 mcp::json get_time_handler(const mcp::json& params, const std::string& /* session_id */) {
@@ -40,9 +53,8 @@ mcp::json get_time_handler(const mcp::json& params, const std::string& /* sessio
     }
 
     // MCP 2025-06-18: Return structured output with schema
-    mcp::json structured_data = {{"timestamp", std::to_string(time_t_now)},
-                                 {"formatted", time_str},
-                                 {"milliseconds", milliseconds.count()}};
+    mcp::json structured_data = {
+        {"timestamp", std::to_string(time_t_now)}, {"formatted", time_str}, {"milliseconds", milliseconds.count()}};
 
     return {{"content", mcp::json::array({{{"type", "text"}, {"text", time_str}}})},
             {"structuredContent", structured_data},
@@ -69,8 +81,7 @@ mcp::json echo_handler(const mcp::json& params, const std::string& /* session_id
     // MCP 2025-06-18: Return structured output with schema
     mcp::json structured_data = {{"original", original_text},
                                  {"processed", processed_text},
-                                 {"transformations",
-                                  {{"uppercase", was_uppercased}, {"reverse", was_reversed}}}};
+                                 {"transformations", {{"uppercase", was_uppercased}, {"reverse", was_reversed}}}};
 
     return {{"content", mcp::json::array({{{"type", "text"}, {"text", processed_text}}})},
             {"structuredContent", structured_data},
@@ -169,6 +180,12 @@ int main(int argc, char* argv[]) {
     // srv_conf.ssl.server_private_key_path = "./server.key.pem";
 
     mcp::server server(srv_conf);
+    g_server = &server;
+
+    // Set up signal handler for graceful shutdown
+    std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
+
     server.set_server_info("ExampleServer", "1.0.0");
 
     // Set server capabilities
@@ -224,17 +241,16 @@ int main(int argc, char* argv[]) {
                               .build();
 
     // Calculator tool with output schema
-    mcp::json calc_output_schema = {
-        {"type", "object"},
-        {"properties",
-         {{"result", {{"type", "number"}, {"description", "Calculation result"}}},
-          {"operation", {{"type", "string"}, {"description", "Operation performed"}}},
-          {"operands",
-           {{"type", "object"},
-            {"properties",
-             {{"a", {{"type", "number"}, {"description", "First operand"}}},
-              {"b", {{"type", "number"}, {"description", "Second operand"}}}}}}}}},
-        {"required", mcp::json::array({"result", "operation", "operands"})}};
+    mcp::json calc_output_schema = {{"type", "object"},
+                                    {"properties",
+                                     {{"result", {{"type", "number"}, {"description", "Calculation result"}}},
+                                      {"operation", {{"type", "string"}, {"description", "Operation performed"}}},
+                                      {"operands",
+                                       {{"type", "object"},
+                                        {"properties",
+                                         {{"a", {{"type", "number"}, {"description", "First operand"}}},
+                                          {"b", {{"type", "number"}, {"description", "Second operand"}}}}}}}}},
+                                    {"required", mcp::json::array({"result", "operation", "operands"})}};
 
     mcp::tool calc_tool = mcp::tool_builder("calculator")
                               .with_title("Basic Calculator")
@@ -275,7 +291,35 @@ int main(int argc, char* argv[]) {
     // Start server
     std::cout << "Starting MCP server at " << srv_conf.host << ":" << srv_conf.port << std::endl;
     std::cout << "Press Ctrl+C to stop the server" << std::endl;
-    server.start(true); // Blocking mode
 
+    // Use non-blocking mode so the server runs in a background thread
+    // This allows the process to respond properly when run with nohup in CI
+    std::cout << "Calling server.start(false)..." << std::endl;
+    if (!server.start(false)) {
+        std::cerr << "❌ Failed to start server" << std::endl;
+        return 1;
+    }
+    std::cout << "✅ Server started successfully in non-blocking mode" << std::endl;
+    std::cout << "Server is_running: " << (server.is_running() ? "true" : "false") << std::endl;
+
+    // Give the server a moment to fully initialize
+    std::cout << "Waiting 500ms for server to fully initialize..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::cout << "✅ Server should now be accepting connections" << std::endl;
+
+    // Keep the main thread alive while server runs
+    // The signal handlers will call server.stop() and break this loop
+    std::cout << "Entering keep-alive loop..." << std::endl;
+    size_t loop_count = 0;
+    while (server.is_running()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        loop_count++;
+        // Log every 10 seconds to show we're alive
+        if (loop_count % 100 == 0) {
+            std::cout << "Server still running (loop iteration " << loop_count << ")" << std::endl;
+        }
+    }
+
+    std::cout << "Server stopped after " << loop_count << " loop iterations" << std::endl;
     return 0;
 }

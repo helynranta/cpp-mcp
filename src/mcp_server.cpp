@@ -164,13 +164,18 @@ bool server::start(bool blocking) {
 
     // Start server
     if (blocking) {
-        running_ = true;
         LOG_INFO("Starting server in blocking mode");
         if (!http_server_->listen(host_.c_str(), port_)) {
-            running_ = false;
             LOG_ERROR("Failed to start server on ", host_, ":", port_);
             return false;
         }
+
+        // Set running to true and block until server is stopped
+        // Wait on the maintenance condition variable which will be signaled when stop() is called
+        std::unique_lock<std::mutex> lock(maintenance_mutex_);
+        running_ = true;
+        maintenance_cond_.wait(lock, [this] { return !running_; });
+
         return true;
     } else {
         // Start server in a separate thread - jthread for automatic joining
@@ -193,7 +198,15 @@ void server::stop() {
     }
 
     LOG_INFO("Stopping MCP server on ", host_, ":", port_);
-    running_ = false;
+
+    // Set running_ to false while holding the mutex for proper synchronization
+    // with the blocking wait in start()
+    {
+        std::lock_guard<std::mutex> lock(maintenance_mutex_);
+        running_ = false;
+    }
+    // Notify any blocking wait in start() method immediately after setting running_ = false
+    maintenance_cond_.notify_all();
 
     // Stop maintenance thread - jthread will request stop and join automatically on reset
     if (maintenance_thread_) {
@@ -1108,6 +1121,14 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
     // Extract session ID from header or query parameter
     std::string session_id = extract_session_id(req);
 
+    // Debug: Log session ID extraction
+    if (session_id.empty()) {
+        LOG_WARNING("No session ID found in request. Headers present: ");
+        for (const auto& [key, value] : req.headers) {
+            LOG_WARNING("  ", key, ": ", value.substr(0, std::min(size_t(50), value.size())));
+        }
+    }
+
     // Validate MCP-Protocol-Version header (MCP 2025-06-18+)
     // This must happen AFTER session ID extraction but BEFORE processing the request
     if (!validate_protocol_version_header(req, session_id, res)) {
@@ -1159,8 +1180,10 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
     }
 
     // Handle single request
-    // Check if session exists (or if this is a ping request)
+    // Check if session exists, or create a temporary one for stateless operation
     std::shared_ptr<event_dispatcher> dispatcher;
+    bool is_stateless_request = session_id.empty();
+
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto disp_it = session_dispatchers_.find(session_id);
@@ -1173,14 +1196,23 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
                 return;
             }
 
-            // Session not found - return 404
-            LOG_ERROR("Session not found: ", session_id);
-            res.set_status(404);
-            res.set_header("Content-Type", "application/json");
-            res.set_content("{\"error\":\"Session not found\"}", "application/json");
-            return;
+            // Stateless mode: create a temporary session for this request
+            if (is_stateless_request) {
+                session_id = generate_session_id();
+                LOG_INFO("Stateless request detected, creating temporary session: ", session_id);
+                dispatcher = std::make_shared<event_dispatcher>();
+                session_dispatchers_[session_id] = dispatcher;
+            } else {
+                // Session ID was provided but not found - return 404
+                LOG_ERROR("Session not found: ", session_id);
+                res.set_status(404);
+                res.set_header("Content-Type", "application/json");
+                res.set_content("{\"error\":\"Session not found\"}", "application/json");
+                return;
+            }
+        } else {
+            dispatcher = disp_it->second;
         }
-        dispatcher = disp_it->second;
     }
 
     // Set session ID in response
@@ -1247,7 +1279,57 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
         return;
     }
 
-    // Process request asynchronously and send response via SSE
+    // For stateless requests, process synchronously and return response directly
+    if (is_stateless_request) {
+        try {
+            json result = this->process_request(mcp_req, session_id);
+
+            // Remove request ID from tracker
+            if (!mcp_req.is_notification()) {
+                request_id_tracker_.remove_request_id(session_id, mcp_req.id);
+            }
+
+            // Clean up temporary session
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                session_dispatchers_.erase(session_id);
+                session_lifecycle_.erase(session_id);
+                LOG_INFO("Cleaned up temporary stateless session: ", session_id);
+            }
+
+            // Return response directly in HTTP body
+            res.set_status(200);
+            res.set_header("Content-Type", "application/json");
+            res.set_content(result.dump(), "application/json");
+            return;
+        } catch (const std::exception& e) {
+            LOG_ERROR("Exception processing stateless request: ", e.what());
+
+            // Remove request ID from tracker on error
+            if (!mcp_req.is_notification()) {
+                request_id_tracker_.remove_request_id(session_id, mcp_req.id);
+            }
+
+            // Clean up temporary session
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                session_dispatchers_.erase(session_id);
+                session_lifecycle_.erase(session_id);
+            }
+
+            // Send error response directly
+            json error_response = response::create_error(mcp_req.is_notification() ? nullptr : mcp_req.id,
+                                                         error_code::internal_error,
+                                                         std::string("Internal error: ") + e.what())
+                                      .to_json();
+            res.set_status(500);
+            res.set_header("Content-Type", "application/json");
+            res.set_content(error_response.dump(), "application/json");
+            return;
+        }
+    }
+
+    // For stateful requests, process asynchronously and send response via SSE
     thread_pool_.enqueue([this, mcp_req, session_id, dispatcher]() {
         try {
             json result = this->process_request(mcp_req, session_id);
