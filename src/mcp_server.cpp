@@ -1180,8 +1180,10 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
     }
 
     // Handle single request
-    // Check if session exists (or if this is a ping request)
+    // Check if session exists, or create a temporary one for stateless operation
     std::shared_ptr<event_dispatcher> dispatcher;
+    bool is_stateless_request = session_id.empty();
+    
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto disp_it = session_dispatchers_.find(session_id);
@@ -1194,14 +1196,23 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
                 return;
             }
 
-            // Session not found - return 404
-            LOG_ERROR("Session not found: ", session_id);
-            res.set_status(404);
-            res.set_header("Content-Type", "application/json");
-            res.set_content("{\"error\":\"Session not found\"}", "application/json");
-            return;
+            // Stateless mode: create a temporary session for this request
+            if (is_stateless_request) {
+                session_id = generate_session_id();
+                LOG_INFO("Stateless request detected, creating temporary session: ", session_id);
+                dispatcher = std::make_shared<event_dispatcher>();
+                session_dispatchers_[session_id] = dispatcher;
+            } else {
+                // Session ID was provided but not found - return 404
+                LOG_ERROR("Session not found: ", session_id);
+                res.set_status(404);
+                res.set_header("Content-Type", "application/json");
+                res.set_content("{\"error\":\"Session not found\"}", "application/json");
+                return;
+            }
+        } else {
+            dispatcher = disp_it->second;
         }
-        dispatcher = disp_it->second;
     }
 
     // Set session ID in response
