@@ -17,20 +17,6 @@ server:
   - tools-call-sampling          # LLM sampling (optional, application-specific, not planned)
   - tools-call-with-logging      # Logging notifications (MCP notification, not implemented yet)
   
-  # Elicitation - Fully implemented but may need client-side test harness updates
-  # Implementation status: Complete (elicitation_params, elicitation_result, request_elicitation API)
-  # Test coverage: 59 test cases across elicitation_test.cpp and elicitation_integration_test.cpp
-  # Examples: examples/elicitation_example.cpp demonstrates full workflow
-  - tools-call-elicitation       # May need conformance test harness client-side updates
-  - elicitation-sep1034-defaults # Elicitation with defaults (may need test updates)
-  - elicitation-sep1330-enums    # Elicitation with enums (may need test updates)
-  
-  # Progress notifications - Fully implemented
-  # Implementation status: send_progress() method, progress_notification type, progressToken in _meta
-  # Test coverage: progress_example.cpp demonstrates usage
-  # Note: May require specific test harness patterns for stateless transport
-  - tools-call-with-progress     # May need conformance test harness updates
-  
   # Resource subscriptions - Partial implementation
   # Basic subscribe/unsubscribe implemented, but live update delivery may be incomplete
   - resources-subscribe          # Partial: basic subscription, needs live update testing

@@ -16,6 +16,7 @@
  * - MCP Server: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_server.h
  * - Tool Builder: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_tool.h
  */
+#include "mcp_progress.h"
 #include "mcp_resource.h"
 #include "mcp_server.h"
 #include "mcp_tool.h"
@@ -360,6 +361,204 @@ int main(int argc, char* argv[]) {
             send_log("notice", "Logging tool completed");
             return {
                 {"content", mcp::json::array({{{"type", "text"}, {"text", "Logging tool completed successfully"}}})}};
+        });
+
+    // Tool with progress notifications (for tools-call-with-progress conformance test)
+    server.register_tool(
+        mcp::tool_builder("test_tool_with_progress")
+            .with_description("Conformance: tool that sends progress notifications")
+            .with_number_param("steps", "Number of steps to process", 5.0)
+            .build(),
+        [&server](const mcp::json& params, const std::string& session_id) -> mcp::json {
+            int steps = params.value("steps", 5);
+
+            // Extract progress token from _meta if present
+            auto progress_token = mcp::progress_tracker::extract_progress_token(params);
+
+            for (int i = 1; i <= steps; ++i) {
+                // Simulate some work
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+                // Send progress notification if token is available
+                if (progress_token.has_value()) {
+                    std::string message = "Processing step " + std::to_string(i) + " of " + std::to_string(steps);
+                    mcp::progress_notification notif = mcp::progress_notification::create(
+                        progress_token.value(), static_cast<double>(i), static_cast<double>(steps), message);
+                    server.send_progress(session_id, notif);
+                }
+            }
+
+            return {{"content", mcp::json::array({{{"type", "text"},
+                                                   {"text", "Completed " + std::to_string(steps) +
+                                                                " steps with progress updates"}}})}};
+        });
+
+    // Tool with elicitation (for tools-call-elicitation conformance test)
+    server.register_tool(
+        mcp::tool_builder("test_elicitation")
+            .with_description("Conformance: tool that requests user input via elicitation")
+            .with_string_param("message", "Message to show user", "")
+            .build(),
+        [&server](const mcp::json& params, const std::string& session_id) -> mcp::json {
+            std::string message = params.value("message", "Please provide your information");
+
+            // Check if client supports elicitation
+            if (!server.client_supports_elicitation(session_id)) {
+                return {{"isError", true},
+                        {"content",
+                         mcp::json::array(
+                             {{{"type", "text"}, {"text", "Client does not support elicitation, cannot proceed"}}})}};
+            }
+
+            // Request user input via elicitation with username and email
+            mcp::json schema = {{"type", "object"},
+                                {"properties",
+                                 {{"username", {{"type", "string"}, {"description", "User's response"}}},
+                                  {"email", {{"type", "string"}, {"description", "User's email address"}}}}},
+                                {"required", mcp::json::array({"username", "email"})}};
+
+            try {
+                mcp::elicitation_result result = server.request_elicitation(session_id, message, schema);
+
+                // Format response describing what happened
+                std::string action_str;
+                switch (result.action) {
+                    case mcp::elicitation_action::accept:
+                        action_str = "accept";
+                        break;
+                    case mcp::elicitation_action::decline:
+                        action_str = "decline";
+                        break;
+                    case mcp::elicitation_action::cancel:
+                        action_str = "cancel";
+                        break;
+                }
+
+                std::string response_text = "User response: action=" + action_str;
+                if (result.action == mcp::elicitation_action::accept) {
+                    response_text += ", content=" + result.content.dump();
+                }
+
+                return {{"content", mcp::json::array({{{"type", "text"}, {"text", response_text}}})}};
+            } catch (const mcp::mcp_exception& e) {
+                return {{"isError", true},
+                        {"content", mcp::json::array({{{"type", "text"},
+                                                       {"text", "Elicitation failed: " + std::string(e.what())}}})}};
+            }
+        });
+
+    // Tool with elicitation and defaults (SEP-1034)
+    server.register_tool(
+        mcp::tool_builder("test_elicitation_sep1034_defaults")
+            .with_description("Conformance: elicitation with default values (SEP-1034)")
+            .build(),
+        [&server](const mcp::json&, const std::string& session_id) -> mcp::json {
+            if (!server.client_supports_elicitation(session_id)) {
+                return {{"isError", true},
+                        {"content",
+                         mcp::json::array({{{"type", "text"}, {"text", "Client does not support elicitation"}}})}};
+            }
+
+            // Schema with default values per SEP-1034
+            mcp::json schema = {
+                {"type", "object"},
+                {"properties",
+                 {{"name", {{"type", "string"}, {"default", "John Doe"}, {"description", "User name"}}},
+                  {"age", {{"type", "integer"}, {"default", 30}, {"description", "User age"}}},
+                  {"score", {{"type", "number"}, {"default", 95.5}, {"description", "User score"}}},
+                  {"status",
+                   {{"type", "string"},
+                    {"enum", mcp::json::array({"active", "inactive", "pending"})},
+                    {"default", "active"},
+                    {"description", "User status"}}},
+                  {"verified", {{"type", "boolean"}, {"default", true}, {"description", "Verification status"}}}}}};
+
+            try {
+                mcp::elicitation_result result = server.request_elicitation(
+                    session_id, "Configure settings (defaults will be used if not provided)", schema);
+
+                if (result.action == mcp::elicitation_action::accept) {
+                    std::string response_text = "Elicitation completed: action=accept, content=" +
+                                                result.content.dump();
+                    return {{"content", mcp::json::array({{{"type", "text"}, {"text", response_text}}})}};
+                }
+
+                std::string action_str = (result.action == mcp::elicitation_action::decline) ? "decline" : "cancel";
+                return {{"content", mcp::json::array({{{"type", "text"},
+                                                       {"text", "Elicitation completed: action=" + action_str}}})}};
+            } catch (const mcp::mcp_exception& e) {
+                return {{"isError", true},
+                        {"content", mcp::json::array({{{"type", "text"},
+                                                       {"text", "Elicitation failed: " + std::string(e.what())}}})}};
+            }
+        });
+
+    // Tool with elicitation and enums (SEP-1330)
+    server.register_tool(
+        mcp::tool_builder("test_elicitation_sep1330_enums")
+            .with_description("Conformance: elicitation with enum schema improvements (SEP-1330)")
+            .build(),
+        [&server](const mcp::json&, const std::string& session_id) -> mcp::json {
+            if (!server.client_supports_elicitation(session_id)) {
+                return {{"isError", true},
+                        {"content",
+                         mcp::json::array({{{"type", "text"}, {"text", "Client does not support elicitation"}}})}};
+            }
+
+            // Schema with all 5 enum variants per SEP-1330
+            mcp::json schema = {
+                {"type", "object"},
+                {"properties",
+                 {// 1. Untitled single-select: simple enum array
+                  {"untitledSingle",
+                   {{"type", "string"},
+                    {"enum", mcp::json::array({"option1", "option2", "option3"})},
+                    {"description", "Untitled single-select enum"}}},
+                  // 2. Titled single-select: oneOf with const/title
+                  {"titledSingle",
+                   {{"type", "string"},
+                    {"oneOf", mcp::json::array({{{"const", "value1"}, {"title", "First Option"}},
+                                                {{"const", "value2"}, {"title", "Second Option"}},
+                                                {{"const", "value3"}, {"title", "Third Option"}}})},
+                    {"description", "Titled single-select enum using oneOf"}}},
+                  // 3. Legacy titled (deprecated): enum + enumNames
+                  {"legacyEnum",
+                   {{"type", "string"},
+                    {"enum", mcp::json::array({"opt1", "opt2", "opt3"})},
+                    {"enumNames", mcp::json::array({"Option One", "Option Two", "Option Three"})},
+                    {"description", "Legacy titled enum with enumNames (deprecated)"}}},
+                  // 4. Untitled multi-select: array with items.enum
+                  {"untitledMulti",
+                   {{"type", "array"},
+                    {"items", {{"type", "string"}, {"enum", mcp::json::array({"option1", "option2", "option3"})}}},
+                    {"description", "Untitled multi-select enum"}}},
+                  // 5. Titled multi-select: array with items.anyOf
+                  {"titledMulti",
+                   {{"type", "array"},
+                    {"items",
+                     {{"anyOf", mcp::json::array({{{"const", "value1"}, {"title", "First Choice"}},
+                                                  {{"const", "value2"}, {"title", "Second Choice"}},
+                                                  {{"const", "value3"}, {"title", "Third Choice"}}})}}},
+                    {"description", "Titled multi-select enum using items.anyOf"}}}}}};
+
+            try {
+                mcp::elicitation_result result = server.request_elicitation(
+                    session_id, "Select your preferences from various enum types", schema);
+
+                if (result.action == mcp::elicitation_action::accept) {
+                    std::string response_text = "Elicitation completed: action=accept, content=" +
+                                                result.content.dump();
+                    return {{"content", mcp::json::array({{{"type", "text"}, {"text", response_text}}})}};
+                }
+
+                std::string action_str = (result.action == mcp::elicitation_action::decline) ? "decline" : "cancel";
+                return {{"content", mcp::json::array({{{"type", "text"},
+                                                       {"text", "Elicitation completed: action=" + action_str}}})}};
+            } catch (const mcp::mcp_exception& e) {
+                return {{"isError", true},
+                        {"content", mcp::json::array({{{"type", "text"},
+                                                       {"text", "Elicitation failed: " + std::string(e.what())}}})}};
+            }
         });
 
     // Conformance methods ---------------------------------------------------
