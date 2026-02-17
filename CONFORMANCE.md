@@ -1,20 +1,25 @@
 # MCP Protocol Conformance Documentation
 
-**Version:** MCP 2025-06-18  
-**Last Updated:** 2026-02-16  
+**Version:** MCP 2025-11-25 (claimed), 2025-06-18 (implemented)  
+**Last Updated:** 2026-02-17  
 **Repository:** helynranta/cpp-mcp
 
 ## Overview
 
 This document details the Model Context Protocol (MCP) conformance test coverage for the C++ implementation. It maps test cases to protocol requirements and provides guidance on running and interpreting conformance tests.
 
+**Version Notes:**
+- This implementation **claims conformance** with MCP 2025-11-25 specification
+- Core implementation is based on MCP 2025-06-18 features
+- 2025-11-25 primarily adds optional extensions support (prepared but not yet utilized)
+
 ## Protocol Version Support
 
 | Protocol Version | Status | Notes |
 |------------------|--------|-------|
 | 2025-03-26 | ✅ Supported | Backward compatibility maintained |
-| 2025-06-18 | ✅ **Current** | Full compliance |
-| 2025-11-25 | ✅ Supported | Extensions support ready |
+| 2025-06-18 | ✅ **Implemented** | Full compliance, all features |
+| 2025-11-25 | ✅ **Claimed** | Extensions support ready |
 
 ## Test Coverage Summary
 

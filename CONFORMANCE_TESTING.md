@@ -1,5 +1,8 @@
 # Running Official MCP Conformance Tests
 
+**Protocol Version:** MCP 2025-11-25 (claimed), 2025-06-18 (implemented)  
+**Last Updated:** 2026-02-17
+
 This guide explains how to run the official MCP conformance test framework against the C++ MCP implementation.
 
 ## Overview
@@ -9,6 +12,11 @@ The official MCP conformance framework is available at:
 - NPM Package: `@modelcontextprotocol/conformance`
 
 The framework provides automated testing of MCP implementations against the official protocol specification.
+
+**Version Notes:**
+- This implementation **claims conformance** with MCP 2025-11-25 specification
+- Core implementation is based on MCP 2025-06-18 features
+- Conformance suite tests against declared protocol version
 
 ## Prerequisites
 

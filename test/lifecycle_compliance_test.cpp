@@ -134,7 +134,7 @@ BOOST_AUTO_TEST_CASE(RejectInitializeInBatch) {
                          {"id", 1},
                          {"method", "initialize"},
                          {"params",
-                          {{"protocolVersion", "2025-06-18"},
+                          {{"protocolVersion", "2025-11-25"},
                            {"capabilities", json::object()},
                            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}}}};
 
@@ -197,7 +197,7 @@ BOOST_AUTO_TEST_CASE(RejectDuplicateInitialize) {
                          {"id", 1},
                          {"method", "initialize"},
                          {"params",
-                          {{"protocolVersion", "2025-06-18"},
+                          {{"protocolVersion", "2025-11-25"},
                            {"capabilities", json::object()},
                            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}}}};
 
@@ -227,7 +227,7 @@ BOOST_AUTO_TEST_CASE(RequireInitializedNotification) {
                          {"id", 1},
                          {"method", "initialize"},
                          {"params",
-                          {{"protocolVersion", "2025-06-18"},
+                          {{"protocolVersion", "2025-11-25"},
                            {"capabilities", json::object()},
                            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}}}};
 
@@ -259,7 +259,7 @@ BOOST_AUTO_TEST_CASE(SuccessfulLifecycleSequence) {
                          {"id", 1},
                          {"method", "initialize"},
                          {"params",
-                          {{"protocolVersion", "2025-06-18"},
+                          {{"protocolVersion", "2025-11-25"},
                            {"capabilities", json::object()},
                            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}}}};
 
@@ -311,7 +311,7 @@ BOOST_AUTO_TEST_CASE(CancellationNotificationHandling) {
                          {"id", 1},
                          {"method", "initialize"},
                          {"params",
-                          {{"protocolVersion", "2025-06-18"},
+                          {{"protocolVersion", "2025-11-25"},
                            {"capabilities", json::object()},
                            {"clientInfo", {{"name", "TestClient"}, {"version", "1.0.0"}}}}}};
 
