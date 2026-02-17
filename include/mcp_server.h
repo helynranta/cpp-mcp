@@ -542,9 +542,6 @@ private:
     // Handle MCP DELETE request (session termination)
     void handle_mcp_delete(const http::request_data& req, http::response_builder& res);
 
-    // Handle batch JSON-RPC requests
-    void handle_batch_jsonrpc(const json& batch_json, const std::string& session_id, http::response_builder& res);
-
     // Send a JSON-RPC message to a client
     void send_jsonrpc(const std::string& session_id, const json& message);
 

@@ -770,25 +770,6 @@ cmake --build build --target progress_example
 ./build/examples/progress_example
 ```
 
-### ~~Batch Request Example~~ **DEPRECATED** ([`examples/batch_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/batch_example.cpp))
-
-**⚠️ This example is deprecated as of MCP 2025-06-18.**
-
-JSON-RPC batching was removed from the MCP specification in version 2025-06-18. The server now rejects batch requests (arrays) with HTTP 400 and an error message.
-
-This example is kept for historical reference only. It previously demonstrated:
-- Multiple requests in a single batch
-- Mixed batches (requests + notifications)
-- Notification-only batches
-- Empty batch validation
-- Shows expected server behavior for each scenario
-
-**Build and run (will show deprecation warning):**
-```bash
-cmake --build build --target batch_example
-./build/examples/batch_example
-```
-
 ### Session State Management Example ([`examples/session_state_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/session_state_example.cpp))
 
 Demonstrates how to use the session state storage API to maintain state across tool calls within a session:
@@ -1060,16 +1041,10 @@ The response array contained only the results for the two requests, not for the 
 
 ### Testing (Deprecated)
 
-The batch example (`examples/batch_example.cpp`) still exists for historical reference:
+The test suite includes comprehensive batch rejection tests to verify the server properly rejects batch requests per MCP 2025-06-18:
 
 ```bash
-./build/examples/batch_example
-```
-
-The test suite includes comprehensive batch tests:
-
-```bash
-cd build && ctest -R Batch
+cd build && ctest -R BatchRejection
 ```
 
 ## Progress Notifications
