@@ -40,15 +40,38 @@ jobs:
       
       - name: Start MCP server
         run: |
+          # Debug: Check if binary exists
+          echo "Checking for server binary..."
+          ls -la ./build/ci-linux/examples/ || {
+            echo "❌ Build directory not found"
+            echo "Available build directories:"
+            ls -la ./build/ || echo "No build directory at all"
+            exit 1
+          }
+          
+          if [ ! -f ./build/ci-linux/examples/server_example ]; then
+            echo "❌ server_example binary not found"
+            exit 1
+          fi
+          
+          echo "✅ server_example binary found"
+          
           # Start server in background
           ./build/ci-linux/examples/server_example --port 3001 &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+          echo "Started server with PID: $SERVER_PID"
           
           # Wait for server to be ready (max 30 seconds)
           echo "Waiting for server to start..."
-          timeout 30 bash -c 'until curl -s http://localhost:3001/mcp; do sleep 0.5; done' || {
+          timeout 30 bash -c 'until curl -s http://localhost:3001/mcp >/dev/null 2>&1; do sleep 0.5; done' || {
             echo "❌ Server failed to start within 30 seconds"
+            echo "Checking if server process is still running..."
+            if ps -p $SERVER_PID > /dev/null 2>&1; then
+              echo "Server process is running but not responding"
+            else
+              echo "Server process has died"
+            fi
             exit 1
           }
           echo "✅ Server is ready"
