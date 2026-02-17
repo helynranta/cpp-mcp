@@ -1,0 +1,78 @@
+name: MCP Conformance Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  conformance:
+    name: Run MCP Conformance Tests
+    runs-on: ubuntu-latest
+    
+    env:
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/vcpkg-cache,readwrite'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Restore vcpkg cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg-cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+      
+      - name: Install vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: 'vcpkg.json'
+      
+      - name: Configure CMake
+        run: cmake --preset ci-linux
+      
+      - name: Build
+        run: cmake --build --preset ci-linux
+      
+      - name: Start MCP server
+        run: |
+          # Start server in background
+          ./build/ci-linux/examples/server_example --port 3001 &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+          
+          # Wait for server to be ready (max 30 seconds)
+          echo "Waiting for server to start..."
+          timeout 30 bash -c 'until curl -s http://localhost:3001/mcp; do sleep 0.5; done' || {
+            echo "❌ Server failed to start within 30 seconds"
+            exit 1
+          }
+          echo "✅ Server is ready"
+      
+      - name: Run conformance tests
+        uses: modelcontextprotocol/conformance@v0.1.11
+        with:
+          mode: server
+          url: http://localhost:3001/mcp
+          suite: active
+          expected-failures: ./conformance-baseline.yml
+          verbose: true
+      
+      - name: Upload conformance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-results
+          path: results/
+          retention-days: 30
+      
+      - name: Stop server
+        if: always()
+        run: |
+          if [ ! -z "$SERVER_PID" ]; then
+            kill $SERVER_PID || true
+          fi

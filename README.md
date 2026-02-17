@@ -1482,12 +1482,17 @@ All tests run automatically on:
 - **Linux** (Ubuntu latest) - Release build
 - **Windows** (Windows latest) - Release build
 
+**CI Workflows:**
+- `.github/workflows/test.yml` - Unit and integration tests (201+ tests)
+- `.github/workflows/conformance.yml` - Official MCP conformance tests (29 scenarios)
+
 CI fails on:
 - Any test failure
 - Code formatting violations
 - Compilation errors/warnings
+- Conformance test regressions (unexpected failures)
 
-See `.github/workflows/test.yml` for CI configuration.
+See workflow files for complete CI configuration.
 
 ## License
 

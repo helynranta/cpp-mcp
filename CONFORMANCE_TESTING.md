@@ -195,9 +195,18 @@ This will:
 
 ## Integration with CI/CD
 
-### GitHub Actions Example
+### GitHub Actions Workflow
 
-Add to `.github/workflows/conformance.yml`:
+The repository includes a conformance testing workflow at `.github/workflows/conformance.yml` that automatically runs on every push and pull request:
+
+**Key Features:**
+- Builds the C++ MCP server
+- Starts server on port 3001
+- Runs official conformance tests against it
+- Uses expected failures baseline (`conformance-baseline.yml`)
+- Uploads test results as artifacts
+
+**Workflow Configuration:**
 
 ```yaml
 name: MCP Conformance Tests
@@ -246,7 +255,16 @@ jobs:
         with:
           name: conformance-results
           path: results/
+          retention-days: 30
 ```
+
+**To view conformance results:**
+1. Go to the GitHub Actions tab
+2. Click on a workflow run
+3. Download the `conformance-results` artifact
+4. Extract and view `checks.json` for detailed results
+
+See `.github/workflows/conformance.yml` for the complete implementation.
 
 ## Test Results Interpretation
 

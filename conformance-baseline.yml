@@ -1,0 +1,25 @@
+# MCP Conformance Test Expected Failures Baseline
+#
+# This file lists scenarios that are expected to fail due to features
+# that are intentionally not implemented or partially implemented.
+#
+# Exit code behavior:
+#   - Scenario fails + in baseline = Exit 0 (expected failure)
+#   - Scenario fails + not in baseline = Exit 1 (unexpected regression)
+#   - Scenario passes + in baseline = Exit 1 (stale baseline, remove entry)
+#   - Scenario passes + not in baseline = Exit 0 (normal pass)
+#
+# Last updated: 2026-02-17
+# See CONFORMANCE_TESTING.md for details on each scenario
+
+server:
+  # Optional features - not implemented by design
+  - tools-call-sampling          # LLM sampling (optional, application-specific)
+  - tools-call-elicitation       # User input elicitation (optional feature)
+  - elicitation-sep1034-defaults # Elicitation default handling (optional)
+  - elicitation-sep1330-enums    # Elicitation enum handling (optional)
+  
+  # Partial implementations - basic support present
+  - tools-call-with-progress     # Progress notifications (basic support)
+  - resources-subscribe          # Resource subscriptions (basic support)
+  - resources-unsubscribe        # Resource unsubscribe (basic support)
