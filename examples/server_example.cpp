@@ -291,7 +291,20 @@ int main(int argc, char* argv[]) {
     // Start server
     std::cout << "Starting MCP server at " << srv_conf.host << ":" << srv_conf.port << std::endl;
     std::cout << "Press Ctrl+C to stop the server" << std::endl;
-    server.start(true); // Blocking mode
 
+    // Use non-blocking mode so the server runs in a background thread
+    // This allows the process to respond properly when run with nohup in CI
+    if (!server.start(false)) {
+        std::cerr << "Failed to start server" << std::endl;
+        return 1;
+    }
+
+    // Keep the main thread alive while server runs
+    // The signal handlers will call server.stop() and break this loop
+    while (server.is_running()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    std::cout << "Server stopped" << std::endl;
     return 0;
 }
