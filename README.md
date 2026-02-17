@@ -32,6 +32,10 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 - **Resource Abstraction**: Standard interfaces for resources such as files, APIs, etc.
 - **Tool Registration**: Register and call tools with structured parameters
 - **Elicitation (Human-in-the-Loop) (MCP 2025-06-18)**: Request user input during tool execution with structured forms
+- **Completion Support (MCP 2025-06-18)**: Argument autocompletion for prompts and resource templates
+  - Context-aware completions with previously-resolved variables
+  - Extensible metadata via `_meta` field
+  - Support for both prompt arguments and resource template variables
 - **Extensible Architecture**: Easy to extend with new resource types and tools
 - **Multi-Transport Support**: Supports HTTP and standard input/output (stdio) communication methods
 
@@ -1442,6 +1446,106 @@ if (server.client_supports_elicitation(session_id)) {
         // Handle timeout or other errors
     }
 }
+```
+
+#### 5. Completion Support ✅
+**Status:** Fully Implemented (MCP 2025-06-18)
+- Data structures for completion requests and results
+- Support for `_meta` field with extensible metadata
+- Support for `context` field with previously-resolved variables
+- Handles both prompt argument and resource template completions
+- Test suite: `test/completion_test.cpp` (17 tests)
+- Reference: [MCP PR #598](https://github.com/modelcontextprotocol/specification/pull/598)
+- Example: `examples/completion_example.cpp`
+
+**Completion Features:**
+- Argument autocompletion for prompts (e.g., suggesting values for prompt parameters)
+- Resource template variable completion (e.g., file path suggestions)
+- Context-aware suggestions using previously-resolved variables
+- Extensible metadata via `_meta` field (caching info, timestamps, sources, etc.)
+- Standard JSON serialization/deserialization
+
+**API Usage:**
+```cpp
+// Register completion handler
+server.register_method("completion/complete", 
+    [](const json& params, const std::string& session_id) -> json {
+        // Parse request with context and metadata
+        auto req = complete_request::from_json(params);
+        
+        // Generate completions based on ref type
+        complete_result result;
+        
+        if (req.ref_type == "ref/prompt") {
+            // Handle prompt argument completion
+            result.values = get_prompt_completions(
+                req.ref_name, req.argument_name, req.argument_value);
+        } else if (req.ref_type == "ref/resource") {
+            // Handle resource template variable completion
+            result.values = get_resource_completions(
+                req.ref_uri, req.argument_name, req.argument_value);
+        }
+        
+        // Use context for better suggestions
+        if (req.context.contains("arguments")) {
+            // Access previously-resolved variables
+            auto prev_args = req.context["arguments"];
+            // Filter or prioritize completions based on context
+        }
+        
+        // Add metadata
+        result.total = static_cast<int>(result.values.size());
+        result.has_more = false;
+        result.meta["source"] = "builtin";
+        result.meta["cached"] = false;
+        
+        return result.to_json();
+    }
+);
+
+// Declare completion capability
+json capabilities = {
+    {"tools", json::object()},
+    {"completions", json::object()} // Enable completion support
+};
+server.set_capabilities(capabilities);
+```
+
+**Completion Request with Context:**
+```cpp
+// Client sends completion request with context
+complete_request req;
+req.ref_type = "ref/prompt";
+req.ref_name = "code_review";
+req.argument_name = "language";
+req.argument_value = "py";
+
+// Add context with previously-resolved arguments
+req.context = json::object();
+req.context["arguments"] = {
+    {"repo", "cpp-mcp"},
+    {"branch", "main"}
+};
+
+json request = req.to_json();
+// Send to server via completion/complete method
+```
+
+**Completion Result with Metadata:**
+```cpp
+// Server returns completions with metadata
+complete_result result;
+result.values = {"python", "pytorch", "pyside"};
+result.total = 10; // Total available completions
+result.has_more = false; // No additional completions
+
+// Add extensible metadata
+result.meta["source"] = "builtin";
+result.meta["cached"] = false;
+result.meta["timestamp"] = "2026-02-17T05:30:00Z";
+result.meta["context_used"] = true;
+
+json response = result.to_json();
 ```
 
 ### Running Conformance Tests
