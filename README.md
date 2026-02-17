@@ -31,6 +31,7 @@ For the full specification and protocol details, see the [MCP GitHub repository]
 - **Cancellation Support**: Handle cancellation notifications (notifications/cancelled) with configurable timeout
 - **Resource Abstraction**: Standard interfaces for resources such as files, APIs, etc.
 - **Tool Registration**: Register and call tools with structured parameters
+- **Elicitation (Human-in-the-Loop) (MCP 2025-06-18)**: Request user input during tool execution with structured forms
 - **Extensible Architecture**: Easy to extend with new resource types and tools
 - **Multi-Transport Support**: Supports HTTP and standard input/output (stdio) communication methods
 
@@ -1393,6 +1394,56 @@ This C++ implementation fully conforms to the [MCP 2025-06-18 specification](htt
 - Reference: [MCP PR #371](https://github.com/modelcontextprotocol/specification/pull/371)
 - Example: `examples/structured_tool_example.cpp`
 
+#### 4. Elicitation (Human-in-the-Loop) ✅
+**Status:** Fully Implemented
+- Data structures and API methods complete
+- Full async request-response flow working
+- Promise/future mechanism for pending requests
+- Timeout handling implemented
+- Client capability declaration supported
+- Test suite: `test/elicitation_test.cpp` (15 tests) + `test/elicitation_integration_test.cpp` (8 tests)
+- Reference: [MCP PR #382](https://github.com/modelcontextprotocol/specification/pull/382)
+- Example: `examples/elicitation_example.cpp`
+
+**Elicitation Features:**
+- Request user input during tool execution
+- Structured forms with JSON Schema validation
+- Three-action model: accept, decline, cancel
+- Support for multiple primitive types (string, number, boolean, enum)
+- Automatic timeout handling with configurable duration
+
+**API Usage:**
+```cpp
+// Check if client supports elicitation
+if (server.client_supports_elicitation(session_id)) {
+    // Define requested schema
+    json schema = {
+        {"type", "object"},
+        {"properties", {
+            {"api_key", {{"type", "string"}, {"description", "Your API key"}}}
+        }},
+        {"required", json::array({"api_key"})}
+    };
+    
+    // Request user input - this blocks until user responds or timeout
+    try {
+        elicitation_result result = server.request_elicitation(
+            session_id, "Please provide your API key", schema);
+        
+        if (result.action == elicitation_action::accept) {
+            std::string api_key = result.content["api_key"];
+            // Use the provided API key
+        } else if (result.action == elicitation_action::decline) {
+            // User declined - handle appropriately
+        } else {
+            // User cancelled - handle appropriately
+        }
+    } catch (const mcp_exception& e) {
+        // Handle timeout or other errors
+    }
+}
+```
+
 ### Running Conformance Tests
 
 ```bash
@@ -1448,6 +1499,7 @@ npx @modelcontextprotocol/inspector
 |----------|------------|-------|--------|
 | Protocol Version | `protocol_version_header_test.cpp` | 8 | ✅ |
 | Structured Tools | `structured_tool_output_test.cpp` | 15 | ✅ |
+| Elicitation | `elicitation_test.cpp` + `elicitation_integration_test.cpp` | 23 | ✅ |
 | Batch Rejection | `batch_rejection_test.cpp` | 4 | ✅ |
 | Lifecycle | `lifecycle_compliance_test.cpp` | 12+ | ✅ |
 | Session Management | `session_management_test.cpp` | 10+ | ✅ |
@@ -1461,7 +1513,11 @@ npx @modelcontextprotocol/inspector
 **By Design (Not Implemented):**
 - **OAuth/Authentication**: Left to application layer for flexibility
   - See [SECURITY.md](SECURITY.md) for security guidance
-- **Elicitation Support**: Optional feature, not currently implemented
+
+**Recently Completed:**
+- ✅ **Elicitation Support**: Full implementation complete with async request-response flow
+  - All data structures, API methods, and multi-turn workflow working
+  - 23/23 tests passing
 
 These omissions are documented in [CONFORMANCE.md](CONFORMANCE.md) with references to equivalent tests in the Python SDK.
 

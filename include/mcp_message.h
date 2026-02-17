@@ -180,6 +180,104 @@ struct response {
     }
 };
 
+/**
+ * @brief Elicitation request parameters
+ *
+ * Per MCP 2025-06-18 specification:
+ * - message: Human-readable prompt for the user
+ * - requestedSchema: JSON Schema defining expected response structure
+ *   (restricted to flat objects with primitive properties)
+ */
+struct elicitation_params {
+    std::string message;
+    json requested_schema;
+
+    // Convert to JSON
+    json to_json() const { return {{"message", message}, {"requestedSchema", requested_schema}}; }
+
+    // Create from JSON
+    static elicitation_params from_json(const json& j) {
+        elicitation_params params;
+        params.message = j["message"].get<std::string>();
+        params.requested_schema = j["requestedSchema"];
+        return params;
+    }
+};
+
+/**
+ * @brief Elicitation response actions
+ *
+ * Per MCP 2025-06-18 specification:
+ * - accept: User explicitly approved and submitted with data
+ * - decline: User explicitly declined the request
+ * - cancel: User dismissed without making an explicit choice
+ */
+enum class elicitation_action {
+    accept,  // User accepted and provided data
+    decline, // User explicitly declined
+    cancel   // User dismissed without choice
+};
+
+/**
+ * @brief Elicitation response result
+ *
+ * Per MCP 2025-06-18 specification:
+ * - action: One of accept, decline, or cancel
+ * - content: Data submitted by user (only present for accept action)
+ */
+struct elicitation_result {
+    elicitation_action action;
+    json content; // Only present for "accept" action
+
+    // Convert to JSON
+    json to_json() const {
+        std::string action_str;
+        switch (action) {
+            case elicitation_action::accept:
+                action_str = "accept";
+                break;
+            case elicitation_action::decline:
+                action_str = "decline";
+                break;
+            case elicitation_action::cancel:
+                action_str = "cancel";
+                break;
+        }
+
+        json j = {{"action", action_str}};
+
+        // Only include content for "accept" action
+        if (action == elicitation_action::accept && !content.empty()) {
+            j["content"] = content;
+        }
+
+        return j;
+    }
+
+    // Create from JSON
+    static elicitation_result from_json(const json& j) {
+        elicitation_result result;
+
+        std::string action_str = j["action"].get<std::string>();
+        if (action_str == "accept") {
+            result.action = elicitation_action::accept;
+        } else if (action_str == "decline") {
+            result.action = elicitation_action::decline;
+        } else if (action_str == "cancel") {
+            result.action = elicitation_action::cancel;
+        } else {
+            throw mcp_exception(error_code::invalid_params, "Invalid elicitation action: " + action_str);
+        }
+
+        // Extract content for "accept" action
+        if (j.contains("content")) {
+            result.content = j["content"];
+        }
+
+        return result;
+    }
+};
+
 } // namespace mcp
 
 #endif // MCP_MESSAGE_H

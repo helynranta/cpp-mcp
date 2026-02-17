@@ -107,14 +107,34 @@ mcp::json hello_handler(const mcp::json& params, const std::string& /* session_i
     return {{{"type", "text"}, {"text", "Hello, " + name + "!"}}};
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     // Ensure file directory exists
     std::filesystem::create_directories("./files");
 
+    // Parse command-line arguments
+    std::string host = "localhost";
+    int port = 8888;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--port" && i + 1 < argc) {
+            port = std::stoi(argv[++i]);
+        } else if (arg == "--host" && i + 1 < argc) {
+            host = argv[++i];
+        } else if (arg == "--help" || arg == "-h") {
+            std::cout << "Usage: " << argv[0] << " [options]\n"
+                      << "Options:\n"
+                      << "  --port PORT    Port to listen on (default: 8888)\n"
+                      << "  --host HOST    Host to bind to (default: localhost)\n"
+                      << "  --help, -h     Show this help message\n";
+            return 0;
+        }
+    }
+
     // Create and configure server
     mcp::server::configuration srv_conf;
-    srv_conf.host = "localhost";
-    srv_conf.port = 8888;
+    srv_conf.host = host;
+    srv_conf.port = port;
     // srv_conf.threadpool_size = 1;
     // srv_conf.ssl.server_cert_path = "./server.cert.pem";
     // srv_conf.ssl.server_private_key_path = "./server.key.pem";
