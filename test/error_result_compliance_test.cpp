@@ -107,15 +107,15 @@ BOOST_AUTO_TEST_CASE(MultipleErrorTypesAllHaveCorrectStructure) {
 // ===== Validation Tests for Invalid Error Structures =====
 
 BOOST_AUTO_TEST_CASE(ValidateRejectsErrorWithExtraFields) {
-    // Manually construct an error response with extra fields
+    // Manually construct an error response with extra fields (data field)
     json res_json = {{"jsonrpc", "2.0"},
                      {"id", 1},
                      {"error", {{"code", -32600}, {"message", "Invalid Request"}, {"data", {{"extra", "field"}}}}}};
 
     std::string error_msg;
-    // Note: Current validation only checks required fields, not extra fields
-    // This test documents expected behavior if we add strict validation
-    BOOST_CHECK(validate_response_message(res_json, error_msg));
+    // Strict validation must reject errors with extra fields
+    BOOST_CHECK(!validate_response_message(res_json, error_msg));
+    BOOST_CHECK_NE(error_msg.find("exactly"), std::string::npos);
 }
 
 BOOST_AUTO_TEST_CASE(ValidateRejectsResponseWithBothErrorAndResult) {
