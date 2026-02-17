@@ -1279,7 +1279,57 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
         return;
     }
 
-    // Process request asynchronously and send response via SSE
+    // For stateless requests, process synchronously and return response directly
+    if (is_stateless_request) {
+        try {
+            json result = this->process_request(mcp_req, session_id);
+
+            // Remove request ID from tracker
+            if (!mcp_req.is_notification()) {
+                request_id_tracker_.remove_request_id(session_id, mcp_req.id);
+            }
+
+            // Clean up temporary session
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                session_dispatchers_.erase(session_id);
+                session_lifecycle_.erase(session_id);
+                LOG_INFO("Cleaned up temporary stateless session: ", session_id);
+            }
+
+            // Return response directly in HTTP body
+            res.set_status(200);
+            res.set_header("Content-Type", "application/json");
+            res.set_content(result.dump(), "application/json");
+            return;
+        } catch (const std::exception& e) {
+            LOG_ERROR("Exception processing stateless request: ", e.what());
+
+            // Remove request ID from tracker on error
+            if (!mcp_req.is_notification()) {
+                request_id_tracker_.remove_request_id(session_id, mcp_req.id);
+            }
+
+            // Clean up temporary session
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                session_dispatchers_.erase(session_id);
+                session_lifecycle_.erase(session_id);
+            }
+
+            // Send error response directly
+            json error_response = response::create_error(mcp_req.is_notification() ? nullptr : mcp_req.id,
+                                                         error_code::internal_error,
+                                                         std::string("Internal error: ") + e.what())
+                                      .to_json();
+            res.set_status(500);
+            res.set_header("Content-Type", "application/json");
+            res.set_content(error_response.dump(), "application/json");
+            return;
+        }
+    }
+
+    // For stateful requests, process asynchronously and send response via SSE
     thread_pool_.enqueue([this, mcp_req, session_id, dispatcher]() {
         try {
             json result = this->process_request(mcp_req, session_id);
