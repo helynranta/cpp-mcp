@@ -107,16 +107,17 @@ BOOST_AUTO_TEST_CASE(ElicitationResponseFormat) {
 // Test 5: Complex schema handling
 // ============================================================================
 BOOST_AUTO_TEST_CASE(ComplexSchemaHandling) {
-    json complex_schema = {
-        {"type", "object"},
-        {"properties",
-         {{"name", {{"type", "string"}, {"minLength", 3}}},
-          {"email", {{"type", "string"}, {"format", "email"}}},
-          {"age", {{"type", "integer"}, {"minimum", 18}}},
-          {"subscribe", {{"type", "boolean"}, {"default", false}}},
-          {"role",
-           {{"type", "string"}, {"enum", json::array({"user", "admin"})}, {"enumNames", json::array({"User", "Admin"})}}}}},
-        {"required", json::array({"name", "email"})}};
+    json complex_schema = {{"type", "object"},
+                           {"properties",
+                            {{"name", {{"type", "string"}, {"minLength", 3}}},
+                             {"email", {{"type", "string"}, {"format", "email"}}},
+                             {"age", {{"type", "integer"}, {"minimum", 18}}},
+                             {"subscribe", {{"type", "boolean"}, {"default", false}}},
+                             {"role",
+                              {{"type", "string"},
+                               {"enum", json::array({"user", "admin"})},
+                               {"enumNames", json::array({"User", "Admin"})}}}}},
+                           {"required", json::array({"name", "email"})}};
 
     elicitation_params params;
     params.message = "Please provide your profile";

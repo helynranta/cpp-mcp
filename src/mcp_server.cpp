@@ -517,9 +517,8 @@ elicitation_result server::request_elicitation(const std::string& session_id, co
 
     if (status == std::future_status::timeout) {
         LOG_ERROR("Elicitation request timed out for session: ", session_id, ", request ID: ", req_id.dump());
-        throw mcp_exception(error_code::internal_error,
-                            "Elicitation request timed out. User did not respond within " +
-                                std::to_string(request_timeout_seconds_) + " seconds.");
+        throw mcp_exception(error_code::internal_error, "Elicitation request timed out. User did not respond within " +
+                                                            std::to_string(request_timeout_seconds_) + " seconds.");
     }
 
     // Get the result

@@ -411,26 +411,44 @@ Before beginning implementation:
 **Duration:** 2-4 weeks  
 **Priority:** 🟢 MEDIUM (Optional)
 
-### 3.1 Elicitation Support (Optional)
+### 3.1 Elicitation Support ✅ COMPLETE
 
 **Rationale:** Allows servers to request additional user input during interactions.
 
+**Status:** ✅ FULLY IMPLEMENTED (2026-02-17)
+
 #### Tasks
 
-1. **Write Tests**
-   - [ ] Create `test/elicitation_test.cpp`
-   - [ ] Test capability declaration
-   - [ ] Test elicitation request/response flow
+1. **Write Tests** ✅
+   - [x] Create `test/elicitation_test.cpp` (15 tests)
+   - [x] Create `test/elicitation_integration_test.cpp` (8 tests)
+   - [x] Test capability declaration
+   - [x] Test elicitation request/response flow
+   - [x] Test all three actions (accept/decline/cancel)
+   - [x] Test timeout handling
+   - [x] Test complex schemas
 
-2. **Implement Capability**
-   - [ ] Add `elicitation` capability to server
-   - [ ] Implement elicitation request mechanism
-   - [ ] Add client support
+2. **Implement Capability** ✅
+   - [x] Add elicitation data structures (elicitation_params, elicitation_result, elicitation_action)
+   - [x] Add `elicitation` capability support to server
+   - [x] Implement elicitation request mechanism with promise/future
+   - [x] Add response handler in process_request()
+   - [x] Implement timeout handling
+   - [x] Add client_supports_elicitation() method
 
-3. **Create Example**
-   - [ ] Demonstrate elicitation flow
+3. **Create Example** ✅
+   - [x] Demonstrate elicitation flow in `examples/elicitation_example.cpp`
+   - [x] Show all three response actions
+   - [x] Demonstrate complex schemas with multiple types
 
-**Estimated Effort:** 5-7 days (if implemented)
+4. **Documentation** ✅
+   - [x] Update README with elicitation feature
+   - [x] Update conformance baseline
+   - [x] Add API documentation
+
+**Test Results:** 23/23 passing (15 data structure + 8 integration)
+
+**Estimated Effort:** 5-7 days ✅ COMPLETED
 
 ---
 
