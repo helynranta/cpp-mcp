@@ -188,13 +188,12 @@ int main(int argc, char* argv[]) {
 
     server.set_server_info("ExampleServer", "1.0.0");
 
-    // Set server capabilities
-    // mcp::json capabilities = {
-    //     {"tools", {{"listChanged", true}}},
-    //     {"resources", {{"subscribe", false}, {"listChanged", true}}}
-    // };
-    mcp::json capabilities = {{"tools", mcp::json::object()}};
-    server.set_capabilities(capabilities);
+    // Set server capabilities needed for conformance coverage
+    server.set_capabilities({{"logging", mcp::json::object()},
+                             {"prompts", {{"listChanged", true}}},
+                             {"resources", {{"listChanged", true}}},
+                             {"tools", {{"listChanged", true}}},
+                             {"completion", mcp::json::object()}});
 
     // Register tools with MCP 2025-06-18 output schemas
 
@@ -284,9 +283,190 @@ int main(int argc, char* argv[]) {
     server.register_tool(calc_tool, calculator_handler);
     server.register_tool(hello_tool, hello_handler);
 
-    // // Register resources
-    // auto file_resource = std::make_shared<mcp::file_resource>("./Makefile");
-    // server.register_resource("file://./Makefile", file_resource);
+    // Conformance tools
+    const std::string png_base64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/xcAAn8B9pQ5e0cAAAAASUVORK5CYII=";
+    const std::string wav_base64 = "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+    server.register_tool(
+        mcp::tool_builder("test_simple_text").with_description("Conformance: simple text response").build(),
+        [](const mcp::json&, const std::string&) -> mcp::json {
+            return {{"content",
+                     mcp::json::array({{{"type", "text"}, {"text", "This is a simple text response for testing."}}})}};
+        });
+
+    server.register_tool(
+        mcp::tool_builder("test_image_content").with_description("Conformance: image content").build(),
+        [png_base64](const mcp::json&, const std::string&) -> mcp::json {
+            return {
+                {"content", mcp::json::array({{{"type", "image"}, {"data", png_base64}, {"mimeType", "image/png"}}})}};
+        });
+
+    server.register_tool(
+        mcp::tool_builder("test_audio_content").with_description("Conformance: audio content").build(),
+        [wav_base64](const mcp::json&, const std::string&) -> mcp::json {
+            return {
+                {"content", mcp::json::array({{{"type", "audio"}, {"data", wav_base64}, {"mimeType", "audio/wav"}}})}};
+        });
+
+    server.register_tool(
+        mcp::tool_builder("test_embedded_resource").with_description("Conformance: embedded resource").build(),
+        [](const mcp::json&, const std::string&) -> mcp::json {
+            return {{"content",
+                     mcp::json::array({{{"type", "resource"},
+                                        {"resource",
+                                         {{"uri", "test://embedded-resource"},
+                                          {"mimeType", "application/json"},
+                                          {"text", R"({"embedded":true,"message":"Embedded resource content"})"}}}}})}};
+        });
+
+    server.register_tool(
+        mcp::tool_builder("test_multiple_content_types").with_description("Conformance: mixed content types").build(),
+        [png_base64](const mcp::json&, const std::string&) -> mcp::json {
+            return {{"content", mcp::json::array({{{"type", "text"}, {"text", "Multiple content types test:"}},
+                                                  {{"type", "image"}, {"data", png_base64}, {"mimeType", "image/png"}},
+                                                  {{"type", "resource"},
+                                                   {"resource",
+                                                    {{"uri", "test://mixed-content-resource"},
+                                                     {"mimeType", "application/json"},
+                                                     {"text", R"({"test":"data","value":123})"}}}}})}};
+        });
+
+    server.register_tool(
+        mcp::tool_builder("test_error_handling").with_description("Conformance: error handling").build(),
+        [](const mcp::json&, const std::string&) -> mcp::json {
+            return {{"isError", true},
+                    {"content",
+                     mcp::json::array(
+                         {{{"type", "text"}, {"text", "This tool intentionally returns an error for testing"}}})}};
+        });
+
+    // Tool that emits logging notifications
+    server.register_tool(
+        mcp::tool_builder("test_tool_with_logging").with_description("Conformance: logging tool").build(),
+        [&server](const mcp::json&, const std::string& session_id) -> mcp::json {
+            auto send_log = [&server, &session_id](const std::string& level, const std::string& message) {
+                mcp::request req;
+                req.jsonrpc = "2.0";
+                req.id = nullptr; // notification
+                req.method = "logging/message";
+                req.params = {{"level", level}, {"message", message}};
+                server.send_request(session_id, req);
+            };
+            send_log("debug", "Logging tool started");
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            send_log("info", "Logging tool in progress");
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            send_log("notice", "Logging tool completed");
+            return {
+                {"content", mcp::json::array({{{"type", "text"}, {"text", "Logging tool completed successfully"}}})}};
+        });
+
+    // Conformance methods ---------------------------------------------------
+    server.register_method("logging/setLevel",
+                           [](const mcp::json&, const std::string&) -> mcp::json { return mcp::json::object(); });
+
+    server.register_method("completion/complete", [](const mcp::json&, const std::string&) -> mcp::json {
+        return {{"completion", {{"values", mcp::json::array({"example-completion"})}}}};
+    });
+
+    server.register_method("resources/list", [](const mcp::json&, const std::string&) -> mcp::json {
+        mcp::json resources = mcp::json::array({{{"uri", "test://static-text"},
+                                                 {"name", "Static Text"},
+                                                 {"description", "Static text resource for conformance"},
+                                                 {"mimeType", "text/plain"}},
+                                                {{"uri", "test://static-binary"},
+                                                 {"name", "Static Binary"},
+                                                 {"description", "Static binary resource for conformance"},
+                                                 {"mimeType", "image/png"}},
+                                                {{"uri", "test://embedded-resource"},
+                                                 {"name", "Embedded Resource"},
+                                                 {"description", "Embedded resource used in tool responses"},
+                                                 {"mimeType", "application/json"}}});
+        return {{"resources", resources}};
+    });
+
+    server.register_method("resources/read", [](const mcp::json& params, const std::string&) -> mcp::json {
+        std::string uri = params.value("uri", "");
+        mcp::json content;
+        if (uri == "test://static-text") {
+            content = {
+                {"uri", uri}, {"mimeType", "text/plain"}, {"text", "This is the content of the static text resource."}};
+        } else if (uri == "test://static-binary") {
+            // 1x1 PNG (red)
+            const std::string blob =
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/xcAAn8B9pQ5e0cAAAAASUVORK5CYII=";
+            content = {{"uri", uri}, {"mimeType", "image/png"}, {"blob", blob}};
+        } else if (uri.rfind("test://template/", 0) == 0 && uri.ends_with("/data")) {
+            auto start = uri.find("template/") + std::string("template/").size();
+            auto end = uri.rfind("/data");
+            std::string id = uri.substr(start, end - start);
+            content = {{"uri", uri},
+                       {"mimeType", "application/json"},
+                       {"text", "{\"id\":\"" + id + "\",\"templateTest\":true,\"data\":\"Data for ID: " + id + "\"}"}};
+        } else if (uri == "test://embedded-resource") {
+            content = {{"uri", uri},
+                       {"mimeType", "application/json"},
+                       {"text", R"({"embedded":true,"message":"Embedded resource content"})"}};
+        }
+        return {{"contents", mcp::json::array({content})}};
+    });
+
+    server.register_method("prompts/list", [](const mcp::json&, const std::string&) -> mcp::json {
+        mcp::json prompts = mcp::json::array(
+            {{{"name", "test_simple_prompt"},
+              {"description", "Simple conformance prompt"},
+              {"arguments", mcp::json::array()}},
+             {{"name", "test_prompt_with_arguments"},
+              {"description", "Prompt requiring arguments"},
+              {"arguments",
+               mcp::json::array({{{"name", "arg1"}, {"description", "First argument"}, {"required", true}},
+                                 {{"name", "arg2"}, {"description", "Second argument"}, {"required", true}}})}},
+             {{"name", "test_prompt_with_embedded_resource"},
+              {"description", "Prompt with embedded resource"},
+              {"arguments",
+               mcp::json::array({{{"name", "resourceUri"}, {"description", "Resource URI"}, {"required", true}}})}},
+             {{"name", "test_prompt_with_image"},
+              {"description", "Prompt with image content"},
+              {"arguments", mcp::json::array()}}});
+        return {{"prompts", prompts}};
+    });
+
+    server.register_method("prompts/get", [](const mcp::json& params, const std::string&) -> mcp::json {
+        const std::string png_base64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/xcAAn8B9pQ5e0cAAAAASUVORK5CYII=";
+        std::string name = params.value("name", "");
+        mcp::json messages = mcp::json::array();
+        if (name == "test_simple_prompt") {
+            messages.push_back(
+                {{"role", "user"}, {"content", {{"type", "text"}, {"text", "This is a simple prompt for testing."}}}});
+        } else if (name == "test_prompt_with_arguments") {
+            auto args = params.value("arguments", mcp::json::object());
+            std::string arg1 = args.value("arg1", "");
+            std::string arg2 = args.value("arg2", "");
+            messages.push_back(
+                {{"role", "user"},
+                 {"content",
+                  {{"type", "text"}, {"text", "Prompt with arguments: arg1='" + arg1 + "', arg2='" + arg2 + "'"}}}});
+        } else if (name == "test_prompt_with_embedded_resource") {
+            auto args = params.value("arguments", mcp::json::object());
+            std::string uri = args.value("resourceUri", "");
+            messages.push_back(
+                {{"role", "user"},
+                 {"content",
+                  {{"type", "resource"},
+                   {"resource",
+                    {{"uri", uri}, {"mimeType", "text/plain"}, {"text", "Embedded resource content for testing."}}}}}});
+            messages.push_back(
+                {{"role", "user"}, {"content", {{"type", "text"}, {"text", "Additional embedded resource message."}}}});
+        } else if (name == "test_prompt_with_image") {
+            messages.push_back(
+                {{"role", "user"}, {"content", {{"type", "image"}, {"data", png_base64}, {"mimeType", "image/png"}}}});
+            messages.push_back(
+                {{"role", "user"}, {"content", {{"type", "text"}, {"text", "Please analyze the image above."}}}});
+        }
+        return {{"messages", messages}};
+    });
 
     // Start server
     std::cout << "Starting MCP server at " << srv_conf.host << ":" << srv_conf.port << std::endl;
