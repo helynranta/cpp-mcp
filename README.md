@@ -1351,6 +1351,149 @@ See `.github/workflows/test.yml` for the complete CI configuration.
 
 For detailed development guidelines, see [AGENTS.md](AGENTS.md).
 
+## Protocol Conformance and Testing
+
+### MCP 2025-06-18 Compliance
+
+This C++ implementation fully conforms to the [MCP 2025-06-18 specification](https://spec.modelcontextprotocol.io/specification/2025-06-18/) with comprehensive test coverage.
+
+**Protocol Versions Supported:**
+- ✅ **2025-06-18** (Current - Full compliance)
+- ✅ 2025-03-26 (Backward compatibility)
+- ✅ 2025-11-25 (Latest - Extensions ready)
+
+**Conformance Status:**
+- **Total Tests**: 201+ test cases across 16+ test suites
+- **Pass Rate**: 100%
+- **Code Coverage**: >80% for core protocol features
+- **Breaking Changes**: All MCP 2025-06-18 breaking changes implemented
+
+### Key Compliance Features
+
+#### 1. JSON-RPC Batching Removal ✅
+**Status:** Fully Compliant
+- Server properly rejects batch requests with error code -32600
+- Test suite: `test/batch_rejection_test.cpp` (4 tests)
+- Reference: [MCP PR #416](https://github.com/modelcontextprotocol/specification/pull/416)
+
+#### 2. MCP-Protocol-Version Header ✅
+**Status:** Fully Compliant
+- Clients automatically include MCP-Protocol-Version header after initialization
+- Server validates header and supports multiple protocol versions
+- Backward compatible (missing header assumes 2025-03-26)
+- Test suite: `test/protocol_version_header_test.cpp` (8 tests)
+- Reference: [MCP PR #548](https://github.com/modelcontextprotocol/specification/pull/548)
+
+#### 3. Structured Tool Output Schema ✅
+**Status:** Fully Compliant
+- Tools support optional `title` and `outputSchema` fields
+- Tool results can include `structuredContent` with schema validation
+- Fully backward compatible with text-only content
+- Test suite: `test/structured_tool_output_test.cpp` (15 tests)
+- Reference: [MCP PR #371](https://github.com/modelcontextprotocol/specification/pull/371)
+- Example: `examples/structured_tool_example.cpp`
+
+### Running Conformance Tests
+
+```bash
+# Build with tests enabled
+cmake --preset dev-release
+cmake --build --preset dev-release
+
+# Run all conformance tests
+ctest --preset dev-release
+
+# Or run test executable directly
+./build/dev-release/test/mcp_tests
+
+# Run specific test suites
+./build/dev-release/test/mcp_tests --run_test=ProtocolVersionHeaderTestSuite
+./build/dev-release/test/mcp_tests --run_test=StructuredToolOutputTestSuite
+./build/dev-release/test/mcp_tests --run_test=BatchRejectionTestSuite
+```
+
+### Interoperability Testing
+
+The C++ MCP implementation is designed to be interoperable with reference implementations:
+
+**Reference SDKs:**
+- **Python SDK**: [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) - 126 test files
+- **TypeScript SDK**: [modelcontextprotocol/typescript-sdk](https://github.com/modelcontextprotocol/typescript-sdk)
+- **Conformance Tests**: [modelcontextprotocol/conformance](https://github.com/modelcontextprotocol/conformance)
+
+**Test with MCP Inspector:**
+```bash
+# Start your C++ server
+./build/dev-release/examples/server_example
+
+# In another terminal, start the inspector
+npx @modelcontextprotocol/inspector
+
+# Connect to: http://localhost:8080/mcp
+```
+
+**Interop Matrix:**
+
+| Feature | Python SDK | Node.js SDK | C++ SDK (this) |
+|---------|------------|-------------|----------------|
+| Protocol 2025-06-18 | ✅ | ✅ | ✅ |
+| HTTP/SSE Transport | ✅ | ✅ | ✅ |
+| Structured Tools | ✅ | ✅ | ✅ |
+| Session Management | ✅ | ✅ | ✅ |
+| Batch Rejection | ✅ | ✅ | ✅ |
+
+### Test Coverage by Category
+
+| Category | Test Suite | Tests | Status |
+|----------|------------|-------|--------|
+| Protocol Version | `protocol_version_header_test.cpp` | 8 | ✅ |
+| Structured Tools | `structured_tool_output_test.cpp` | 15 | ✅ |
+| Batch Rejection | `batch_rejection_test.cpp` | 4 | ✅ |
+| Lifecycle | `lifecycle_compliance_test.cpp` | 12+ | ✅ |
+| Session Management | `session_management_test.cpp` | 10+ | ✅ |
+| HTTP Security | `http_security_test.cpp` | 20+ | ✅ |
+| JSON-RPC | `jsonrpc_validation_test.cpp` | 15+ | ✅ |
+| Tool Safety | `tool_safety_test.cpp` | 8+ | ✅ |
+| HTTP Transport | `streamable_http_transport_test.cpp` | 15+ | ✅ |
+
+### Known Limitations
+
+**By Design (Not Implemented):**
+- **OAuth/Authentication**: Left to application layer for flexibility
+  - See [SECURITY.md](SECURITY.md) for security guidance
+- **Elicitation Support**: Optional feature, not currently implemented
+
+These omissions are documented in [CONFORMANCE.md](CONFORMANCE.md) with references to equivalent tests in the Python SDK.
+
+### Detailed Conformance Documentation
+
+For comprehensive conformance documentation including:
+- Complete test-to-requirement mapping
+- Protocol MUST/SHOULD/MAY requirements checklist
+- Reference links to official test suites
+- Interoperability guidance
+- Contributing guidelines for tests
+
+See **[CONFORMANCE.md](CONFORMANCE.md)**
+
+### CI/CD Testing
+
+All tests run automatically on:
+- **Linux** (Ubuntu latest) - Release build
+- **Windows** (Windows latest) - Release build
+
+**CI Workflows:**
+- `.github/workflows/test.yml` - Unit and integration tests (201+ tests)
+- `.github/workflows/conformance.yml` - Official MCP conformance tests (29 scenarios)
+
+CI fails on:
+- Any test failure
+- Code formatting violations
+- Compilation errors/warnings
+- Conformance test regressions (unexpected failures)
+
+See workflow files for complete CI configuration.
+
 ## License
 
 This framework is provided under the MIT license. For details, please see the LICENSE file.

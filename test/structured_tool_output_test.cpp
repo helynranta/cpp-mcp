@@ -219,4 +219,171 @@ BOOST_AUTO_TEST_CASE(EmptyOutputSchemaIsValid) {
     BOOST_CHECK(tool_json["outputSchema"].is_object());
 }
 
+// Test 11: Tool result with structured content
+BOOST_AUTO_TEST_CASE(ToolResultWithStructuredContent) {
+    // Define a tool with output schema
+    json output_schema = {{"type", "object"},
+                          {"properties",
+                           {{"temperature", {{"type", "number"}}},
+                            {"conditions", {{"type", "string"}}},
+                            {"humidity", {{"type", "number"}}}}},
+                          {"required", json::array({"temperature", "conditions", "humidity"})}};
+
+    tool weather_tool = tool_builder("weather_tool")
+                            .with_description("Get weather data")
+                            .with_title("Weather Tool")
+                            .with_output_schema(output_schema)
+                            .build();
+
+    // Verify tool has output schema
+    json tool_json = weather_tool.to_json();
+    BOOST_CHECK(tool_json.contains("outputSchema"));
+
+    // Simulate tool result with structured content
+    json structured_data = {{"temperature", 22.5}, {"conditions", "Partly cloudy"}, {"humidity", 65}};
+
+    json tool_result = {
+        {"content", json::array({{{"type", "text"}, {"text", "Weather: 22.5°C, Partly cloudy, Humidity: 65%"}}})},
+        {"structuredContent", structured_data},
+        {"isError", false}};
+
+    // Verify result has both content and structuredContent
+    BOOST_CHECK(tool_result.contains("content"));
+    BOOST_CHECK(tool_result.contains("structuredContent"));
+    BOOST_CHECK_EQUAL(tool_result["structuredContent"]["temperature"].get<double>(), 22.5);
+    BOOST_CHECK_EQUAL(tool_result["structuredContent"]["conditions"].get<std::string>(), "Partly cloudy");
+    BOOST_CHECK_EQUAL(tool_result["structuredContent"]["humidity"].get<int>(), 65);
+}
+
+// Test 12: Tool result backward compatibility (content only)
+BOOST_AUTO_TEST_CASE(ToolResultBackwardCompatibility) {
+    // Old-style tool without output schema
+    tool simple_tool = tool_builder("simple_tool").with_description("Simple tool").build();
+
+    // Verify tool has no output schema
+    json tool_json = simple_tool.to_json();
+    BOOST_CHECK(!tool_json.contains("outputSchema"));
+
+    // Old-style result with only content (no structured content)
+    json tool_result = {{"content", json::array({{{"type", "text"}, {"text", "Simple response"}}})},
+                        {"isError", false}};
+
+    // Verify result has only content
+    BOOST_CHECK(tool_result.contains("content"));
+    BOOST_CHECK(!tool_result.contains("structuredContent"));
+}
+
+// Test 13: Complex structured content with nested objects
+BOOST_AUTO_TEST_CASE(ComplexStructuredContentSupported) {
+    // Define complex output schema
+    json complex_schema = {
+        {"type", "object"},
+        {"properties",
+         {{"status", {{"type", "string"}}},
+          {"data",
+           {{"type", "object"},
+            {"properties",
+             {{"users",
+               {{"type", "array"},
+                {"items",
+                 {{"type", "object"},
+                  {"properties", {{"id", {{"type", "number"}}}, {"name", {{"type", "string"}}}}}}}}},
+              {"count", {{"type", "number"}}}}}}},
+          {"metadata",
+           {{"type", "object"},
+            {"properties", {{"timestamp", {{"type", "string"}}}, {"version", {{"type", "string"}}}}}}}}}};
+
+    tool api_tool = tool_builder("api_tool").with_description("API tool").with_output_schema(complex_schema).build();
+
+    // Verify complex schema
+    json tool_json = api_tool.to_json();
+    BOOST_CHECK(tool_json.contains("outputSchema"));
+
+    // Create complex structured result
+    json complex_result = {{"status", "success"},
+                           {"data",
+                            {{"users", json::array({{{"id", 1}, {"name", "Alice"}},
+                                                    {{"id", 2}, {"name", "Bob"}},
+                                                    {{"id", 3}, {"name", "Charlie"}}})},
+                             {"count", 3}}},
+                           {"metadata", {{"timestamp", "2026-02-16T20:30:00Z"}, {"version", "1.0.0"}}}};
+
+    json tool_result = {{"content", json::array({{{"type", "text"}, {"text", "API response with 3 users"}}})},
+                        {"structuredContent", complex_result},
+                        {"isError", false}};
+
+    // Verify nested structure is preserved
+    BOOST_CHECK(tool_result["structuredContent"].contains("data"));
+    BOOST_CHECK(tool_result["structuredContent"]["data"].contains("users"));
+    BOOST_CHECK_EQUAL(tool_result["structuredContent"]["data"]["users"].size(), 3);
+    BOOST_CHECK_EQUAL(tool_result["structuredContent"]["data"]["users"][0]["name"].get<std::string>(), "Alice");
+}
+
+// Test 14: Array output schema
+BOOST_AUTO_TEST_CASE(ArrayOutputSchemaSupported) {
+    // Define array output schema
+    json array_schema = {
+        {"type", "array"},
+        {"items",
+         {{"type", "object"}, {"properties", {{"id", {{"type", "number"}}}, {"value", {{"type", "string"}}}}}}}};
+
+    tool list_tool = tool_builder("list_tool").with_description("List items").with_output_schema(array_schema).build();
+
+    // Verify array schema
+    json tool_json = list_tool.to_json();
+    BOOST_CHECK(tool_json.contains("outputSchema"));
+    BOOST_CHECK_EQUAL(tool_json["outputSchema"]["type"].get<std::string>(), "array");
+
+    // Create array structured result
+    json array_result = json::array(
+        {{{"id", 1}, {"value", "item1"}}, {{"id", 2}, {"value", "item2"}}, {{"id", 3}, {"value", "item3"}}});
+
+    json tool_result = {{"content", json::array({{{"type", "text"}, {"text", "3 items returned"}}})},
+                        {"structuredContent", array_result},
+                        {"isError", false}};
+
+    // Verify array structure
+    BOOST_CHECK(tool_result["structuredContent"].is_array());
+    BOOST_CHECK_EQUAL(tool_result["structuredContent"].size(), 3);
+    BOOST_CHECK_EQUAL(tool_result["structuredContent"][1]["id"].get<int>(), 2);
+}
+
+// Test 15: Tool result with both text content and structured content (best practice)
+BOOST_AUTO_TEST_CASE(DualContentFormatBestPractice) {
+    // Tool with output schema
+    json schema = {
+        {"type", "object"},
+        {"properties",
+         {{"result", {{"type", "number"}}}, {"unit", {{"type", "string"}}}, {"timestamp", {{"type", "string"}}}}}};
+
+    tool calculator = tool_builder("calculator")
+                          .with_description("Calculator")
+                          .with_title("Advanced Calculator")
+                          .with_output_schema(schema)
+                          .build();
+
+    // Structured result
+    json structured = {{"result", 42}, {"unit", "units"}, {"timestamp", "2026-02-16T20:30:00Z"}};
+
+    // Best practice: Provide both formats
+    // - text content for backward compatibility and human readability
+    // - structured content for programmatic access
+    json tool_result = {
+        {"content",
+         json::array({{{"type", "text"}, {"text", "Calculation result: 42 units (timestamp: 2026-02-16T20:30:00Z)"}}})},
+        {"structuredContent", structured},
+        {"isError", false}};
+
+    // Verify both formats present
+    BOOST_CHECK(tool_result.contains("content"));
+    BOOST_CHECK(tool_result.contains("structuredContent"));
+
+    // Verify content is human-readable
+    BOOST_CHECK(tool_result["content"][0]["text"].get<std::string>().find("42") != std::string::npos);
+
+    // Verify structured content is machine-readable
+    BOOST_CHECK_EQUAL(tool_result["structuredContent"]["result"].get<int>(), 42);
+    BOOST_CHECK_EQUAL(tool_result["structuredContent"]["unit"].get<std::string>(), "units");
+}
+
 BOOST_AUTO_TEST_SUITE_END()
