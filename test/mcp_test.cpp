@@ -70,8 +70,7 @@ BOOST_AUTO_TEST_CASE(ResponseMessageFormat) {
 // Test error response message format
 BOOST_AUTO_TEST_CASE(ErrorResponseMessageFormat) {
     // Create an error response
-    response res = response::create_error("test_id", error_code::invalid_params, "Invalid parameters",
-                                          {{"details", "Missing required field"}});
+    response res = response::create_error("test_id", error_code::invalid_params, "Invalid parameters");
 
     // Convert to JSON
     json res_json = res.to_json();
@@ -82,7 +81,8 @@ BOOST_AUTO_TEST_CASE(ErrorResponseMessageFormat) {
     BOOST_CHECK(!res_json.contains("result"));
     BOOST_CHECK_EQUAL(res_json["error"]["code"], static_cast<int>(error_code::invalid_params));
     BOOST_CHECK_EQUAL(res_json["error"]["message"], "Invalid parameters");
-    BOOST_CHECK_EQUAL(res_json["error"]["data"]["details"], "Missing required field");
+    // Per MCP specification: error objects must contain only 'code' and 'message'
+    BOOST_CHECK(!res_json["error"].contains("data"));
 }
 
 // Test notification message format

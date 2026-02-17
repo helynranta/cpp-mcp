@@ -220,6 +220,23 @@ inline bool validate_response_message(const json& msg_json, std::string& error_m
             error_message = "Error 'message' must be a string";
             return false;
         }
+
+        // Per MCP specification: error objects must contain ONLY 'code' and 'message' fields
+        // Strict validation rejects any additional fields (including 'data')
+        // At this point we've verified 'code' and 'message' exist, so if size != 2, there are extra fields
+        if (error.size() != 2) {
+            error_message = "Error object must contain exactly 'code' and 'message' fields only (no additional fields)";
+            return false;
+        }
+
+        // Verify no unexpected fields are present
+        for (auto it = error.begin(); it != error.end(); ++it) {
+            const std::string& key = it.key();
+            if (key != "code" && key != "message") {
+                error_message = "Error object contains unexpected field: '" + key + "'";
+                return false;
+            }
+        }
     }
 
     return true;

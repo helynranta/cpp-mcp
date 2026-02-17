@@ -1654,8 +1654,9 @@ json server::handle_initialize(const request& req, const std::string& session_id
 
     if (requested_version != MCP_VERSION) {
         LOG_ERROR("Unsupported protocol version: ", requested_version, ", server supports: ", MCP_VERSION);
-        return response::create_error(req.id, error_code::invalid_params, "Unsupported protocol version",
-                                      {{"supported", {MCP_VERSION}}, {"requested", params["protocolVersion"]}})
+        return response::create_error(req.id, error_code::invalid_params,
+                                      "Unsupported protocol version. Server supports: " + std::string(MCP_VERSION) +
+                                          ", requested: " + requested_version)
             .to_json();
     }
 

@@ -40,6 +40,7 @@ set(TEST_SOURCES
     elicitation_test.cpp
     elicitation_integration_test.cpp
     completion_test.cpp
+    error_result_compliance_test.cpp
 )
 
 # Create test executable
