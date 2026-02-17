@@ -53,9 +53,8 @@ mcp::json get_time_handler(const mcp::json& params, const std::string& /* sessio
     }
 
     // MCP 2025-06-18: Return structured output with schema
-    mcp::json structured_data = {{"timestamp", std::to_string(time_t_now)},
-                                 {"formatted", time_str},
-                                 {"milliseconds", milliseconds.count()}};
+    mcp::json structured_data = {
+        {"timestamp", std::to_string(time_t_now)}, {"formatted", time_str}, {"milliseconds", milliseconds.count()}};
 
     return {{"content", mcp::json::array({{{"type", "text"}, {"text", time_str}}})},
             {"structuredContent", structured_data},
@@ -82,8 +81,7 @@ mcp::json echo_handler(const mcp::json& params, const std::string& /* session_id
     // MCP 2025-06-18: Return structured output with schema
     mcp::json structured_data = {{"original", original_text},
                                  {"processed", processed_text},
-                                 {"transformations",
-                                  {{"uppercase", was_uppercased}, {"reverse", was_reversed}}}};
+                                 {"transformations", {{"uppercase", was_uppercased}, {"reverse", was_reversed}}}};
 
     return {{"content", mcp::json::array({{{"type", "text"}, {"text", processed_text}}})},
             {"structuredContent", structured_data},
@@ -183,11 +181,11 @@ int main(int argc, char* argv[]) {
 
     mcp::server server(srv_conf);
     g_server = &server;
-    
+
     // Set up signal handler for graceful shutdown
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
-    
+
     server.set_server_info("ExampleServer", "1.0.0");
 
     // Set server capabilities
@@ -243,17 +241,16 @@ int main(int argc, char* argv[]) {
                               .build();
 
     // Calculator tool with output schema
-    mcp::json calc_output_schema = {
-        {"type", "object"},
-        {"properties",
-         {{"result", {{"type", "number"}, {"description", "Calculation result"}}},
-          {"operation", {{"type", "string"}, {"description", "Operation performed"}}},
-          {"operands",
-           {{"type", "object"},
-            {"properties",
-             {{"a", {{"type", "number"}, {"description", "First operand"}}},
-              {"b", {{"type", "number"}, {"description", "Second operand"}}}}}}}}},
-        {"required", mcp::json::array({"result", "operation", "operands"})}};
+    mcp::json calc_output_schema = {{"type", "object"},
+                                    {"properties",
+                                     {{"result", {{"type", "number"}, {"description", "Calculation result"}}},
+                                      {"operation", {{"type", "string"}, {"description", "Operation performed"}}},
+                                      {"operands",
+                                       {{"type", "object"},
+                                        {"properties",
+                                         {{"a", {{"type", "number"}, {"description", "First operand"}}},
+                                          {"b", {{"type", "number"}, {"description", "Second operand"}}}}}}}}},
+                                    {"required", mcp::json::array({"result", "operation", "operands"})}};
 
     mcp::tool calc_tool = mcp::tool_builder("calculator")
                               .with_title("Basic Calculator")
