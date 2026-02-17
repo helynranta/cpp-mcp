@@ -141,17 +141,12 @@ struct response {
     }
 
     // Create an error response
-    static response create_error(const json& req_id, error_code code, const std::string& message,
-                                 const json& data = json::object()) {
+    // Per MCP specification: error objects must contain only 'code' (integer) and 'message' (string)
+    static response create_error(const json& req_id, error_code code, const std::string& message) {
         response res;
         res.jsonrpc = "2.0";
         res.id = req_id;
         res.error = {{"code", static_cast<int>(code)}, {"message", message}};
-
-        if (!data.empty()) {
-            res.error["data"] = data;
-        }
-
         return res;
     }
 
