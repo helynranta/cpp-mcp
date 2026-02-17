@@ -97,7 +97,8 @@ bool server::start(bool blocking) {
             res.set_header("Access-Control-Allow-Origin", "*");
         }
         res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept, Origin, MCP-Protocol-Version");
+        res.set_header("Access-Control-Allow-Headers",
+                       "Content-Type, Mcp-Session-Id, Accept, Origin, MCP-Protocol-Version");
         res.set_status(204); // No Content
     });
 
@@ -572,7 +573,7 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
     res.set_header("Cache-Control", "no-cache");
     res.set_header("Connection", "keep-alive");
     res.set_header("Access-Control-Allow-Origin", "*");
-    
+
     // Set protocol version header (MCP 2025-06-18+)
     // Legacy endpoint, but include for consistency
     set_protocol_version_header(res, session_id);
@@ -728,7 +729,7 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
     // Get session ID
     auto it = req.params.find("session_id");
     std::string session_id = it != req.params.end() ? it->second : "";
-    
+
     // Set protocol version header (MCP 2025-06-18+)
     // Legacy endpoint, but include for consistency
     set_protocol_version_header(res, session_id);
@@ -901,7 +902,7 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
 
     // Set session ID in response header
     set_session_id_header(res, session_id);
-    
+
     // Set protocol version header (MCP 2025-06-18+)
     set_protocol_version_header(res, session_id);
 
@@ -1242,7 +1243,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
 
     // Set session ID in response
     set_session_id_header(res, session_id);
-    
+
     // Set protocol version header (MCP 2025-06-18+)
     set_protocol_version_header(res, session_id);
 
@@ -1446,7 +1447,7 @@ void server::handle_mcp_delete(const http::request_data& req, http::response_bui
 
     // Set session ID in response
     set_session_id_header(res, session_id);
-    
+
     // Set protocol version header (MCP 2025-06-18+)
     set_protocol_version_header(res, session_id);
 
@@ -1865,9 +1866,9 @@ void server::set_session_id_header(http::response_builder& res, const std::strin
 void server::set_protocol_version_header(http::response_builder& res, const std::string& session_id) const {
     // Per MCP 2025-06-18: MCP-Protocol-Version header should be included in all responses
     // to inform clients of the negotiated/default protocol version
-    
+
     std::string version_to_send;
-    
+
     // If we have a session ID, try to get the negotiated version
     if (!session_id.empty()) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -1876,12 +1877,12 @@ void server::set_protocol_version_header(http::response_builder& res, const std:
             version_to_send = state_it->second["negotiated_version"].get<std::string>();
         }
     }
-    
+
     // If no negotiated version, use the default MCP_VERSION
     if (version_to_send.empty()) {
         version_to_send = MCP_VERSION;
     }
-    
+
     res.set_header("MCP-Protocol-Version", version_to_send);
 }
 

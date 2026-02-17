@@ -230,12 +230,12 @@ BOOST_AUTO_TEST_CASE(SimultaneousMultiClientSupport) {
 
 /**
  * Test protocol version validation and error handling
- * 
+ *
  * This test verifies that:
  * 1. Server accepts valid protocol version headers
  * 2. Server includes MCP-Protocol-Version in all responses (SSE and JSON-RPC)
  * 3. Protocol version negotiation works correctly during initialization
- * 
+ *
  * Note: The MCP-Protocol-Version header is:
  * - Sent by client in all POST requests after initialization
  * - Sent by server in all responses (GET for SSE, POST for JSON-RPC)
@@ -253,7 +253,7 @@ BOOST_AUTO_TEST_CASE(ProtocolVersionInResponses) {
     // The client sends MCP-Protocol-Version header
     // The server validates it and sends it back in responses
     BOOST_CHECK(client.ping());
-    
+
     // Test tool call - verifies full request/response cycle
     auto tools = client.get_tools();
     BOOST_CHECK(!tools.empty());
