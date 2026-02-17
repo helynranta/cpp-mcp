@@ -97,7 +97,7 @@ bool server::start(bool blocking) {
             res.set_header("Access-Control-Allow-Origin", "*");
         }
         res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept, Origin");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept, Origin, MCP-Protocol-Version");
         res.set_status(204); // No Content
     });
 
@@ -713,7 +713,7 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
     res.set_header("Content-Type", "application/json");
     res.set_header("Access-Control-Allow-Origin", "*");
     res.set_header("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set_header("Access-Control-Allow-Headers", "Content-Type");
+    res.set_header("Access-Control-Allow-Headers", "Content-Type, MCP-Protocol-Version");
 
     // Handle OPTIONS request (CORS pre-flight)
     if (req.method == "OPTIONS") {
@@ -893,6 +893,9 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
 
     // Set session ID in response header
     set_session_id_header(res, session_id);
+    
+    // Set protocol version header (MCP 2025-06-18+)
+    set_protocol_version_header(res, session_id);
 
     // Check if session already exists (reconnection scenario)
     bool is_new_session = false;
@@ -921,7 +924,7 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
         // Only use wildcard if Origin validation is disabled
         res.set_header("Access-Control-Allow-Origin", "*");
     }
-    res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
+    res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id, MCP-Protocol-Version");
 
     // Create or retrieve session-specific event dispatcher
     std::shared_ptr<event_dispatcher> session_dispatcher;
@@ -1089,8 +1092,8 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
         res.set_header("Access-Control-Allow-Origin", "*");
     }
     res.set_header("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept");
-    res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
+    res.set_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id, Accept, MCP-Protocol-Version");
+    res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id, MCP-Protocol-Version");
 
     // Handle OPTIONS request (CORS pre-flight)
     if (req.method == "OPTIONS") {
@@ -1231,6 +1234,9 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
 
     // Set session ID in response
     set_session_id_header(res, session_id);
+    
+    // Set protocol version header (MCP 2025-06-18+)
+    set_protocol_version_header(res, session_id);
 
     // Create request object
     request mcp_req;
@@ -1399,7 +1405,7 @@ void server::handle_mcp_delete(const http::request_data& req, http::response_bui
         // Only use wildcard if Origin validation is disabled
         res.set_header("Access-Control-Allow-Origin", "*");
     }
-    res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
+    res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id, MCP-Protocol-Version");
 
     // Extract session ID from header or query parameter
     std::string session_id = extract_session_id(req);
@@ -1432,6 +1438,9 @@ void server::handle_mcp_delete(const http::request_data& req, http::response_bui
 
     // Set session ID in response
     set_session_id_header(res, session_id);
+    
+    // Set protocol version header (MCP 2025-06-18+)
+    set_protocol_version_header(res, session_id);
 
     // Close the session
     close_session(session_id);
@@ -1845,6 +1854,29 @@ void server::set_session_id_header(http::response_builder& res, const std::strin
     }
 }
 
+void server::set_protocol_version_header(http::response_builder& res, const std::string& session_id) const {
+    // Per MCP 2025-06-18: MCP-Protocol-Version header should be included in all responses
+    // to inform clients of the negotiated/default protocol version
+    
+    std::string version_to_send;
+    
+    // If we have a session ID, try to get the negotiated version
+    if (!session_id.empty()) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto state_it = session_state_.find(session_id);
+        if (state_it != session_state_.end() && state_it->second.contains("negotiated_version")) {
+            version_to_send = state_it->second["negotiated_version"].get<std::string>();
+        }
+    }
+    
+    // If no negotiated version, use the default MCP_VERSION
+    if (version_to_send.empty()) {
+        version_to_send = MCP_VERSION;
+    }
+    
+    res.set_header("MCP-Protocol-Version", version_to_send);
+}
+
 void server::check_inactive_sessions() {
     if (!running_)
         return;
@@ -2083,6 +2115,7 @@ bool server::validate_protocol_version_header(const http::request_data& req, con
         LOG_ERROR("Unsupported MCP-Protocol-Version header: ", *version_header);
         res.set_status(400); // Bad Request
         res.set_header("Content-Type", "application/json");
+        res.set_header("MCP-Protocol-Version", MCP_VERSION); // Include our supported version
         json error_response = {{"error", "Unsupported protocol version"},
                                {"version_received", *version_header},
                                {"supported_versions", supported_versions}};
@@ -2095,6 +2128,7 @@ bool server::validate_protocol_version_header(const http::request_data& req, con
         LOG_ERROR("Protocol version mismatch: header=", *version_header, ", negotiated=", negotiated_version);
         res.set_status(400); // Bad Request
         res.set_header("Content-Type", "application/json");
+        res.set_header("MCP-Protocol-Version", negotiated_version); // Echo the negotiated version
         json error_response = {{"error", "Protocol version mismatch"},
                                {"version_in_header", *version_header},
                                {"negotiated_version", negotiated_version}};
