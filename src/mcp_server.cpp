@@ -572,6 +572,10 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
     res.set_header("Cache-Control", "no-cache");
     res.set_header("Connection", "keep-alive");
     res.set_header("Access-Control-Allow-Origin", "*");
+    
+    // Set protocol version header (MCP 2025-06-18+)
+    // Legacy endpoint, but include for consistency
+    set_protocol_version_header(res, session_id);
 
     // Create session-specific event dispatcher
     auto session_dispatcher = std::make_shared<event_dispatcher>();
@@ -724,6 +728,10 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
     // Get session ID
     auto it = req.params.find("session_id");
     std::string session_id = it != req.params.end() ? it->second : "";
+    
+    // Set protocol version header (MCP 2025-06-18+)
+    // Legacy endpoint, but include for consistency
+    set_protocol_version_header(res, session_id);
 
     // Update session activity time
     if (!session_id.empty()) {
