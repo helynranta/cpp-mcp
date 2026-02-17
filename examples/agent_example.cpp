@@ -147,7 +147,14 @@ static mcp::json calculator_handler(const mcp::json& params, const std::string& 
         throw mcp::mcp_exception(mcp::error_code::invalid_params, "Unknown operation: " + operation);
     }
 
-    return {{{"type", "text"}, {"text", std::to_string(result)}}};
+    // MCP 2025-06-18: Return structured output with schema
+    mcp::json structured_data = {{"result", result},
+                                 {"operation", operation},
+                                 {"operands", {{"a", params["a"].get<double>()}, {"b", params["b"].get<double>()}}}};
+
+    return {{"content", mcp::json::array({{{"type", "text"}, {"text", std::to_string(result)}}})},
+            {"structuredContent", structured_data},
+            {"isError", false}};
 }
 
 static bool readline_utf8(std::string& line, bool multiline_input) {

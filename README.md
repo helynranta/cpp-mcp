@@ -610,11 +610,17 @@ All examples use the Boost.Beast-based HTTP transport for communication. Source 
 
 ### HTTP Server Example ([`examples/server_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/server_example.cpp))
 
-Example MCP server implementation with custom tools:
-- Time tool: Get the current time
-- Calculator tool: Perform mathematical operations
-- Echo tool: Echo input with optional transformations (to uppercase, reverse)
-- Greeting tool: Returns `Hello, `+ input name + `!`, defaults to `Hello, World!`
+Example MCP server implementation with custom tools demonstrating **MCP 2025-06-18 structured tool output**:
+- Time tool: Get current time with structured timestamp data
+- Calculator tool: Perform mathematical operations with structured results
+- Echo tool: Echo input with optional transformations (uppercase, reverse) and transformation metadata
+- Greeting tool: Returns personalized greeting with structured output
+
+**All tools include:**
+- Optional `title` field for display names
+- `outputSchema` defining structured result format
+- `structuredContent` in responses matching the declared schema
+- Human-readable `content` for backward compatibility
 
 **Build and run:**
 ```bash
@@ -755,6 +761,28 @@ cmake --build build --target agent_example
 ```
 
 **Note**: Remember to compile with `-DMCP_SSL=ON` when connecting to an https base URL.
+
+### Structured Tool Output Example ([`examples/structured_tool_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/structured_tool_example.cpp))
+
+**MCP 2025-06-18 Feature** - Comprehensive demonstration of structured tool output schemas:
+- Weather tool: Returns structured weather data (temperature, conditions, humidity, wind speed)
+- API query tool: Complex nested schema with status, data objects, and metadata
+- Calculator tool: Simple schema with result and expression
+- Legacy echo tool: Demonstrates backward compatibility (no schema)
+
+**Key features demonstrated:**
+- Optional `title` field for display names
+- `outputSchema` defining expected output structure using JSON Schema
+- Tool handlers returning both `content` (human-readable) and `structuredContent` (machine-readable)
+- Full backward compatibility with tools that don't use schemas
+
+**Build and run:**
+```bash
+cmake --build build --target structured_tool_example
+./build/examples/structured_tool_example
+```
+
+The server listens on `http://localhost:8080/mcp` and demonstrates how MCP 2025-06-18 clients can receive both text and structured data from tools.
 
 ### Progress Notification Example ([`examples/progress_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/progress_example.cpp))
 
@@ -1428,9 +1456,13 @@ This C++ implementation fully conforms to the [MCP 2025-06-18 specification](htt
 - Tools support optional `title` and `outputSchema` fields
 - Tool results can include `structuredContent` with schema validation
 - Fully backward compatible with text-only content
+- Server automatically handles both new (full result object) and legacy (content-only) handler formats
 - Test suite: `test/structured_tool_output_test.cpp` (15 tests)
 - Reference: [MCP PR #371](https://github.com/modelcontextprotocol/specification/pull/371)
-- Example: `examples/structured_tool_example.cpp`
+- Examples: 
+  - `examples/structured_tool_example.cpp` - Comprehensive demonstration with multiple schema types
+  - `examples/server_example.cpp` - All 4 tools use structured output with schemas
+  - `examples/agent_example.cpp` - Calculator tool with structured output
 
 #### 4. Elicitation (Human-in-the-Loop) ✅
 **Status:** Fully Implemented

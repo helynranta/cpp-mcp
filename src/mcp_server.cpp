@@ -418,7 +418,26 @@ void server::register_tool(const tool& tool, tool_handler handler) {
                     }
                 }
 
-                tool_result["content"] = it->second.second(tool_args, session_id);
+                // Execute tool handler
+                json handler_result = it->second.second(tool_args, session_id);
+
+                // MCP 2025-06-18: Support both formats for backward compatibility
+                // 1. New format: handler returns object with "content" and optional "structuredContent"
+                // 2. Legacy format: handler returns just content array
+                if (handler_result.is_object() && handler_result.contains("content")) {
+                    // New format: merge handler result into tool_result
+                    tool_result["content"] = handler_result["content"];
+                    if (handler_result.contains("structuredContent")) {
+                        tool_result["structuredContent"] = handler_result["structuredContent"];
+                    }
+                    // Preserve isError if set by handler (though handlers typically throw exceptions for errors)
+                    if (handler_result.contains("isError")) {
+                        tool_result["isError"] = handler_result["isError"];
+                    }
+                } else {
+                    // Legacy format: handler returns just content array
+                    tool_result["content"] = handler_result;
+                }
             } catch (const std::exception& e) {
                 tool_result["isError"] = true;
                 tool_result["content"] = json::array({{{"type", "text"}, {"text", e.what()}}});
