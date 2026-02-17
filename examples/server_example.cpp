@@ -294,17 +294,32 @@ int main(int argc, char* argv[]) {
 
     // Use non-blocking mode so the server runs in a background thread
     // This allows the process to respond properly when run with nohup in CI
+    std::cout << "Calling server.start(false)..." << std::endl;
     if (!server.start(false)) {
-        std::cerr << "Failed to start server" << std::endl;
+        std::cerr << "❌ Failed to start server" << std::endl;
         return 1;
     }
+    std::cout << "✅ Server started successfully in non-blocking mode" << std::endl;
+    std::cout << "Server is_running: " << (server.is_running() ? "true" : "false") << std::endl;
+
+    // Give the server a moment to fully initialize
+    std::cout << "Waiting 500ms for server to fully initialize..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::cout << "✅ Server should now be accepting connections" << std::endl;
 
     // Keep the main thread alive while server runs
     // The signal handlers will call server.stop() and break this loop
+    std::cout << "Entering keep-alive loop..." << std::endl;
+    size_t loop_count = 0;
     while (server.is_running()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        loop_count++;
+        // Log every 10 seconds to show we're alive
+        if (loop_count % 100 == 0) {
+            std::cout << "Server still running (loop iteration " << loop_count << ")" << std::endl;
+        }
     }
 
-    std::cout << "Server stopped" << std::endl;
+    std::cout << "Server stopped after " << loop_count << " loop iterations" << std::endl;
     return 0;
 }
