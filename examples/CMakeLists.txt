@@ -91,3 +91,12 @@ target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR}/include)
 if(OPENSSL_FOUND)
     target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
 endif()
+
+# completion_example - demonstrates MCP 2025-06-18 completion with _meta and context
+set(TARGET completion_example)
+add_executable(${TARGET} completion_example.cpp)
+target_link_libraries(${TARGET} PRIVATE mcp)
+target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+if(OPENSSL_FOUND)
+    target_link_libraries(${TARGET} PRIVATE ${OPENSSL_LIBRARIES})
+endif()

@@ -278,6 +278,146 @@ struct elicitation_result {
     }
 };
 
+/**
+ * @brief Completion request parameters
+ *
+ * Per MCP 2025-06-18 specification:
+ * - ref: Reference to a prompt or resource template for completion
+ * - argument: The argument being completed (name and current value)
+ * - context: Optional additional context including previously-resolved variables
+ */
+struct complete_request {
+    // Reference type: "ref/prompt" or "ref/resource"
+    std::string ref_type;
+
+    // For prompt references (ref/prompt)
+    std::string ref_name;
+
+    // For resource template references (ref/resource)
+    std::string ref_uri;
+
+    // Argument information
+    std::string argument_name;
+    std::string argument_value;
+
+    // Optional context with previously-resolved arguments
+    json context;
+
+    // Convert to JSON
+    json to_json() const {
+        json ref = {{"type", ref_type}};
+
+        // Add name for prompt references or uri for resource references
+        if (ref_type == "ref/prompt" && !ref_name.empty()) {
+            ref["name"] = ref_name;
+        } else if (ref_type == "ref/resource" && !ref_uri.empty()) {
+            ref["uri"] = ref_uri;
+        }
+
+        json j = {{"ref", ref}, {"argument", {{"name", argument_name}, {"value", argument_value}}}};
+
+        // Add context if present
+        if (!context.empty()) {
+            j["context"] = context;
+        }
+
+        return j;
+    }
+
+    // Create from JSON
+    static complete_request from_json(const json& j) {
+        complete_request req;
+
+        // Extract ref
+        const auto& ref = j["ref"];
+        req.ref_type = ref["type"].get<std::string>();
+
+        if (ref.contains("name")) {
+            req.ref_name = ref["name"].get<std::string>();
+        }
+        if (ref.contains("uri")) {
+            req.ref_uri = ref["uri"].get<std::string>();
+        }
+
+        // Extract argument
+        const auto& arg = j["argument"];
+        req.argument_name = arg["name"].get<std::string>();
+        req.argument_value = arg["value"].get<std::string>();
+
+        // Extract context if present
+        if (j.contains("context")) {
+            req.context = j["context"];
+        }
+
+        return req;
+    }
+};
+
+/**
+ * @brief Completion result
+ *
+ * Per MCP 2025-06-18 specification:
+ * - values: Array of completion suggestions (max 100 items)
+ * - total: Optional total number of available completions
+ * - hasMore: Optional indicator of additional completions available
+ * - _meta: Optional metadata about the completion
+ */
+struct complete_result {
+    std::vector<std::string> values;
+    int total = 0;
+    bool has_more = false;
+
+    // Optional _meta field for extensibility
+    json meta;
+
+    // Convert to JSON
+    json to_json() const {
+        json completion = {{"values", values}};
+
+        // Add optional fields if non-default
+        if (total > 0) {
+            completion["total"] = total;
+        }
+        if (has_more) {
+            completion["hasMore"] = has_more;
+        }
+
+        json j = {{"completion", completion}};
+
+        // Add _meta if present
+        if (!meta.empty()) {
+            j["_meta"] = meta;
+        }
+
+        return j;
+    }
+
+    // Create from JSON
+    static complete_result from_json(const json& j) {
+        complete_result result;
+
+        const auto& completion = j["completion"];
+
+        // Extract values array
+        result.values = completion["values"].get<std::vector<std::string>>();
+
+        // Extract optional fields
+        if (completion.contains("total")) {
+            result.total = completion["total"].get<int>();
+        }
+        if (completion.contains("hasMore")) {
+            result.has_more = completion["hasMore"].get<bool>();
+        }
+
+        // Extract _meta if present
+        if (j.contains("_meta")) {
+            result.meta = j["_meta"];
+        }
+
+        return result;
+    }
+};
+
 } // namespace mcp
 
 #endif // MCP_MESSAGE_H
