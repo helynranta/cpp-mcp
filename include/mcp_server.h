@@ -31,6 +31,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 namespace mcp {
@@ -465,6 +466,9 @@ private:
 
     // Session-specific event dispatchers
     std::map<std::string, std::shared_ptr<event_dispatcher>> session_dispatchers_;
+
+    // Track stateless sessions (no SSE connection)
+    std::unordered_set<std::string> stateless_sessions_;
 
     // Server-sent events endpoint (legacy)
     std::string sse_endpoint_;
