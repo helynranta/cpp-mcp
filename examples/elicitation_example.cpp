@@ -32,7 +32,8 @@ int main() {
     std::cout << "------------------------------------------------" << std::endl;
 
     // Client declares support for elicitation during initialization
-    json client_capabilities = {{"elicitation", json::object()} // Empty object indicates support
+    json client_capabilities = {
+        {"elicitation", json::object()} // Empty object indicates support
     };
 
     std::cout << "Client capabilities: " << client_capabilities.dump(2) << std::endl;
@@ -47,9 +48,10 @@ int main() {
     // Server wants to ask user for their API key
     elicitation_params simple_params;
     simple_params.message = "Please provide your API key to continue";
-    simple_params.requested_schema = {{"type", "object"},
-                                       {"properties", {{"api_key", {{"type", "string"}, {"description", "Your API key"}}}}},
-                                       {"required", json::array({"api_key"})}};
+    simple_params.requested_schema = {
+        {"type", "object"},
+        {"properties", {{"api_key", {{"type", "string"}, {"description", "Your API key"}}}}},
+        {"required", json::array({"api_key"})}};
 
     std::cout << "Elicitation request params:" << std::endl;
     std::cout << simple_params.to_json().dump(2) << std::endl;
@@ -124,8 +126,11 @@ int main() {
     // User provides complete data
     elicitation_result complex_result;
     complex_result.action = elicitation_action::accept;
-    complex_result.content = {
-        {"name", "Alice Johnson"}, {"email", "alice@example.com"}, {"age", 28}, {"newsletter", true}, {"role", "developer"}};
+    complex_result.content = {{"name", "Alice Johnson"},
+                              {"email", "alice@example.com"},
+                              {"age", 28},
+                              {"newsletter", true},
+                              {"role", "developer"}};
 
     std::cout << "User response (complex form accepted):" << std::endl;
     std::cout << complex_result.to_json().dump(2) << std::endl;

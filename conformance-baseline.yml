@@ -13,11 +13,13 @@
 # See CONFORMANCE_TESTING.md for details on each scenario
 
 server:
+  # Optional features - partially implemented
+  - tools-call-elicitation       # Elicitation: data structures complete, full flow WIP
+  - elicitation-sep1034-defaults # Elicitation default handling (in progress)
+  - elicitation-sep1330-enums    # Elicitation enum handling (in progress)
+  
   # Optional features - not implemented by design
   - tools-call-sampling          # LLM sampling (optional, application-specific)
-  - tools-call-elicitation       # User input elicitation (optional feature)
-  - elicitation-sep1034-defaults # Elicitation default handling (optional)
-  - elicitation-sep1330-enums    # Elicitation enum handling (optional)
   
   # Partial implementations - basic support present
   - tools-call-with-progress     # Progress notifications (basic support)
