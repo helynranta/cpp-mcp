@@ -177,16 +177,28 @@ BOOST_AUTO_TEST_CASE(PostMcpWithSessionHeader) {
     BOOST_CHECK_EQUAL(session_id, response_session_id);
 }
 
-// Test: POST /mcp without session returns 404
-BOOST_AUTO_TEST_CASE(PostMcpWithoutSessionReturns404) {
-    json test_request = {{"jsonrpc", "2.0"}, {"id", 1}, {"method", "tools/list"}};
+// Test: POST /mcp without session is handled statelessly and returns 200 with direct body
+BOOST_AUTO_TEST_CASE(PostMcpWithoutSessionStatelessSucceeds) {
+    json init_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "initialize"},
+        {"params", {{"protocolVersion", MCP_VERSION}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
-    // POST without session ID
+    // POST without session ID should be treated as stateless
     http::headers_map empty_headers;
-    auto res = http_client->post("/mcp", empty_headers, test_request.dump(), "application/json");
+    auto res = http_client->post("/mcp", empty_headers, init_request.dump(), "application/json");
 
     BOOST_REQUIRE(res.success);
-    BOOST_CHECK_EQUAL(404, res.status_code);
+    BOOST_CHECK_EQUAL(200, res.status_code);
+
+    // Response body should contain protocolVersion
+    json body = json::parse(res.body);
+    BOOST_CHECK_EQUAL(body["result"]["protocolVersion"], MCP_VERSION);
+
+    // Stateless responses may include a session header for reuse
+    auto session_header = res.headers.find("Mcp-Session-Id");
+    BOOST_CHECK(session_header != res.headers.end());
 }
 
 // Test: POST /mcp with invalid session ID returns 404
@@ -199,6 +211,37 @@ BOOST_AUTO_TEST_CASE(PostMcpWithInvalidSessionReturns404) {
 
     BOOST_REQUIRE(res.success);
     BOOST_CHECK_EQUAL(404, res.status_code);
+}
+
+// Test: Stateless session ID can be reused synchronously without SSE
+BOOST_AUTO_TEST_CASE(StatelessSessionIdCanBeReused) {
+    json init_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "initialize"},
+        {"params", {{"protocolVersion", MCP_VERSION}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+
+    http::headers_map empty_headers;
+    auto init_res = http_client->post("/mcp", empty_headers, init_request.dump(), "application/json");
+
+    BOOST_REQUIRE(init_res.success);
+    BOOST_REQUIRE_EQUAL(200, init_res.status_code);
+
+    auto session_header = init_res.headers.find("Mcp-Session-Id");
+    BOOST_REQUIRE(session_header != init_res.headers.end());
+    std::string session_id = session_header->second;
+    BOOST_REQUIRE(!session_id.empty());
+
+    // Reuse the session ID in a follow-up request; should still return 200 with direct body
+    json ping_request = {{"jsonrpc", "2.0"}, {"id", 2}, {"method", "ping"}};
+    http::headers_map headers = {{"Mcp-Session-Id", session_id}};
+    auto ping_res = http_client->post("/mcp", headers, ping_request.dump(), "application/json");
+
+    BOOST_REQUIRE(ping_res.success);
+    BOOST_CHECK_EQUAL(200, ping_res.status_code);
+
+    json ping_body = json::parse(ping_res.body);
+    BOOST_CHECK(ping_body.contains("result"));
 }
 
 // Test: DELETE /mcp terminates session

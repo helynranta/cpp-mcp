@@ -245,6 +245,7 @@ void server::stop() {
         sse_threads_.clear();
         session_lifecycle_.clear();
         session_client_capabilities_.clear();
+        stateless_sessions_.clear();
     }
 
     LOG_INFO("Server stop cleanup: dispatchers=", dispatchers_to_close.size(),
@@ -1183,35 +1184,48 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
     // Check if session exists, or create a temporary one for stateless operation
     std::shared_ptr<event_dispatcher> dispatcher;
     bool is_stateless_request = session_id.empty();
+    bool session_is_stateless = false;
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto disp_it = session_dispatchers_.find(session_id);
         if (disp_it == session_dispatchers_.end()) {
-            // Handle ping request (allowed without session)
-            if (req_json.contains("method") && req_json["method"] == "ping") {
-                res.set_status(202);
-                res.set_header("Content-Type", "text/plain");
-                res.set_content("Accepted", "text/plain");
-                return;
-            }
-
-            // Stateless mode: create a temporary session for this request
-            if (is_stateless_request) {
-                session_id = generate_session_id();
-                LOG_INFO("Stateless request detected, creating temporary session: ", session_id);
-                dispatcher = std::make_shared<event_dispatcher>();
-                session_dispatchers_[session_id] = dispatcher;
+            // If client omitted session ID but only one session exists, reuse it
+            if (session_dispatchers_.size() == 1 && req_json.contains("method") && req_json["method"] != "initialize") {
+                auto existing = session_dispatchers_.begin();
+                session_id = existing->first;
+                dispatcher = existing->second;
+                session_is_stateless = stateless_sessions_.find(session_id) != stateless_sessions_.end();
             } else {
-                // Session ID was provided but not found - return 404
-                LOG_ERROR("Session not found: ", session_id);
-                res.set_status(404);
-                res.set_header("Content-Type", "application/json");
-                res.set_content("{\"error\":\"Session not found\"}", "application/json");
-                return;
+                // Handle ping request (allowed without session)
+                if (req_json.contains("method") && req_json["method"] == "ping") {
+                    res.set_status(202);
+                    res.set_header("Content-Type", "text/plain");
+                    res.set_content("Accepted", "text/plain");
+                    return;
+                }
+
+                // Stateless mode: create a temporary session for this request
+                if (is_stateless_request) {
+                    session_id = generate_session_id();
+                    LOG_INFO("Stateless request detected, creating temporary session: ", session_id);
+                    dispatcher = std::make_shared<event_dispatcher>();
+                    session_dispatchers_[session_id] = dispatcher;
+                    session_lifecycle_[session_id] = lifecycle_state::uninitialized;
+                    stateless_sessions_.insert(session_id);
+                    session_is_stateless = true;
+                } else {
+                    // Session ID was provided but not found - return 404
+                    LOG_ERROR("Session not found: ", session_id);
+                    res.set_status(404);
+                    res.set_header("Content-Type", "application/json");
+                    res.set_content("{\"error\":\"Session not found\"}", "application/json");
+                    return;
+                }
             }
         } else {
             dispatcher = disp_it->second;
+            session_is_stateless = stateless_sessions_.find(session_id) != stateless_sessions_.end();
         }
     }
 
@@ -1280,21 +1294,13 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
     }
 
     // For stateless requests, process synchronously and return response directly
-    if (is_stateless_request) {
+    if (is_stateless_request || session_is_stateless) {
         try {
             json result = this->process_request(mcp_req, session_id);
 
             // Remove request ID from tracker
             if (!mcp_req.is_notification()) {
                 request_id_tracker_.remove_request_id(session_id, mcp_req.id);
-            }
-
-            // Clean up temporary session
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                session_dispatchers_.erase(session_id);
-                session_lifecycle_.erase(session_id);
-                LOG_INFO("Cleaned up temporary stateless session: ", session_id);
             }
 
             // Return response directly in HTTP body
@@ -1308,13 +1314,6 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
             // Remove request ID from tracker on error
             if (!mcp_req.is_notification()) {
                 request_id_tracker_.remove_request_id(session_id, mcp_req.id);
-            }
-
-            // Clean up temporary session
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                session_dispatchers_.erase(session_id);
-                session_lifecycle_.erase(session_id);
             }
 
             // Send error response directly
@@ -1929,6 +1928,7 @@ void server::close_session(const std::string& session_id) {
             session_lifecycle_.erase(session_id);
             session_client_capabilities_.erase(session_id);
             session_state_.erase(session_id);
+            stateless_sessions_.erase(session_id);
         }
 
         // Clear request IDs for this session

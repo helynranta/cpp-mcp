@@ -19,6 +19,7 @@ server:
   - tools-call-elicitation       # Elicitation: fully implemented, may need conformance test updates
   - elicitation-sep1034-defaults # Elicitation default handling (implemented, may need test updates)
   - elicitation-sep1330-enums    # Elicitation enum handling (implemented, may need test updates)
+  - tools-call-with-logging      # Logging notifications over stateless transport
   
   # Optional features - not implemented by design
   - tools-call-sampling          # LLM sampling (optional, application-specific)
@@ -27,3 +28,4 @@ server:
   - tools-call-with-progress     # Progress notifications (basic support)
   - resources-subscribe          # Resource subscriptions (basic support)
   - resources-unsubscribe        # Resource unsubscribe (basic support)
+  - server-sse-multiple-streams  # Multiple SSE stream handling under conformance harness
