@@ -455,6 +455,75 @@ void server::set_cancellation_handler(cancellation_handler handler) {
     cancellation_handler_ = handler;
 }
 
+void server::set_tool_confirmation_handler(tool_confirmation_handler handler) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    tool_confirmation_handler_ = handler;
+}
+
+bool server::client_supports_elicitation(const std::string& session_id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Check if session exists and has capabilities
+    auto it = session_client_capabilities_.find(session_id);
+    if (it == session_client_capabilities_.end()) {
+        return false;
+    }
+
+    // Check if client declared elicitation capability
+    const json& capabilities = it->second;
+    return capabilities.contains("elicitation");
+}
+
+elicitation_result server::request_elicitation(const std::string& session_id, const std::string& message,
+                                               const json& requested_schema) {
+    // Verify client supports elicitation
+    if (!client_supports_elicitation(session_id)) {
+        throw mcp_exception(error_code::invalid_request,
+                            "Client does not support elicitation. Client must declare 'elicitation' capability.");
+    }
+
+    // Create elicitation request
+    elicitation_params params;
+    params.message = message;
+    params.requested_schema = requested_schema;
+
+    request elicit_req = request::create("elicitation/create", params.to_json());
+
+    LOG_INFO("Sending elicitation request to session: ", session_id);
+
+    // Send request and wait for response
+    // We need to use a promise/future mechanism similar to how the client waits for responses
+    // For now, we'll use the send_request method and rely on the client to respond via the normal
+    // request-response flow. The client's response will come back through the normal message handling.
+
+    // Create a promise to wait for the response
+    std::promise<elicitation_result> result_promise;
+    std::future<elicitation_result> result_future = result_promise.get_future();
+
+    // Store the request ID and promise in a map for later retrieval
+    json req_id = elicit_req.id;
+
+    // Register a one-time handler for this specific request ID
+    // We'll need to add a mechanism to track pending elicitation requests
+    // For simplicity in this implementation, we'll use send_request and expect
+    // the response to come through the normal flow
+
+    send_request(session_id, elicit_req);
+
+    // TODO: In a production implementation, we would need to:
+    // 1. Track the pending request with its promise
+    // 2. Have the response handler resolve the promise when the response arrives
+    // 3. Wait for the promise with a timeout
+    //
+    // For now, we'll throw an error indicating this is not fully implemented
+    // The basic structure is in place for testing the capability declaration
+    // and request format.
+
+    throw mcp_exception(error_code::internal_error,
+                        "Elicitation response handling not yet fully implemented. "
+                        "Request was sent but synchronous waiting for response is not yet supported.");
+}
+
 void server::handle_sse(const http::request_data& req, http::response_builder& res) {
     std::string session_id = generate_session_id();
     std::string session_uri = msg_endpoint_ + "?session_id=" + session_id;
@@ -1958,11 +2027,6 @@ bool server::should_validate_origin(const http::request_data& req) const {
     }
 
     return false;
-}
-
-void server::set_tool_confirmation_handler(tool_confirmation_handler handler) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    tool_confirmation_handler_ = handler;
 }
 
 bool server::validate_protocol_version_header(const http::request_data& req, const std::string& session_id,

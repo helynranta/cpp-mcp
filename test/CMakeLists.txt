@@ -37,6 +37,7 @@ set(TEST_SOURCES
     batch_rejection_test.cpp
     protocol_version_header_test.cpp
     structured_tool_output_test.cpp
+    elicitation_test.cpp
 )
 
 # Create test executable

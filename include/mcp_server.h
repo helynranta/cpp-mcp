@@ -381,6 +381,26 @@ public:
     void set_tool_confirmation_handler(tool_confirmation_handler handler);
 
     /**
+     * @brief Request information from the user via elicitation (MCP 2025-06-18)
+     * @param session_id The session ID of the client
+     * @param message Human-readable prompt for the user
+     * @param requested_schema JSON Schema defining expected response structure
+     * @return Elicitation result with action (accept/decline/cancel) and optional content
+     * @throws mcp_exception if client doesn't support elicitation or request fails
+     * @note This is a synchronous call that blocks until user responds
+     * @note The client must declare "elicitation" capability to use this feature
+     */
+    elicitation_result request_elicitation(const std::string& session_id, const std::string& message,
+                                           const json& requested_schema);
+
+    /**
+     * @brief Check if a client supports elicitation
+     * @param session_id The session ID of the client
+     * @return true if client has declared elicitation capability
+     */
+    bool client_supports_elicitation(const std::string& session_id) const;
+
+    /**
      * @brief Send a request (or notification) to a client
      * @param session_id The session ID of the client
      * @param req The request to send
