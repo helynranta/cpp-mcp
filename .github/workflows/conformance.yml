@@ -56,25 +56,42 @@ jobs:
           
           echo "✅ server_example binary found"
           
-          # Start server in background
-          ./build/ci-linux/examples/server_example --port 3001 &
+          # Start server in background with proper I/O redirection
+          # Redirect stdin from /dev/null and stdout/stderr to log file
+          nohup ./build/ci-linux/examples/server_example --port 3001 </dev/null >server.log 2>&1 &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
           echo "Started server with PID: $SERVER_PID"
           
+          # Give server a moment to start
+          sleep 2
+          
           # Wait for server to be ready (max 30 seconds)
           echo "Waiting for server to start..."
-          timeout 30 bash -c 'until curl -s http://localhost:3001/mcp >/dev/null 2>&1; do sleep 0.5; done' || {
-            echo "❌ Server failed to start within 30 seconds"
-            echo "Checking if server process is still running..."
-            if ps -p $SERVER_PID > /dev/null 2>&1; then
-              echo "Server process is running but not responding"
-            else
-              echo "Server process has died"
+          for i in {1..60}; do
+            if curl -s http://localhost:3001/mcp >/dev/null 2>&1; then
+              echo "✅ Server is ready"
+              exit 0
             fi
-            exit 1
-          }
-          echo "✅ Server is ready"
+            if ! ps -p $SERVER_PID > /dev/null 2>&1; then
+              echo "❌ Server process has died"
+              echo "Server log:"
+              cat server.log || echo "No log file"
+              exit 1
+            fi
+            sleep 0.5
+          done
+          
+          echo "❌ Server failed to start within 30 seconds"
+          echo "Checking if server process is still running..."
+          if ps -p $SERVER_PID > /dev/null 2>&1; then
+            echo "Server process is running but not responding"
+          else
+            echo "Server process has died"
+          fi
+          echo "Server log:"
+          cat server.log || echo "No log file"
+          exit 1
       
       - name: Run conformance tests
         uses: modelcontextprotocol/conformance@v0.1.11
