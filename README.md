@@ -371,6 +371,13 @@ The server validates the `MCP-Protocol-Version` header for all requests:
 - **Invalid Version**: Returns HTTP 400 Bad Request with error details
 - **Version Mismatch**: Returns HTTP 400 if header doesn't match negotiated version
 
+**The server also includes the `MCP-Protocol-Version` header in all HTTP responses:**
+
+- **SSE Responses** (GET /mcp): Includes negotiated version or default version
+- **JSON-RPC Responses** (POST /mcp): Includes negotiated version for the session
+- **Error Responses**: Includes the server's version or negotiated version
+- **CORS Headers**: Header is exposed via `Access-Control-Expose-Headers`
+
 ```cpp
 // Example: Request with protocol version header
 POST /mcp HTTP/1.1
@@ -381,6 +388,15 @@ Content-Type: application/json
 Accept: application/json, text/event-stream
 
 {"jsonrpc":"2.0","id":1,"method":"ping"}
+
+// Example: Response includes protocol version header
+HTTP/1.1 200 OK
+Mcp-Session-Id: abc123-session-id
+MCP-Protocol-Version: 2025-06-18
+Content-Type: application/json
+Access-Control-Expose-Headers: Mcp-Session-Id, MCP-Protocol-Version
+
+{"jsonrpc":"2.0","id":1,"result":{}}
 ```
 
 #### Client Implementation
