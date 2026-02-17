@@ -576,6 +576,9 @@ private:
     // Set session ID in response header
     void set_session_id_header(http::response_builder& res, const std::string& session_id) const;
 
+    // Set protocol version header in response
+    void set_protocol_version_header(http::response_builder& res, const std::string& session_id) const;
+
     // Auxiliary function to create an async handler from a regular handler
     template <typename F>
     std::function<std::future<json>(const json&, const std::string&)> make_async_handler(F&& handler) {
