@@ -1120,7 +1120,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
 
     // Extract session ID from header or query parameter
     std::string session_id = extract_session_id(req);
-    
+
     // Debug: Log session ID extraction
     if (session_id.empty()) {
         LOG_WARNING("No session ID found in request. Headers present: ");
@@ -1183,7 +1183,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
     // Check if session exists, or create a temporary one for stateless operation
     std::shared_ptr<event_dispatcher> dispatcher;
     bool is_stateless_request = session_id.empty();
-    
+
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto disp_it = session_dispatchers_.find(session_id);
