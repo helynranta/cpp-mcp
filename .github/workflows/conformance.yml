@@ -57,8 +57,9 @@ jobs:
           echo "✅ server_example binary found"
           
           # Start server in background with proper I/O redirection
+          # Use explicit IPv4 address to avoid IPv6/IPv4 mismatch issues
           # Redirect stdin from /dev/null and stdout/stderr to log file
-          nohup ./build/ci-linux/examples/server_example --port 3001 </dev/null >server.log 2>&1 &
+          nohup ./build/ci-linux/examples/server_example --host 127.0.0.1 --port 3001 </dev/null >server.log 2>&1 &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
           echo "Started server with PID: $SERVER_PID"
@@ -72,13 +73,13 @@ jobs:
             # Use curl with timeout and max-time to avoid hanging
             # -f: fail on HTTP errors, -s: silent, --max-time: timeout in seconds
             # We just need to verify the server responds, so we'll check the logs
-            if curl -f -s --max-time 2 http://localhost:3001/mcp >/dev/null 2>&1; then
+            if curl -f -s --max-time 2 http://127.0.0.1:3001/mcp >/dev/null 2>&1; then
               echo "✅ Server is ready (curl succeeded)"
               cat server.log | tail -10
               exit 0
             fi
             # Also check if we can at least connect (even if SSE hangs)
-            if timeout 2 bash -c 'echo > /dev/tcp/localhost/3001' 2>/dev/null; then
+            if timeout 2 bash -c 'echo > /dev/tcp/127.0.0.1/3001' 2>/dev/null; then
               echo "✅ Server port is open and responding"
               cat server.log | tail -10
               exit 0
@@ -104,14 +105,14 @@ jobs:
           cat server.log || echo "No log file found"
           echo ""
           echo "=== Testing manual connection ==="
-          timeout 2 curl -v http://localhost:3001/mcp 2>&1 | head -50 || echo "Connection test failed"
+          timeout 2 curl -v http://127.0.0.1:3001/mcp 2>&1 | head -50 || echo "Connection test failed"
           exit 1
       
       - name: Run conformance tests
         uses: modelcontextprotocol/conformance@v0.1.11
         with:
           mode: server
-          url: http://localhost:3001/mcp
+          url: http://127.0.0.1:3001/mcp
           suite: active
           expected-failures: ./conformance-baseline.yml
           verbose: true
@@ -123,10 +124,28 @@ jobs:
           name: conformance-results
           path: results/
           retention-days: 30
+          if-no-files-found: warn
+      
+      - name: Upload server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: server.log
+          retention-days: 30
+          if-no-files-found: warn
       
       - name: Stop server
         if: always()
         run: |
           if [ ! -z "$SERVER_PID" ]; then
+            echo "Stopping server (PID: $SERVER_PID)..."
             kill $SERVER_PID || true
+            sleep 1
+            # Force kill if still running
+            if ps -p $SERVER_PID > /dev/null 2>&1; then
+              echo "Server still running, force killing..."
+              kill -9 $SERVER_PID || true
+            fi
+            echo "Server stopped"
           fi
