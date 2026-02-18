@@ -10,7 +10,7 @@ on:
 jobs:
   conformance:
     name: Run MCP Conformance Tests
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     
     env:
       VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/vcpkg-cache,readwrite'
@@ -33,83 +33,92 @@ jobs:
           vcpkgJsonGlob: 'vcpkg.json'
       
       - name: Configure CMake
-        run: cmake --preset ci-linux
+        run: cmake --preset ci-windows
       
       - name: Build
-        run: cmake --build --preset ci-linux
+        run: cmake --build --preset ci-windows
       
       - name: Start MCP server
+        shell: pwsh
         run: |
           # Debug: Check if binary exists
-          echo "Checking for server binary..."
-          ls -la ./build/ci-linux/examples/ || {
-            echo "❌ Build directory not found"
-            echo "Available build directories:"
-            ls -la ./build/ || echo "No build directory at all"
+          Write-Host "Checking for server binary..."
+          if (-not (Test-Path "./build/ci-windows/examples/Release")) {
+            Write-Host "❌ Build directory not found"
+            Write-Host "Available build directories:"
+            Get-ChildItem -Path "./build/" -ErrorAction SilentlyContinue
             exit 1
           }
           
-          if [ ! -f ./build/ci-linux/examples/server_example ]; then
-            echo "❌ server_example binary not found"
+          if (-not (Test-Path "./build/ci-windows/examples/Release/server_example.exe")) {
+            Write-Host "❌ server_example.exe binary not found"
             exit 1
-          fi
+          }
           
-          echo "✅ server_example binary found"
+          Write-Host "✅ server_example.exe binary found"
           
-          # Start server in background with proper I/O redirection
-          # Use explicit IPv4 address to avoid IPv6/IPv4 mismatch issues
-          # Redirect stdin from /dev/null and stdout/stderr to log file
-          nohup ./build/ci-linux/examples/server_example --host 127.0.0.1 --port 3001 </dev/null >server.log 2>&1 &
-          SERVER_PID=$!
-          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
-          echo "Started server with PID: $SERVER_PID"
+          # Start server in background
+          $process = Start-Process -FilePath "./build/ci-windows/examples/Release/server_example.exe" `
+            -ArgumentList "--host", "127.0.0.1", "--port", "3001" `
+            -RedirectStandardOutput "server.log" `
+            -RedirectStandardError "server.log" `
+            -NoNewWindow `
+            -PassThru
+          
+          $SERVER_PID = $process.Id
+          "SERVER_PID=$SERVER_PID" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Started server with PID: $SERVER_PID"
           
           # Give server a moment to start
-          sleep 2
+          Start-Sleep -Seconds 2
           
           # Wait for server to be ready (max 30 seconds)
-          echo "Waiting for server to start..."
-          for i in {1..60}; do
-            # Use curl with timeout and max-time to avoid hanging
-            # -f: fail on HTTP errors, -s: silent, --max-time: timeout in seconds
-            # We just need to verify the server responds, so we'll check the logs
-            if curl -f -s --max-time 2 http://127.0.0.1:3001/mcp >/dev/null 2>&1; then
-              echo "✅ Server is ready (curl succeeded)"
-              cat server.log | tail -10
-              exit 0
-            fi
-            # Also check if we can at least connect (even if SSE hangs)
-            if timeout 2 bash -c 'echo > /dev/tcp/127.0.0.1/3001' 2>/dev/null; then
-              echo "✅ Server port is open and responding"
-              cat server.log | tail -10
-              exit 0
-            fi
-            if ! ps -p $SERVER_PID > /dev/null 2>&1; then
-              echo "❌ Server process has died"
-              echo "Server log:"
-              cat server.log || echo "No log file"
+          Write-Host "Waiting for server to start..."
+          for ($i = 1; $i -le 60; $i++) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://127.0.0.1:3001/mcp" -TimeoutSec 2 -ErrorAction SilentlyContinue
+              if ($response) {
+                Write-Host "✅ Server is ready"
+                Get-Content server.log -Tail 10 -ErrorAction SilentlyContinue
+                exit 0
+              }
+            } catch {
+              # Connection might be open but SSE hangs, check if port is listening
+            }
+            
+            # Check if process is still running
+            if (-not (Get-Process -Id $SERVER_PID -ErrorAction SilentlyContinue)) {
+              Write-Host "❌ Server process has died"
+              Write-Host "Server log:"
+              Get-Content server.log -ErrorAction SilentlyContinue
               exit 1
-            fi
-            sleep 0.5
-          done
+            }
+            
+            # Check if port is listening
+            $connection = Test-NetConnection -ComputerName 127.0.0.1 -Port 3001 -InformationLevel Quiet -WarningAction SilentlyContinue
+            if ($connection) {
+              Write-Host "✅ Server port is open and responding"
+              Get-Content server.log -Tail 10 -ErrorAction SilentlyContinue
+              exit 0
+            }
+            
+            Start-Sleep -Milliseconds 500
+          }
           
-          echo "❌ Server failed to start within 30 seconds"
-          echo "Checking if server process is still running..."
-          if ps -p $SERVER_PID > /dev/null 2>&1; then
-            echo "⚠️  Server process is running but not responding"
-          else
-            echo "❌ Server process has died"
-          fi
-          echo ""
-          echo "=== Full Server Log ==="
-          cat server.log || echo "No log file found"
-          echo ""
-          echo "=== Testing manual connection ==="
-          timeout 2 curl -v http://127.0.0.1:3001/mcp 2>&1 | head -50 || echo "Connection test failed"
+          Write-Host "❌ Server failed to start within 30 seconds"
+          Write-Host "Checking if server process is still running..."
+          if (Get-Process -Id $SERVER_PID -ErrorAction SilentlyContinue) {
+            Write-Host "⚠️  Server process is running but not responding"
+          } else {
+            Write-Host "❌ Server process has died"
+          }
+          Write-Host ""
+          Write-Host "=== Full Server Log ==="
+          Get-Content server.log -ErrorAction SilentlyContinue
           exit 1
       
       - name: Run conformance tests
-        uses: modelcontextprotocol/conformance@v0.1.11
+        uses: modelcontextprotocol/conformance@v0.1.14
         with:
           mode: server
           url: http://127.0.0.1:3001/mcp
@@ -137,15 +146,14 @@ jobs:
       
       - name: Stop server
         if: always()
+        shell: pwsh
         run: |
-          if [ ! -z "$SERVER_PID" ]; then
-            echo "Stopping server (PID: $SERVER_PID)..."
-            kill $SERVER_PID || true
-            sleep 1
-            # Force kill if still running
-            if ps -p $SERVER_PID > /dev/null 2>&1; then
-              echo "Server still running, force killing..."
-              kill -9 $SERVER_PID || true
-            fi
-            echo "Server stopped"
-          fi
+          if ($env:SERVER_PID) {
+            Write-Host "Stopping server (PID: $env:SERVER_PID)..."
+            try {
+              Stop-Process -Id $env:SERVER_PID -Force -ErrorAction SilentlyContinue
+              Write-Host "Server stopped"
+            } catch {
+              Write-Host "Failed to stop server: $_"
+            }
+          }
