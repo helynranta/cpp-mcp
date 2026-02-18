@@ -10,7 +10,18 @@ on:
 jobs:
   conformance:
     name: Run MCP Conformance Tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            preset: ci-linux
+            server_binary: ./build/ci-linux/examples/server_example
+          - os: windows-latest
+            preset: ci-windows
+            server_binary: ./build/ci-windows/examples/Release/server_example.exe
     
     env:
       VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/vcpkg-cache,readwrite'
@@ -33,12 +44,14 @@ jobs:
           vcpkgJsonGlob: 'vcpkg.json'
       
       - name: Configure CMake
-        run: cmake --preset ci-linux
+        run: cmake --preset ${{ matrix.preset }}
       
       - name: Build
-        run: cmake --build --preset ci-linux
+        run: cmake --build --preset ${{ matrix.preset }}
       
-      - name: Start MCP server
+      - name: Start MCP server (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
         run: |
           # Debug: Check if binary exists
           echo "Checking for server binary..."
@@ -49,7 +62,7 @@ jobs:
             exit 1
           }
           
-          if [ ! -f ./build/ci-linux/examples/server_example ]; then
+          if [ ! -f ${{ matrix.server_binary }} ]; then
             echo "❌ server_example binary not found"
             exit 1
           fi
@@ -59,7 +72,7 @@ jobs:
           # Start server in background with proper I/O redirection
           # Use explicit IPv4 address to avoid IPv6/IPv4 mismatch issues
           # Redirect stdin from /dev/null and stdout/stderr to log file
-          nohup ./build/ci-linux/examples/server_example --host 127.0.0.1 --port 3001 </dev/null >server.log 2>&1 &
+          nohup ${{ matrix.server_binary }} --host 127.0.0.1 --port 3001 </dev/null >server.log 2>&1 &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
           echo "Started server with PID: $SERVER_PID"
@@ -108,8 +121,88 @@ jobs:
           timeout 2 curl -v http://127.0.0.1:3001/mcp 2>&1 | head -50 || echo "Connection test failed"
           exit 1
       
+      - name: Start MCP server (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Debug: Check if binary exists
+          Write-Host "Checking for server binary..."
+          if (-not (Test-Path "./build/ci-windows/examples/Release")) {
+            Write-Host "❌ Build directory not found"
+            Write-Host "Available build directories:"
+            Get-ChildItem -Path "./build/" -ErrorAction SilentlyContinue
+            exit 1
+          }
+          
+          if (-not (Test-Path "${{ matrix.server_binary }}")) {
+            Write-Host "❌ server_example.exe binary not found"
+            exit 1
+          }
+          
+          Write-Host "✅ server_example.exe binary found"
+          
+          # Start server in background
+          $process = Start-Process -FilePath "${{ matrix.server_binary }}" `
+            -ArgumentList "--host", "127.0.0.1", "--port", "3001" `
+            -RedirectStandardOutput "server.log" `
+            -RedirectStandardError "server.log" `
+            -NoNewWindow `
+            -PassThru
+          
+          $SERVER_PID = $process.Id
+          "SERVER_PID=$SERVER_PID" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Started server with PID: $SERVER_PID"
+          
+          # Give server a moment to start
+          Start-Sleep -Seconds 2
+          
+          # Wait for server to be ready (max 30 seconds)
+          Write-Host "Waiting for server to start..."
+          for ($i = 1; $i -le 60; $i++) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://127.0.0.1:3001/mcp" -TimeoutSec 2 -ErrorAction SilentlyContinue
+              if ($response) {
+                Write-Host "✅ Server is ready"
+                Get-Content server.log -Tail 10 -ErrorAction SilentlyContinue
+                exit 0
+              }
+            } catch {
+              # Connection might be open but SSE hangs, check if port is listening
+            }
+            
+            # Check if process is still running
+            if (-not (Get-Process -Id $SERVER_PID -ErrorAction SilentlyContinue)) {
+              Write-Host "❌ Server process has died"
+              Write-Host "Server log:"
+              Get-Content server.log -ErrorAction SilentlyContinue
+              exit 1
+            }
+            
+            # Check if port is listening
+            $connection = Test-NetConnection -ComputerName 127.0.0.1 -Port 3001 -InformationLevel Quiet -WarningAction SilentlyContinue
+            if ($connection) {
+              Write-Host "✅ Server port is open and responding"
+              Get-Content server.log -Tail 10 -ErrorAction SilentlyContinue
+              exit 0
+            }
+            
+            Start-Sleep -Milliseconds 500
+          }
+          
+          Write-Host "❌ Server failed to start within 30 seconds"
+          Write-Host "Checking if server process is still running..."
+          if (Get-Process -Id $SERVER_PID -ErrorAction SilentlyContinue) {
+            Write-Host "⚠️  Server process is running but not responding"
+          } else {
+            Write-Host "❌ Server process has died"
+          }
+          Write-Host ""
+          Write-Host "=== Full Server Log ==="
+          Get-Content server.log -ErrorAction SilentlyContinue
+          exit 1
+      
       - name: Run conformance tests
-        uses: modelcontextprotocol/conformance@v0.1.11
+        uses: modelcontextprotocol/conformance@v0.1.14
         with:
           mode: server
           url: http://127.0.0.1:3001/mcp
@@ -121,7 +214,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: conformance-results
+          name: conformance-results-${{ runner.os }}
           path: results/
           retention-days: 30
           if-no-files-found: warn
@@ -130,13 +223,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: server-logs
+          name: server-logs-${{ runner.os }}
           path: server.log
           retention-days: 30
           if-no-files-found: warn
       
-      - name: Stop server
-        if: always()
+      - name: Stop server (Linux)
+        if: always() && runner.os == 'Linux'
+        shell: bash
         run: |
           if [ ! -z "$SERVER_PID" ]; then
             echo "Stopping server (PID: $SERVER_PID)..."
@@ -149,3 +243,17 @@ jobs:
             fi
             echo "Server stopped"
           fi
+      
+      - name: Stop server (Windows)
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if ($env:SERVER_PID) {
+            Write-Host "Stopping server (PID: $env:SERVER_PID)..."
+            try {
+              Stop-Process -Id $env:SERVER_PID -Force -ErrorAction SilentlyContinue
+              Write-Host "Server stopped"
+            } catch {
+              Write-Host "Failed to stop server: $_"
+            }
+          }
