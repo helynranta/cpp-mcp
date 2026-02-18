@@ -116,6 +116,10 @@ Minimum compiler versions (with experimental C++23 support):
 - **Clang** 12 or later (Clang 15+ recommended for production)
 - **MSVC** 2019 (v142) or later (MSVC 2022+ recommended for production)
 
+**Build Tools:**
+- **CMake** 3.25 or later
+- **Ninja** build system (used by all CMake presets for improved performance and C++ module support)
+
 ### Dependencies
 
 This project uses vcpkg for dependency management. The following dependencies are automatically fetched via vcpkg:
@@ -206,8 +210,8 @@ cmake --list-presets
 If you prefer not to use presets or need custom configuration:
 
 ```bash
-# Configure with vcpkg toolchain
-cmake -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
+# Configure with vcpkg toolchain and Ninja generator
+cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 
 # Build
 cmake --build build --config Release
@@ -215,7 +219,7 @@ cmake --build build --config Release
 
 **Build with tests:**
 ```bash
-cmake -B build \
+cmake -B build -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
   -DMCP_BUILD_TESTS=ON \
   -DVCPKG_MANIFEST_FEATURES="tests"
@@ -226,7 +230,7 @@ cd build && ctest -V
 
 **Build with SSL support:**
 ```bash
-cmake -B build \
+cmake -B build -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
   -DMCP_SSL=ON
 
@@ -242,7 +246,7 @@ If you prefer to install Boost manually, ensure:
 Then build without the vcpkg toolchain file:
 
 ```bash
-cmake -B build
+cmake -B build -G Ninja
 cmake --build build --config Release
 ```
 
@@ -776,7 +780,7 @@ AI agent that integrates an MCP server with an external LLM API. The agent:
 **Build and run:**
 ```bash
 # Build with SSL support for HTTPS connections
-cmake -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DMCP_SSL=ON
+cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DMCP_SSL=ON
 cmake --build build --target agent_example
 
 # Run with your LLM API

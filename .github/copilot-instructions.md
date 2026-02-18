@@ -39,7 +39,7 @@ cmake --list-presets
 
 ```bash
 # Configure with tests enabled
-cmake -B build -DMCP_BUILD_TESTS=ON \
+cmake -B build -G Ninja -DMCP_BUILD_TESTS=ON \
   -DVCPKG_MANIFEST_FEATURES="tests" \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 
