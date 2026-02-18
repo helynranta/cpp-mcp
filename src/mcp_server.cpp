@@ -1649,11 +1649,19 @@ json server::handle_initialize(const request& req, const std::string& session_id
     std::string requested_version = params["protocolVersion"].get<std::string>();
     LOG_INFO("Client requested protocol version: ", requested_version);
 
-    if (requested_version != MCP_VERSION) {
-        LOG_ERROR("Unsupported protocol version: ", requested_version, ", server supports: ", MCP_VERSION);
-        return response::create_error(req.id, error_code::invalid_params,
-                                      "Unsupported protocol version. Server supports: " + std::string(MCP_VERSION) +
-                                          ", requested: " + requested_version)
+    // List of supported versions (last 3 versions per MCP guidelines)
+    const std::vector<std::string> supported_versions = {"2025-03-26", "2025-06-18", "2025-11-25"};
+
+    // Check if the requested version is supported
+    bool is_supported = std::find(supported_versions.begin(), supported_versions.end(), requested_version) !=
+                        supported_versions.end();
+
+    if (!is_supported) {
+        LOG_ERROR("Unsupported protocol version: ", requested_version);
+        return response::create_error(
+                   req.id, error_code::invalid_params,
+                   "Unsupported protocol version. Server supports: 2025-03-26, 2025-06-18, 2025-11-25" +
+                       std::string(", requested: ") + requested_version)
             .to_json();
     }
 
