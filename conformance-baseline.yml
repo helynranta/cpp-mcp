@@ -17,11 +17,6 @@ server:
   - tools-call-sampling          # LLM sampling (optional, application-specific, not planned)
   - tools-call-with-logging      # Logging notifications (MCP notification, not implemented yet)
   
-  # Progress notifications - Implementation complete but test still failing
-  # Tool added: test_tool_with_progress with progressToken support
-  # May need additional investigation on why conformance test expects different behavior
-  - tools-call-with-progress     # Implemented but conformance test failing - needs investigation
-  
   # Resource subscriptions - Partial implementation
   # Basic subscribe/unsubscribe implemented, but live update delivery may be incomplete
   - resources-subscribe          # Partial: basic subscription, needs live update testing

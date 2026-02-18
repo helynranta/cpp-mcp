@@ -404,7 +404,12 @@ void server::register_tool(const tool& tool, tool_handler handler) {
 
             const mcp::tool& tool_def = it->second.first;
 
-            json tool_args = params.contains("arguments") ? params["arguments"] : json::array();
+            json tool_args = params.contains("arguments") ? params["arguments"] : json::object();
+
+            // Preserve _meta field if present in params (for progress tokens, etc.)
+            if (params.contains("_meta")) {
+                tool_args["_meta"] = params["_meta"];
+            }
 
             if (tool_args.is_string()) {
                 try {
