@@ -11,6 +11,7 @@
       "hidden": true,
       "description": "Base preset with common settings",
       "binaryDir": "${sourceDir}/build/${presetName}",
+      "generator": "Ninja",
       "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"

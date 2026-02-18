@@ -78,7 +78,7 @@ See [README.md - Code Style and Formatting](../README.md#code-style-and-formatti
 ## Technology Stack
 
 - **Language**: C++23 (requires C++23-compliant compiler)
-- **Build System**: CMake 3.25+
+- **Build System**: CMake 3.25+ with Ninja generator
 - **Package Manager**: vcpkg (manifest mode)
 - **Test Framework**: Boost.Test (all tests use Boost.Test, not GoogleTest)
 - **HTTP Library**: Boost.Beast for HTTP transport and SSE streaming
