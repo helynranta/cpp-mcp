@@ -23,6 +23,7 @@ For the full specification and protocol details, see the official MCP resources 
   - Single endpoint for GET, POST, and DELETE methods
   - `Mcp-Session-Id` header-based session management
   - SSE (Server-Sent Events) streaming for real-time responses
+  - **Stateless operation**: Full support for clients that don't manage session IDs
   - Backward compatible with legacy `/sse` and `/message` endpoints
 - **HTTP Transport Security (MCP 2025-06-18)**:
   - Origin header validation for DNS rebinding mitigation
@@ -364,6 +365,46 @@ Accept: application/json, text/event-stream
 
 {"jsonrpc":"2.0","id":1,"method":"tools/list"}
 ```
+
+#### Stateless Operation
+
+The server fully supports **stateless clients** that don't manage session IDs (like codex). For stateless operation:
+
+- **Omit the `Mcp-Session-Id` header** in your POST requests
+- Server creates a temporary session for each request
+- Response is returned directly in the HTTP body (synchronous)
+- Session ID is included in the response header if the client wants to reuse it
+- Temporary sessions are cleaned up after 60 minutes of inactivity
+
+Example stateless request:
+
+```cpp
+// Stateless request (no session ID)
+POST /mcp HTTP/1.1
+Host: localhost:8080
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{...}}
+
+// Response includes result in body + optional session ID in header
+HTTP/1.1 200 OK
+Mcp-Session-Id: temp-session-xyz  // Optional for reuse
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":1,"result":{...}}
+```
+
+**Benefits of stateless mode:**
+- Simpler client implementation - no need to track session IDs
+- Works with clients that can't maintain session state
+- Each request is independent and self-contained
+- Automatic cleanup of temporary sessions
+
+**Trade-offs:**
+- No SSE streaming for responses (responses are synchronous)
+- Cannot receive server-initiated notifications
+- Cannot maintain session state across requests (unless client reuses session ID)
+- Initialization must be repeated if session state is needed
 
 ### Protocol Version Header (MCP 2025-06-18+)
 
