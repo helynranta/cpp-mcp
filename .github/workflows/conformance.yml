@@ -60,8 +60,8 @@ jobs:
           # Start server in background
           $process = Start-Process -FilePath "./build/ci-windows/examples/Release/server_example.exe" `
             -ArgumentList "--host", "127.0.0.1", "--port", "3001" `
-            -RedirectStandardOutput "server.log" `
-            -RedirectStandardError "server.log" `
+            -RedirectStandardOutput "server-stdout.log" `
+            -RedirectStandardError "server-stderr.log" `
             -NoNewWindow `
             -PassThru
           
@@ -79,7 +79,10 @@ jobs:
               $response = Invoke-WebRequest -Uri "http://127.0.0.1:3001/mcp" -TimeoutSec 2 -ErrorAction SilentlyContinue
               if ($response) {
                 Write-Host "✅ Server is ready"
-                Get-Content server.log -Tail 10 -ErrorAction SilentlyContinue
+                Write-Host "=== Last 10 lines from stdout ==="
+                Get-Content server-stdout.log -Tail 10 -ErrorAction SilentlyContinue
+                Write-Host "=== Last 10 lines from stderr ==="
+                Get-Content server-stderr.log -Tail 10 -ErrorAction SilentlyContinue
                 exit 0
               }
             } catch {
@@ -89,8 +92,10 @@ jobs:
             # Check if process is still running
             if (-not (Get-Process -Id $SERVER_PID -ErrorAction SilentlyContinue)) {
               Write-Host "❌ Server process has died"
-              Write-Host "Server log:"
-              Get-Content server.log -ErrorAction SilentlyContinue
+              Write-Host "=== Server stdout ==="
+              Get-Content server-stdout.log -ErrorAction SilentlyContinue
+              Write-Host "=== Server stderr ==="
+              Get-Content server-stderr.log -ErrorAction SilentlyContinue
               exit 1
             }
             
@@ -98,7 +103,10 @@ jobs:
             $connection = Test-NetConnection -ComputerName 127.0.0.1 -Port 3001 -InformationLevel Quiet -WarningAction SilentlyContinue
             if ($connection) {
               Write-Host "✅ Server port is open and responding"
-              Get-Content server.log -Tail 10 -ErrorAction SilentlyContinue
+              Write-Host "=== Last 10 lines from stdout ==="
+              Get-Content server-stdout.log -Tail 10 -ErrorAction SilentlyContinue
+              Write-Host "=== Last 10 lines from stderr ==="
+              Get-Content server-stderr.log -Tail 10 -ErrorAction SilentlyContinue
               exit 0
             }
             
@@ -113,8 +121,11 @@ jobs:
             Write-Host "❌ Server process has died"
           }
           Write-Host ""
-          Write-Host "=== Full Server Log ==="
-          Get-Content server.log -ErrorAction SilentlyContinue
+          Write-Host "=== Full Server stdout ==="
+          Get-Content server-stdout.log -ErrorAction SilentlyContinue
+          Write-Host ""
+          Write-Host "=== Full Server stderr ==="
+          Get-Content server-stderr.log -ErrorAction SilentlyContinue
           exit 1
       
       - name: Run conformance tests
@@ -140,7 +151,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: server-logs
-          path: server.log
+          path: |
+            server-stdout.log
+            server-stderr.log
           retention-days: 30
           if-no-files-found: warn
       
