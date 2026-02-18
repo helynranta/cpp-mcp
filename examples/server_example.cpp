@@ -367,30 +367,39 @@ int main(int argc, char* argv[]) {
     server.register_tool(
         mcp::tool_builder("test_tool_with_progress")
             .with_description("Conformance: tool that sends progress notifications")
-            .with_number_param("steps", "Number of steps to process", 5.0)
-            .build(),
+            .build(), // No arguments as per conformance spec
         [&server](const mcp::json& params, const std::string& session_id) -> mcp::json {
-            int steps = params.value("steps", 5);
-
             // Extract progress token from _meta if present
             auto progress_token = mcp::progress_tracker::extract_progress_token(params);
 
-            for (int i = 1; i <= steps; ++i) {
-                // Simulate some work
+            if (progress_token.has_value()) {
+                // Send progress: 0/100
+                mcp::progress_notification notif1 = mcp::progress_notification::create(progress_token.value(), 0.0,
+                                                                                       100.0);
+                server.send_progress(session_id, notif1);
+
+                // Wait ~50ms
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-                // Send progress notification if token is available
-                if (progress_token.has_value()) {
-                    std::string message = "Processing step " + std::to_string(i) + " of " + std::to_string(steps);
-                    mcp::progress_notification notif = mcp::progress_notification::create(
-                        progress_token.value(), static_cast<double>(i), static_cast<double>(steps), message);
-                    server.send_progress(session_id, notif);
-                }
+                // Send progress: 50/100
+                mcp::progress_notification notif2 = mcp::progress_notification::create(progress_token.value(), 50.0,
+                                                                                       100.0);
+                server.send_progress(session_id, notif2);
+
+                // Wait ~50ms
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+                // Send progress: 100/100
+                mcp::progress_notification notif3 = mcp::progress_notification::create(progress_token.value(), 100.0,
+                                                                                       100.0);
+                server.send_progress(session_id, notif3);
+            } else {
+                // No progress token, just execute with delays
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
 
-            return {{"content", mcp::json::array({{{"type", "text"},
-                                                   {"text", "Completed " + std::to_string(steps) +
-                                                                " steps with progress updates"}}})}};
+            return {{"content", mcp::json::array({{{"type", "text"}, {"text", "Progress test completed"}}})}};
         });
 
     // Tool with elicitation (for tools-call-elicitation conformance test)
