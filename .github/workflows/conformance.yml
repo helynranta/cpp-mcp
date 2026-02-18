@@ -36,7 +36,7 @@ jobs:
         run: cmake --preset ci-windows
       
       - name: Build
-        run: cmake --build --preset ci-windows
+        run: cmake --build --preset ci-windows --target server_example
       
       - name: Start MCP server
         shell: pwsh
