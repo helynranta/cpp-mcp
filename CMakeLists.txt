@@ -30,6 +30,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Enable C++ Modules support (CMake 3.25+)
+# This enables CMake's native module scanning and dependency tracking
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+
 # Find required packages
 find_package(Threads REQUIRED)
 # Find Boost components: Beast (header-only) and System (compiled)

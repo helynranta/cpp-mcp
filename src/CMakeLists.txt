@@ -1,6 +1,8 @@
 set(TARGET mcp)
 
+# Create library with both traditional sources and C++ modules
 add_library(${TARGET} STATIC
+    # Traditional header/source files (to be migrated)
     ../include/mcp_client.h
     mcp_message.cpp
     ../include/mcp_message.h
@@ -18,6 +20,15 @@ add_library(${TARGET} STATIC
     ../include/mcp_streamable_http_client.h
     mcp_progress.cpp
     ../include/mcp_progress.h
+)
+
+# Add C++ Module interface files using FILE_SET
+# This tells CMake to scan these files for module dependencies
+target_sources(${TARGET}
+    PUBLIC
+        FILE_SET CXX_MODULES FILES
+            ../modules/mcp.core.cppm
+            ../modules/mcp.logger.cppm
 )
 
 target_link_libraries(${TARGET} PUBLIC ${CMAKE_THREAD_LIBS_INIT})
