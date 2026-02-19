@@ -8,6 +8,9 @@
  * 3. Basic module functionality is accessible
  */
 
+// Include nlohmann/json before importing modules that use it
+#include <nlohmann/json.hpp>
+
 // Import C++ modules
 import mcp.core;
 import mcp.logger;
