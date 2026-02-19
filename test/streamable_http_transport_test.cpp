@@ -461,4 +461,67 @@ BOOST_AUTO_TEST_CASE(DISABLED_CorsHeadersIncludeAccept) {
     // TODO: Re-enable when OPTIONS method is implemented
 }
 
+// Test: Multiple concurrent stateless requests work correctly
+// This test verifies that when clients (like codex) make multiple requests
+// without session IDs, each request is handled independently
+BOOST_AUTO_TEST_CASE(ConcurrentStatelessRequestsWork) {
+    // Make multiple stateless requests concurrently
+    // Use initialize requests since they don't require prior session state
+    const int num_requests = 5;
+    std::vector<std::thread> threads;
+    std::vector<bool> results(num_requests, false);
+
+    for (int i = 0; i < num_requests; ++i) {
+        threads.emplace_back([this, i, &results]() {
+            json test_request = {
+                {"jsonrpc", "2.0"},
+                {"id", i + 1},
+                {"method", "initialize"},
+                {"params",
+                 {{"protocolVersion", MCP_VERSION}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+
+            http::headers_map empty_headers; // No session ID
+            auto res = http_client->post("/mcp", empty_headers, test_request.dump(), "application/json");
+
+            results[i] = res.success && res.status_code == 200;
+        });
+    }
+
+    // Wait for all threads to complete
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // Verify all requests succeeded
+    for (int i = 0; i < num_requests; ++i) {
+        BOOST_CHECK(results[i]);
+    }
+}
+
+// Test: Sequential stateless requests work correctly
+// This test verifies that when clients make multiple sequential requests
+// without session IDs, each request is handled independently
+BOOST_AUTO_TEST_CASE(SequentialStatelessRequestsWork) {
+    const int num_requests = 5;
+
+    for (int i = 0; i < num_requests; ++i) {
+        json test_request = {
+            {"jsonrpc", "2.0"},
+            {"id", i + 1},
+            {"method", "initialize"},
+            {"params", {{"protocolVersion", MCP_VERSION}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+
+        http::headers_map empty_headers; // No session ID
+        auto res = http_client->post("/mcp", empty_headers, test_request.dump(), "application/json");
+
+        BOOST_REQUIRE(res.success);
+        BOOST_CHECK_EQUAL(200, res.status_code);
+
+        // Parse response to ensure it's valid
+        json body = json::parse(res.body);
+        BOOST_CHECK(body.contains("result"));
+        BOOST_CHECK(body["result"].contains("protocolVersion"));
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()

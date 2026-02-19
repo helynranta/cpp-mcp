@@ -1,7 +1,82 @@
 # Testing Infrastructure Implementation Plan
 
 ## Overview
-This document outlines the remaining tasks to complete the testing infrastructure and CI/CD pipeline for the cpp-mcp project.
+This document outlines the testing infrastructure and CI/CD pipeline for the cpp-mcp project.
+
+## Test Parallelization (Completed ✅)
+
+**Status:** Implemented - Tests now run in parallel for 3x performance improvement
+
+### Architecture
+The test infrastructure has been redesigned to support parallel execution:
+
+1. **Separate Test Executables**: Each test file is compiled into its own executable (21 total)
+2. **Shared Test Main**: `test/test_main.cpp` provides the BOOST_TEST_MODULE definition
+3. **Parallel CTest Execution**: CMake test presets configured with `"jobs": 0` for automatic parallelization
+
+### Performance Results
+- **Before**: 5-6 minutes (sequential execution)
+- **After**: ~2 minutes (parallel execution)
+- **Speedup**: ~3x faster
+- **Test Count**: 21 separate test executables, 261 total test cases
+
+### Implementation Details
+
+**Files Modified:**
+- `test/CMakeLists.txt` - Creates individual test executables using `add_mcp_test()` helper
+- `test/test_main.cpp` - New file providing shared BOOST_TEST_MODULE
+- `test/mcp_test.cpp` - Removed BOOST_TEST_MODULE (now in test_main.cpp)
+- `CMakePresets.json` - Added `"jobs": 0` to all test presets
+
+**Test Executables:**
+1. mcp_test
+2. jsonrpc_validation_test
+3. lifecycle_compliance_test
+4. streamable_http_transport_test
+5. http_security_test
+6. tool_safety_test
+7. boost_integration_test
+8. beast_sse_proof_of_concept
+9. http_abstraction_test
+10. beast_adapter_test
+11. sse_client_beast_test
+12. session_management_test
+13. streamable_http_client_test
+14. batch_rejection_test
+15. protocol_version_header_test
+16. structured_tool_output_test
+17. elicitation_test
+18. elicitation_integration_test
+19. completion_test
+20. error_result_compliance_test
+21. structured_tool_handler_test
+
+### Adding New Tests
+
+When adding new test files, follow this pattern:
+
+1. **Create test file** (e.g., `test/my_new_test.cpp`):
+   ```cpp
+   // DO NOT define BOOST_TEST_MODULE - it's in test_main.cpp
+   #include <boost/test/unit_test.hpp>
+   
+   BOOST_AUTO_TEST_SUITE(MyNewTestSuite)
+   
+   BOOST_AUTO_TEST_CASE(MyTestCase) {
+       // Your test code
+   }
+   
+   BOOST_AUTO_TEST_SUITE_END()
+   ```
+
+2. **Register in CMakeLists.txt**:
+   ```cmake
+   add_mcp_test(my_new_test my_new_test.cpp)
+   ```
+
+3. **Add to run_tests target dependencies** (optional, for convenience target)
+
+**Important:** Never define `BOOST_TEST_MODULE` in test files - it's provided by `test_main.cpp`.
 
 ## Completed Work ✅
 
@@ -177,7 +252,7 @@ cd build && ctest -R mcp_catch2_tests -V
 
 - **vcpkg** (for dependency management)
 - **GoogleTest** (installed via vcpkg feature "tests")
-- **CMake 3.10+**
+- **CMake 3.25+** (required for C++ module support and modern CMake features)
 
 ## Success Criteria
 

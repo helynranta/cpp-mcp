@@ -23,6 +23,7 @@ For the full specification and protocol details, see the official MCP resources 
   - Single endpoint for GET, POST, and DELETE methods
   - `Mcp-Session-Id` header-based session management
   - SSE (Server-Sent Events) streaming for real-time responses
+  - **Stateless operation**: Full support for clients that don't manage session IDs
   - Backward compatible with legacy `/sse` and `/message` endpoints
 - **HTTP Transport Security (MCP 2025-06-18)**:
   - Origin header validation for DNS rebinding mitigation
@@ -48,6 +49,26 @@ For the full specification and protocol details, see the official MCP resources 
 - **Extensible Architecture**: Easy to extend with new resource types and tools
 - **Multi-Transport Support**: Supports HTTP and standard input/output (stdio) communication methods
 
+## 🚧 C++ Modules Migration (In Progress)
+
+This project is undergoing a migration to C++20 Modules with a **Windows-first approach**. As part of this modernization:
+
+- **Platform Strategy**: Migrating to Windows-only, dropping Linux and macOS support
+- **Module Architecture**: Converting headers to C++20 module interface units (`.cppm`)
+- **Compiler Target**: MSVC 2022+ with native C++20 Modules support
+- **Timeline**: 14-week phased migration (10 phases)
+
+**Current Status**: **Phase 1 Complete** - Preparation & Planning
+
+For detailed information, see:
+- **[MODULES_MIGRATION_PLAN.md](MODULES_MIGRATION_PLAN.md)** - Comprehensive 10-phase migration plan
+- **[PLATFORM_AUDIT_SUMMARY.md](PLATFORM_AUDIT_SUMMARY.md)** - Platform-specific code audit
+
+**Impact on Users**: 
+- **Linux/macOS users**: This version will be Windows-only after migration
+- **Windows users**: No breaking changes expected, improved build times with modules
+- **Timeline**: Platform cleanup begins Phase 2, full migration complete by Phase 10
+
 ## Protocol Conformance and Testing
 
 This implementation claims conformance with **MCP 2025-11-25** specification with core features based on 2025-06-18 implementation.
@@ -67,7 +88,7 @@ This implementation claims conformance with **MCP 2025-11-25** specification wit
 - **Total Tests**: 201+ tests
 - **Pass Rate**: 100%
 - **Test Framework**: Boost.Test 1.90.0
-- **CI/CD**: GitHub Actions on Linux and Windows
+- **CI/CD**: GitHub Actions on Windows
 
 ### Official Conformance Testing
 
@@ -109,16 +130,17 @@ See [CONFORMANCE.md](CONFORMANCE.md) and [CONFORMANCE_TESTING.md](CONFORMANCE_TE
 
 ### Requirements
 
+**Windows-Only Project**: This project targets Windows exclusively with MSVC compiler. Linux and macOS are not supported.
+
 **C++23 Compiler Required**: This project requires a C++23-compliant compiler. No backwards compatibility with older C++ standards is provided.
 
-Minimum compiler versions (with experimental C++23 support):
-- **GCC** 11 or later (GCC 13+ recommended for production)
-- **Clang** 12 or later (Clang 15+ recommended for production)
-- **MSVC** 2019 (v142) or later (MSVC 2022+ recommended for production)
+Minimum compiler version:
+- **MSVC** 2019 (v142) or later (MSVC 2022+ recommended for C++20 modules support)
 
 **Build Tools:**
 - **CMake** 3.25 or later
 - **Ninja** build system (used by all CMake presets for improved performance and C++ module support)
+- **Visual Studio 2019 or 2022** (for MSVC toolchain)
 
 ### Dependencies
 
@@ -137,28 +159,20 @@ This project provides CMake presets for standardized builds. Presets simplify co
 
 **Prerequisites:** 
 - Ensure `VCPKG_ROOT` environment variable points to your vcpkg installation.
-- **Windows users**: Run CMake from a Visual Studio Developer Command Prompt or PowerShell with MSVC environment loaded to ensure Ninja uses MSVC (not MinGW). The Windows-specific presets (`*-windows`) are configured to use `cl.exe`.
+- Run CMake from a Visual Studio Developer Command Prompt or PowerShell with MSVC environment loaded.
 
 **Available Presets:**
 
 Development presets:
 - `dev-debug` - Debug build with tests enabled
 - `dev-release` - Release build with tests enabled
-- `dev-debug-windows` - Debug build with tests for Windows using MSVC (Windows only)
-- `dev-release-windows` - Release build with tests for Windows using MSVC (Windows only)
-- `sanitizer-address` - Debug with AddressSanitizer (Linux/macOS only)
-- `sanitizer-undefined` - Debug with UndefinedBehaviorSanitizer (Linux/macOS only)
-- `coverage` - Debug with code coverage instrumentation (Linux/macOS only)
 
 Production presets:
 - `release` - Optimized release build without tests
 - `ssl` - Release build with SSL support
-- `release-windows` - Optimized release build for Windows using MSVC (Windows only)
-- `ssl-windows` - Release with SSL for Windows using MSVC (Windows only)
 
 CI presets:
-- `ci-linux` - CI build for Linux
-- `ci-windows` - CI build for Windows with MSVC
+- `ci` - CI build for automated testing
 
 **Quick Start:**
 
@@ -193,17 +207,6 @@ cmake --build --preset release
 # Build with SSL support
 cmake --preset ssl
 cmake --build --preset ssl
-
-# Run sanitizers (Linux/macOS)
-cmake --preset sanitizer-address
-cmake --build --preset sanitizer-address
-ctest --preset sanitizer-address
-
-# Code coverage (Linux/macOS)
-cmake --preset coverage
-cmake --build --preset coverage
-ctest --preset coverage
-# Then generate coverage report with lcov/gcov
 ```
 
 **List all available presets:**
@@ -307,15 +310,12 @@ These tests verify:
 - HTTP request/response types work correctly
 - Boost.Asio I/O context can be created
 
-#### Platform-Specific Notes
-
-**Linux:**
-- vcpkg typically installs to `/usr/local/share/vcpkg`
-- Use `VCPKG_ROOT` environment variable or specify the full path
+#### Installation Notes
 
 **Windows:**
 - vcpkg installs to `C:\vcpkg` by default
 - Use PowerShell syntax: `$env:VCPKG_ROOT`
+- Ensure Visual Studio or Build Tools are installed for MSVC
 
 For more information, see:
 - [Boost.Beast Documentation](https://www.boost.org/doc/libs/release/libs/beast/doc/html/index.html)
@@ -374,6 +374,46 @@ Accept: application/json, text/event-stream
 
 {"jsonrpc":"2.0","id":1,"method":"tools/list"}
 ```
+
+#### Stateless Operation
+
+The server fully supports **stateless clients** that don't manage session IDs (like codex). For stateless operation:
+
+- **Omit the `Mcp-Session-Id` header** in your POST requests
+- Server creates a temporary session for each request
+- Response is returned directly in the HTTP body (synchronous)
+- Session ID is included in the response header if the client wants to reuse it
+- Temporary sessions are cleaned up after 60 minutes of inactivity
+
+Example stateless request:
+
+```cpp
+// Stateless request (no session ID)
+POST /mcp HTTP/1.1
+Host: localhost:8080
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{...}}
+
+// Response includes result in body + optional session ID in header
+HTTP/1.1 200 OK
+Mcp-Session-Id: temp-session-xyz  // Optional for reuse
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":1,"result":{...}}
+```
+
+**Benefits of stateless mode:**
+- Simpler client implementation - no need to track session IDs
+- Works with clients that can't maintain session state
+- Each request is independent and self-contained
+- Automatic cleanup of temporary sessions
+
+**Trade-offs:**
+- No SSE streaming for responses (responses are synchronous)
+- Cannot receive server-initiated notifications
+- Cannot maintain session state across requests (unless client reuses session ID)
+- Initialization must be repeated if session state is needed
 
 ### Protocol Version Header (MCP 2025-06-18+)
 
@@ -1335,27 +1375,33 @@ For a complete working example, see [`examples/session_state_example.cpp`](examp
 
 ## Using TLS clients and servers
 
-### Creating test certificates on Linux
+### Creating test certificates on Windows
+
+Use OpenSSL for Windows to generate test certificates:
+
 1. Generate Certificate Authority (CA) private key
-    ```bash
+    ```powershell
     openssl genrsa -out ca.key.pem 2048
     ```
-1. Generate CA certificate
-    ```bash
+2. Generate CA certificate
+    ```powershell
     openssl req -x509 -new -nodes -key ca.key.pem -sha256 -days 1 -out ca.cert.pem -subj "/CN=Test CA"
     ```
-1. Generate server private key
-    ```bash
+3. Generate server private key
+    ```powershell
     openssl genrsa -out server.key.pem 2048
     ```
-1. Generate Certificate Signing Request (CSR)
-    ```
+4. Generate Certificate Signing Request (CSR)
+    ```powershell
     openssl req -new -key server.key.pem -out server.csr.pem -subj "/O=TestServer/OU=Dev/CN=localhost"
     ```
-1. Generate server certificate signed by CA
-    ```
+5. Generate server certificate signed by CA
+    ```powershell
     openssl x509 -req -in server.csr.pem -CA ca.cert.pem -CAkey ca.key.pem -CAcreateserial -out server.cert.pem -days 1 -sha256
     ```
+
+**Note**: OpenSSL can be installed via vcpkg or downloaded from [slproweb.com/products/Win32OpenSSL.html](https://slproweb.com/products/Win32OpenSSL.html)
+
 ### Setting up an HTTPs server
 
 ```cpp

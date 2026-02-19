@@ -1,8 +1,6 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.25)
 
-# Set test project
-set(TEST_PROJECT_NAME "mcp_tests")
-project(${TEST_PROJECT_NAME})
+project(MCPTests)
 
 # C++23 required - no backwards compatibility with older standards
 set(CMAKE_CXX_STANDARD 23)
@@ -19,65 +17,80 @@ find_package(Boost REQUIRED COMPONENTS unit_test_framework)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../common)
 
-# Add test source files
-set(TEST_SOURCES
-    mcp_test.cpp
-    jsonrpc_validation_test.cpp
-    lifecycle_compliance_test.cpp
-    streamable_http_transport_test.cpp
-    http_security_test.cpp
-    tool_safety_test.cpp
-    boost_integration_test.cpp
-    beast_sse_proof_of_concept.cpp
-    http_abstraction_test.cpp
-    beast_adapter_test.cpp
-    sse_client_beast_test.cpp
-    session_management_test.cpp
-    streamable_http_client_test.cpp
-    batch_rejection_test.cpp
-    protocol_version_header_test.cpp
-    structured_tool_output_test.cpp
-    elicitation_test.cpp
-    elicitation_integration_test.cpp
-    completion_test.cpp
-    error_result_compliance_test.cpp
-)
-
-# Create test executable
-add_executable(${TEST_PROJECT_NAME} ${TEST_SOURCES})
-
-# Link directories
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../build/src)
-
-if(WIN32)
-    set(MCP_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../build/src/mcp.lib")
-else()
-    set(MCP_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../build/src/libmcp.a")
-endif()
-
-# Link Boost.Test and MCP library
-target_link_libraries(${TEST_PROJECT_NAME} PRIVATE
-    Boost::unit_test_framework
-    mcp
-    Threads::Threads
-)
-
-# If OpenSSL is found, link OpenSSL libraries
-if(OPENSSL_FOUND)
-    target_link_libraries(${TEST_PROJECT_NAME} PRIVATE ${OPENSSL_LIBRARIES})
-endif()
-
 # Enable testing
 enable_testing()
 
-# Add test
-add_test(
-    NAME ${TEST_PROJECT_NAME}
-    COMMAND ${TEST_PROJECT_NAME}
-)
+# Create a shared object library for test main
+# This provides BOOST_TEST_MODULE for all test executables
+add_library(test_main OBJECT test_main.cpp)
+target_link_libraries(test_main PUBLIC Boost::unit_test_framework)
 
-# Add custom target to run tests
+# Helper function to create individual test executables
+function(add_mcp_test TEST_NAME TEST_SOURCE)
+    add_executable(${TEST_NAME} ${TEST_SOURCE} $<TARGET_OBJECTS:test_main>)
+    
+    target_link_libraries(${TEST_NAME} PRIVATE
+        Boost::unit_test_framework
+        mcp
+        Threads::Threads
+    )
+    
+    # If OpenSSL is found, link OpenSSL libraries
+    if(OPENSSL_FOUND)
+        target_link_libraries(${TEST_NAME} PRIVATE ${OPENSSL_LIBRARIES})
+    endif()
+    
+    # Add the test to CTest
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+endfunction()
+
+# Create individual test executables for parallel execution
+# Each test file becomes its own executable, allowing CTest to run them in parallel
+add_mcp_test(mcp_test mcp_test.cpp)
+add_mcp_test(jsonrpc_validation_test jsonrpc_validation_test.cpp)
+add_mcp_test(lifecycle_compliance_test lifecycle_compliance_test.cpp)
+add_mcp_test(streamable_http_transport_test streamable_http_transport_test.cpp)
+add_mcp_test(http_security_test http_security_test.cpp)
+add_mcp_test(tool_safety_test tool_safety_test.cpp)
+add_mcp_test(boost_integration_test boost_integration_test.cpp)
+add_mcp_test(beast_sse_proof_of_concept beast_sse_proof_of_concept.cpp)
+add_mcp_test(http_abstraction_test http_abstraction_test.cpp)
+add_mcp_test(beast_adapter_test beast_adapter_test.cpp)
+add_mcp_test(sse_client_beast_test sse_client_beast_test.cpp)
+add_mcp_test(session_management_test session_management_test.cpp)
+add_mcp_test(streamable_http_client_test streamable_http_client_test.cpp)
+add_mcp_test(batch_rejection_test batch_rejection_test.cpp)
+add_mcp_test(protocol_version_header_test protocol_version_header_test.cpp)
+add_mcp_test(structured_tool_output_test structured_tool_output_test.cpp)
+add_mcp_test(elicitation_test elicitation_test.cpp)
+add_mcp_test(elicitation_integration_test elicitation_integration_test.cpp)
+add_mcp_test(completion_test completion_test.cpp)
+add_mcp_test(error_result_compliance_test error_result_compliance_test.cpp)
+add_mcp_test(structured_tool_handler_test structured_tool_handler_test.cpp)
+
+# Add custom target to run all tests in parallel
 add_custom_target(run_tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --verbose
-    DEPENDS ${TEST_PROJECT_NAME}
+    COMMAND ${CMAKE_CTEST_COMMAND} --parallel --verbose
+    DEPENDS 
+        mcp_test
+        jsonrpc_validation_test
+        lifecycle_compliance_test
+        streamable_http_transport_test
+        http_security_test
+        tool_safety_test
+        boost_integration_test
+        beast_sse_proof_of_concept
+        http_abstraction_test
+        beast_adapter_test
+        sse_client_beast_test
+        session_management_test
+        streamable_http_client_test
+        batch_rejection_test
+        protocol_version_header_test
+        structured_tool_output_test
+        elicitation_test
+        elicitation_integration_test
+        completion_test
+        error_result_compliance_test
+        structured_tool_handler_test
 )
