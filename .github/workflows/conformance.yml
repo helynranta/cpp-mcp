@@ -45,14 +45,20 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/start-mcp-server.ps1
       
-      - name: Run conformance tests
-        uses: modelcontextprotocol/conformance@v0.1.14
+      - name: Setup Node.js for conformance CLI
+        uses: actions/setup-node@v4
         with:
-          mode: server
-          url: http://127.0.0.1:3001/mcp
-          suite: active
-          expected-failures: ./conformance-baseline.yml
-          verbose: true
+          node-version: 20
+      
+      - name: Run conformance tests
+        shell: pwsh
+        run: |
+          npx --yes @modelcontextprotocol/conformance@0.1.14 `
+            server `
+            --url http://127.0.0.1:3001/mcp `
+            --suite active `
+            --expected-failures ./conformance-baseline.yml `
+            --verbose
       
       - name: Upload conformance results
         if: always()
