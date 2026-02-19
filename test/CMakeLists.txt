@@ -1,11 +1,22 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.28)
+
+# Enable C++ standard library modules (CMake 3.28+)
+# This is an experimental feature that allows using 'import std;'
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "0e5b6991-d74f-4b3d-a41c-cf096e0b2508")
 
 project(MCPTests)
+
+# Enable C++ standard library modules
+set(CMAKE_CXX_MODULE_STD ON)
 
 # C++23 required - no backwards compatibility with older standards
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Enable C++ Modules support (CMake 3.25+)
+# Required for tests that import C++ modules
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
 # Find required packages
 find_package(Threads REQUIRED)
@@ -67,6 +78,7 @@ add_mcp_test(elicitation_integration_test elicitation_integration_test.cpp)
 add_mcp_test(completion_test completion_test.cpp)
 add_mcp_test(error_result_compliance_test error_result_compliance_test.cpp)
 add_mcp_test(structured_tool_handler_test structured_tool_handler_test.cpp)
+add_mcp_test(module_basic_test module_basic_test.cpp)
 
 # Add custom target to run all tests in parallel
 add_custom_target(run_tests
@@ -93,4 +105,5 @@ add_custom_target(run_tests
         completion_test
         error_result_compliance_test
         structured_tool_handler_test
+        module_basic_test
 )

@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.28)
 project(MCP VERSION 2025.11.25 LANGUAGES CXX)
 
-# Verify CMake version for C++ module support and modern features
-if(CMAKE_VERSION VERSION_LESS "3.25")
-    message(FATAL_ERROR "CMake 3.25 or higher is required for robust C++ module support and modern CMake features. "
+# Verify CMake version for C++ module support and import std; feature
+if(CMAKE_VERSION VERSION_LESS "3.28")
+    message(FATAL_ERROR "CMake 3.28 or higher is required for C++ module support and experimental import std; feature. "
                         "Current version: ${CMAKE_VERSION}. "
                         "Please upgrade CMake from https://cmake.org/download/")
 endif()
@@ -29,6 +29,10 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/bigobj>")
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Enable C++ Modules support (CMake 3.28+ for import std; support)
+# This enables CMake's native module scanning and dependency tracking
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
 # Find required packages
 find_package(Threads REQUIRED)

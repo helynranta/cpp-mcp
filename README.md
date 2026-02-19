@@ -58,16 +58,68 @@ This project is undergoing a migration to C++20 Modules with a **Windows-first a
 - **Compiler Target**: MSVC 2022+ with native C++20 Modules support
 - **Timeline**: 14-week phased migration (10 phases)
 
-**Current Status**: **Phase 1 Complete** - Preparation & Planning
+**Current Status**: **Phase 3 Complete** - Core Infrastructure Modularization
+
+### Completed Phases
+
+✅ **Phase 1: Preparation & Planning** (Complete)
+- Platform audit and Windows-only decision
+- Module architecture design
+- Migration roadmap established
+
+✅ **Phase 2: Platform Cleanup** (Complete)
+- Removed all POSIX/Linux code
+- Simplified build system to Windows-only
+- Updated CI/CD workflows
+
+✅ **Phase 3: Core Infrastructure** (Complete)
+- Created `src/modules/` directory structure
+- Implemented `mcp.core` module (core protocol types)
+- Implemented `mcp.logger` module (logging utilities)
+- Updated CMake for module scanning (`CMAKE_CXX_SCAN_FOR_MODULES`)
+- Module test infrastructure created
+- Formatted with clang-format
+
+### Module Usage
+
+**New code can now use C++ modules:**
+```cpp
+// Include third-party dependencies first
+#include <nlohmann/json.hpp>
+
+// Then import MCP modules
+import mcp.core;
+import mcp.logger;
+
+// Use module exports
+mcp::json params = {{"key", "value"}};
+mcp::request req = mcp::request::create("method", params);
+mcp::log_info("Server started");
+```
+
+**Available modules:**
+- `mcp.core` - Core protocol types (request, response, error codes, json)
+- `mcp.logger` - Logging utilities
+
+**Important:** Files importing `mcp.core` must include `<nlohmann/json.hpp>` before the import to use `mcp::json` types. This is because nlohmann-json is in the module's global fragment and consumers need the complete type definition.
+
+**Note:** Modules use traditional `#include` directives for standard library headers for maximum compatibility.
+
+**Coexistence:** During migration, both traditional headers and modules are available. Old code continues to work with `#include` directives.
+
+### Documentation
 
 For detailed information, see:
+- **[PHASE_3_COMPLETION_SUMMARY.md](PHASE_3_COMPLETION_SUMMARY.md)** - Phase 3 implementation details and build instructions
 - **[MODULES_MIGRATION_PLAN.md](MODULES_MIGRATION_PLAN.md)** - Comprehensive 10-phase migration plan
+- **[PHASE_1_MODULES_COMPLETION.md](PHASE_1_MODULES_COMPLETION.md)** - Phase 1 summary
+- **[PHASE_2_LINUX_REMOVAL_SUMMARY.md](PHASE_2_LINUX_REMOVAL_SUMMARY.md)** - Phase 2 summary
 - **[PLATFORM_AUDIT_SUMMARY.md](PLATFORM_AUDIT_SUMMARY.md)** - Platform-specific code audit
 
 **Impact on Users**: 
-- **Linux/macOS users**: This version will be Windows-only after migration
-- **Windows users**: No breaking changes expected, improved build times with modules
-- **Timeline**: Platform cleanup begins Phase 2, full migration complete by Phase 10
+- **Linux/macOS users**: This version is Windows-only
+- **Windows users**: No breaking changes, improved build times with modules
+- **Module adoption**: Optional during transition, will become mandatory by Phase 10
 
 ## Protocol Conformance and Testing
 
