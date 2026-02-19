@@ -46,95 +46,18 @@ jobs:
       
       - name: Build
         run: cmake --build --preset ci --target server_example
-      
-      - name: Start MCP server
-        shell: pwsh
-        run: |
-          # Debug: Check if binary exists
-          Write-Host "Checking for server binary..."
-          if (-not (Test-Path "./build/ci/examples/Release")) {
-            Write-Host "❌ Build directory not found"
-            Write-Host "Available build directories:"
-            Get-ChildItem -Path "./build/" -ErrorAction SilentlyContinue
-            exit 1
-          }
-          
-          if (-not (Test-Path "./build/ci/examples/Release/server_example.exe")) {
-            Write-Host "❌ server_example.exe binary not found"
-            exit 1
-          }
-          
-          Write-Host "✅ server_example.exe binary found"
-          
-          # Start server in background
-          $process = Start-Process -FilePath "./build/ci/examples/Release/server_example.exe" `
-            -ArgumentList "--host", "127.0.0.1", "--port", "3001" `
-            -RedirectStandardOutput "server.log" `
-            -RedirectStandardError "server.log" `
-            -NoNewWindow `
-            -PassThru
-          
-          $SERVER_PID = $process.Id
-          "SERVER_PID=$SERVER_PID" | Out-File -FilePath $env:GITHUB_ENV -Append
-          Write-Host "Started server with PID: $SERVER_PID"
-          
-          # Give server a moment to start
-          Start-Sleep -Seconds 2
-          
-          # Wait for server to be ready (max 30 seconds)
-          Write-Host "Waiting for server to start..."
-          for ($i = 1; $i -le 60; $i++) {
-            try {
-              $response = Invoke-WebRequest -Uri "http://127.0.0.1:3001/mcp" -TimeoutSec 2 -ErrorAction SilentlyContinue
-              if ($response) {
-                Write-Host "✅ Server is ready"
-                Get-Content server.log -Tail 10 -ErrorAction SilentlyContinue
-                exit 0
-              }
-            } catch {
-              # Connection might be open but SSE hangs, check if port is listening
-            }
-            
-            # Check if process is still running
-            if (-not (Get-Process -Id $SERVER_PID -ErrorAction SilentlyContinue)) {
-              Write-Host "❌ Server process has died"
-              Write-Host "Server log:"
-              Get-Content server.log -ErrorAction SilentlyContinue
-              exit 1
-            }
-            
-            # Check if port is listening
-            $connection = Test-NetConnection -ComputerName 127.0.0.1 -Port 3001 -InformationLevel Quiet -WarningAction SilentlyContinue
-            if ($connection) {
-              Write-Host "✅ Server port is open and responding"
-              Get-Content server.log -Tail 10 -ErrorAction SilentlyContinue
-              exit 0
-            }
-            
-            Start-Sleep -Milliseconds 500
-          }
-          
-          Write-Host "❌ Server failed to start within 30 seconds"
-          Write-Host "Checking if server process is still running..."
-          if (Get-Process -Id $SERVER_PID -ErrorAction SilentlyContinue) {
-            Write-Host "⚠️  Server process is running but not responding"
-          } else {
-            Write-Host "❌ Server process has died"
-          }
-          Write-Host ""
-          Write-Host "=== Full Server Log ==="
-          Get-Content server.log -ErrorAction SilentlyContinue
-          exit 1
-      
-      - name: Run conformance tests
-        uses: modelcontextprotocol/conformance@v0.1.14
+
+      - name: Setup Node.js for conformance build
+        uses: actions/setup-node@v4
         with:
-          mode: server
-          url: http://127.0.0.1:3001/mcp
-          suite: active
-          expected-failures: ./conformance-baseline.yml
-          verbose: true
-      
+          node-version: 22
+
+      - name: Run conformance tests
+        shell: pwsh
+        run: >-
+          ./.github/scripts/run-conformance-tests.ps1
+          -ExpectedFailures ./conformance-baseline.yml
+
       - name: Upload conformance results
         if: always()
         uses: actions/upload-artifact@v4
@@ -143,26 +66,23 @@ jobs:
           path: results/
           retention-days: 30
           if-no-files-found: warn
-      
+
       - name: Upload server logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: server-logs
-          path: server.log
+          path: |
+            server-stdout.log
+            server-stderr.log
           retention-days: 30
           if-no-files-found: warn
-      
-      - name: Stop server
+
+      - name: Stop server (safety net)
         if: always()
         shell: pwsh
         run: |
           if ($env:SERVER_PID) {
-            Write-Host "Stopping server (PID: $env:SERVER_PID)..."
-            try {
-              Stop-Process -Id $env:SERVER_PID -Force -ErrorAction SilentlyContinue
-              Write-Host "Server stopped"
-            } catch {
-              Write-Host "Failed to stop server: $_"
-            }
+            Write-Host "Safety-net stop for PID $env:SERVER_PID"
+            Stop-Process -Id $env:SERVER_PID -Force -ErrorAction SilentlyContinue
           }
