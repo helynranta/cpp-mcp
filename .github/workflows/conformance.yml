@@ -45,21 +45,6 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/start-mcp-server.ps1
       
-      - name: Setup Node.js for conformance CLI
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Build conformance tool from source
-        shell: pwsh
-        run: |
-          git clone --depth 1 --branch v0.1.14 https://github.com/modelcontextprotocol/conformance.git "${{ runner.temp }}\conformance"
-          Push-Location "${{ runner.temp }}\conformance"
-          npm ci
-          npm run build
-          Pop-Location
-          Write-Host "Conformance tool built at: ${{ runner.temp }}\conformance\dist\index.js"
-
       - name: Verify server health
         shell: pwsh
         run: |
@@ -89,14 +74,13 @@ jobs:
           }
 
       - name: Run conformance tests
-        shell: pwsh
-        run: |
-          node "${{ runner.temp }}\conformance\dist\index.js" `
-            server `
-            --url http://127.0.0.1:3001/mcp `
-            --suite active `
-            --expected-failures "${{ github.workspace }}\conformance-baseline.yml" `
-            --verbose
+        uses: modelcontextprotocol/conformance@v0.1.13
+        with:
+          mode: server
+          url: http://127.0.0.1:3001/mcp
+          suite: active
+          expected-failures: ./conformance-baseline.yml
+          verbose: true
       
       - name: Upload conformance results
         if: always()
