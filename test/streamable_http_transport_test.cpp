@@ -466,13 +466,19 @@ BOOST_AUTO_TEST_CASE(DISABLED_CorsHeadersIncludeAccept) {
 // without session IDs, each request is handled independently
 BOOST_AUTO_TEST_CASE(ConcurrentStatelessRequestsWork) {
     // Make multiple stateless requests concurrently
+    // Use initialize requests since they don't require prior session state
     const int num_requests = 5;
     std::vector<std::thread> threads;
     std::vector<bool> results(num_requests, false);
 
     for (int i = 0; i < num_requests; ++i) {
         threads.emplace_back([this, i, &results]() {
-            json test_request = {{"jsonrpc", "2.0"}, {"id", i + 1}, {"method", "tools/list"}};
+            json test_request = {{"jsonrpc", "2.0"},
+                                 {"id", i + 1},
+                                 {"method", "initialize"},
+                                 {"params",
+                                  {{"protocolVersion", MCP_VERSION},
+                                   {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
             http::headers_map empty_headers; // No session ID
             auto res = http_client->post("/mcp", empty_headers, test_request.dump(), "application/json");
@@ -499,7 +505,12 @@ BOOST_AUTO_TEST_CASE(SequentialStatelessRequestsWork) {
     const int num_requests = 5;
 
     for (int i = 0; i < num_requests; ++i) {
-        json test_request = {{"jsonrpc", "2.0"}, {"id", i + 1}, {"method", "tools/list"}};
+        json test_request = {{"jsonrpc", "2.0"},
+                             {"id", i + 1},
+                             {"method", "initialize"},
+                             {"params",
+                              {{"protocolVersion", MCP_VERSION},
+                               {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
         http::headers_map empty_headers; // No session ID
         auto res = http_client->post("/mcp", empty_headers, test_request.dump(), "application/json");
@@ -510,7 +521,7 @@ BOOST_AUTO_TEST_CASE(SequentialStatelessRequestsWork) {
         // Parse response to ensure it's valid
         json body = json::parse(res.body);
         BOOST_CHECK(body.contains("result"));
-        BOOST_CHECK(body["result"].contains("tools"));
+        BOOST_CHECK(body["result"].contains("protocolVersion"));
     }
 }
 
