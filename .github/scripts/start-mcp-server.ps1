@@ -1,25 +1,39 @@
 $ErrorActionPreference = "Stop"
 
-$serverExePath = "./build/ci-windows/examples/Release/server_example.exe"
+$serverExePath = $null
 $stdoutLogPath = "server-stdout.log"
 $stderrLogPath = "server-stderr.log"
 $hostName = "127.0.0.1"
 $port = 3001
 
 Write-Host "Checking for server binary..."
-if (-not (Test-Path "./build/ci-windows/examples/Release")) {
-  Write-Host "❌ Build directory not found"
+if (-not (Test-Path "./build/ci-windows/examples")) {
+  Write-Host "❌ Build output directory not found"
   Write-Host "Available build directories:"
   Get-ChildItem -Path "./build/" -ErrorAction SilentlyContinue
   exit 1
 }
 
-if (-not (Test-Path $serverExePath)) {
+$candidateServerPaths = @(
+  "./build/ci-windows/examples/server_example.exe",
+  "./build/ci-windows/examples/Release/server_example.exe"
+)
+
+foreach ($candidate in $candidateServerPaths) {
+  if (Test-Path $candidate) {
+    $serverExePath = $candidate
+    break
+  }
+}
+
+if (-not $serverExePath) {
   Write-Host "❌ server_example.exe binary not found"
+  Write-Host "Looked in:"
+  $candidateServerPaths | ForEach-Object { Write-Host "  - $_" }
   exit 1
 }
 
-Write-Host "✅ server_example.exe binary found"
+Write-Host "✅ server_example.exe binary found at: $serverExePath"
 
 $process = Start-Process -FilePath $serverExePath `
   -ArgumentList "--host", $hostName, "--port", "$port" `
