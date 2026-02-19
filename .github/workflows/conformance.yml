@@ -48,16 +48,54 @@ jobs:
       - name: Setup Node.js for conformance CLI
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-      
+          node-version: 20
+
+      - name: Build conformance tool from source
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch v0.1.14 https://github.com/modelcontextprotocol/conformance.git "${{ runner.temp }}\conformance"
+          Push-Location "${{ runner.temp }}\conformance"
+          npm ci
+          npm run build
+          Pop-Location
+          Write-Host "Conformance tool built at: ${{ runner.temp }}\conformance\dist\index.js"
+
+      - name: Verify server health
+        shell: pwsh
+        run: |
+          # Check process is alive
+          if ($env:SERVER_PID) {
+            if (-not (Get-Process -Id $env:SERVER_PID -ErrorAction SilentlyContinue)) {
+              Write-Host "❌ Server process died before tests!"
+              Write-Host "=== Server stdout ==="
+              Get-Content server-stdout.log -ErrorAction SilentlyContinue
+              Write-Host "=== Server stderr ==="
+              Get-Content server-stderr.log -ErrorAction SilentlyContinue
+              exit 1
+            }
+            Write-Host "✅ Server process running (PID: $env:SERVER_PID)"
+          }
+          # HTTP smoke test
+          try {
+            $body = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"health-check","version":"1.0"}}}'
+            $r = Invoke-WebRequest -Uri "http://127.0.0.1:3001/mcp" -Method POST -ContentType "application/json" -Body $body -TimeoutSec 10
+            Write-Host "✅ HTTP smoke test passed (status $($r.StatusCode))"
+            Write-Host "Response: $($r.Content.Substring(0, [Math]::Min(300, $r.Content.Length)))"
+          } catch {
+            Write-Host "❌ HTTP smoke test failed: $_"
+            Write-Host "=== Server stderr (last 20 lines) ==="
+            Get-Content server-stderr.log -Tail 20 -ErrorAction SilentlyContinue
+            exit 1
+          }
+
       - name: Run conformance tests
         shell: pwsh
         run: |
-          npx --yes @modelcontextprotocol/conformance@0.1.14 `
+          node "${{ runner.temp }}\conformance\dist\index.js" `
             server `
             --url http://127.0.0.1:3001/mcp `
             --suite active `
-            --expected-failures ./conformance-baseline.yml `
+            --expected-failures "${{ github.workspace }}\conformance-baseline.yml" `
             --verbose
       
       - name: Upload conformance results
