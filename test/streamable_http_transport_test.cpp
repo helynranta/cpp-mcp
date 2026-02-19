@@ -473,12 +473,12 @@ BOOST_AUTO_TEST_CASE(ConcurrentStatelessRequestsWork) {
 
     for (int i = 0; i < num_requests; ++i) {
         threads.emplace_back([this, i, &results]() {
-            json test_request = {{"jsonrpc", "2.0"},
-                                 {"id", i + 1},
-                                 {"method", "initialize"},
-                                 {"params",
-                                  {{"protocolVersion", MCP_VERSION},
-                                   {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+            json test_request = {
+                {"jsonrpc", "2.0"},
+                {"id", i + 1},
+                {"method", "initialize"},
+                {"params",
+                 {{"protocolVersion", MCP_VERSION}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
             http::headers_map empty_headers; // No session ID
             auto res = http_client->post("/mcp", empty_headers, test_request.dump(), "application/json");
@@ -505,12 +505,11 @@ BOOST_AUTO_TEST_CASE(SequentialStatelessRequestsWork) {
     const int num_requests = 5;
 
     for (int i = 0; i < num_requests; ++i) {
-        json test_request = {{"jsonrpc", "2.0"},
-                             {"id", i + 1},
-                             {"method", "initialize"},
-                             {"params",
-                              {{"protocolVersion", MCP_VERSION},
-                               {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+        json test_request = {
+            {"jsonrpc", "2.0"},
+            {"id", i + 1},
+            {"method", "initialize"},
+            {"params", {{"protocolVersion", MCP_VERSION}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
         http::headers_map empty_headers; // No session ID
         auto res = http_client->post("/mcp", empty_headers, test_request.dump(), "application/json");
