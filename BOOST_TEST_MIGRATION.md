@@ -142,7 +142,7 @@ BOOST_CHECK(it != container.end());   // Works fine
 
 ### Build with Tests
 ```bash
-cmake -B build \
+cmake -B build -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
   -DMCP_BUILD_TESTS=ON \
   -DVCPKG_MANIFEST_FEATURES="tests"

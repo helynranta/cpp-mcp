@@ -528,7 +528,7 @@ cd build && ctest -V
 ```bash
 # Clean build and full test
 rm -rf build
-cmake -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
   -DMCP_BUILD_TESTS=ON -DVCPKG_MANIFEST_FEATURES="tests"
 cmake --build build --config Release
 cd build && ctest -V

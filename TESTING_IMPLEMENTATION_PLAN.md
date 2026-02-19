@@ -154,7 +154,7 @@ Update README and add testing documentation to help developers understand how to
 **Local Testing:**
 ```bash
 # Configure with vcpkg
-cmake -B build \
+cmake -B build -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake \
   -DMCP_BUILD_TESTS=ON
 

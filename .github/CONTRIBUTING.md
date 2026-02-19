@@ -34,7 +34,7 @@ cmake --preset dev-release
 cmake --build --preset dev-release
 
 # OR manual configuration
-cmake -B build -DMCP_BUILD_TESTS=ON \
+cmake -B build -G Ninja -DMCP_BUILD_TESTS=ON \
   -DVCPKG_MANIFEST_FEATURES="tests" \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 cmake --build build --config Release -j$(nproc)
