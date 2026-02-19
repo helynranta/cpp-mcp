@@ -155,7 +155,7 @@ Tasks are organized as GitHub issues with specific labels:
 
 All code changes must be reviewed:
 - **Self-review** - Review your own changes before submitting
-- **Automated checks** - CI/CD pipeline must pass (builds on Linux and Windows)
+- **Automated checks** - CI/CD pipeline must pass (Windows build)
 - **Style compliance** - clang-format checks must pass in CI
 - **Peer review** - At least one approval required from another contributor
 - **Test validation** - All tests must pass in CI
@@ -268,9 +268,8 @@ All dependencies are managed through vcpkg manifest mode and automatically insta
 
 The project uses GitHub Actions for continuous integration:
 
-- **Platforms tested:** Ubuntu, Windows
+- **Platform tested:** Windows
 - **Build configurations:** Release
-
 - **Test framework:** Boost.Test
 - **Dependency management:** vcpkg with binary caching
 
@@ -281,13 +280,12 @@ The project uses GitHub Actions for continuous integration:
 - Manual workflow dispatch
 
 **vcpkg Binary Caching:**
-- Both Linux and Windows use file-based cache stored in GitHub Actions cache
+- Windows builds use file-based cache stored in GitHub Actions cache
   - Uses `files` provider to store binaries locally
   - GitHub Actions cache persists between runs
   - Cache key based on vcpkg.json and vcpkg-configuration.json hashes
 - First build: Dependencies are built and cached
 - Subsequent builds: Pre-built binaries are downloaded, significantly reducing build time
-- Cache is automatically managed per platform
 
 **Requirements for merge:**
 - ✅ All builds must succeed
@@ -419,15 +417,13 @@ cmake --preset dev-debug
 cmake --build --preset dev-debug
 ctest --preset dev-debug
 
-# Sanitizers (Linux/macOS only)
-cmake --preset sanitizer-address
-cmake --build --preset sanitizer-address
-ctest --preset sanitizer-address
+# Production release
+cmake --preset release
+cmake --build --preset release
 
-# Code coverage (Linux/macOS only)
-cmake --preset coverage
-cmake --build --preset coverage
-ctest --preset coverage
+# Release with SSL
+cmake --preset ssl
+cmake --build --preset ssl
 
 # List all presets
 cmake --list-presets
@@ -441,7 +437,7 @@ cmake -B build -G Ninja -DMCP_BUILD_TESTS=ON \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 
 # Build
-cmake --build build --config Release -j$(nproc)
+cmake --build build --config Release
 
 # Test
 cd build && ctest -V
@@ -450,7 +446,8 @@ cd build && ctest -V
 cd build && ctest -R mcp_tests -V
 
 # Clean build
-rm -rf build && cmake -B build -G Ninja ...
+Remove-Item -Recurse -Force build
+cmake -B build -G Ninja ...
 ```
 
 ### Commit Message Format

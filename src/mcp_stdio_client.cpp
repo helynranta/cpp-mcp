@@ -9,21 +9,12 @@
 
 #include "mcp_stdio_client.h"
 
-#if defined(_WIN32)
-    #include <io.h>
-    #include <windows.h>
-#else
-    #include <fcntl.h>
-    #include <signal.h>
-    #include <sys/types.h>
-    #include <sys/wait.h>
-    #include <unistd.h>
-#endif
-
 #include <chrono>
 #include <cstring>
+#include <io.h>
 #include <iostream>
 #include <sstream>
+#include <windows.h>
 
 namespace mcp {
 
@@ -205,7 +196,6 @@ bool stdio_client::start_server_process() {
         throw std::runtime_error("Unsupported type");
     };
 
-#if defined(_WIN32)
     // Windows implementation
     SECURITY_ATTRIBUTES sa;
     sa.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -313,132 +303,6 @@ bool stdio_client::start_server_process() {
     DWORD timeout = 100; // milliseconds
     SetNamedPipeHandleState(stdout_pipe_[0], &mode, NULL, &timeout);
 
-#else
-    // POSIX implementation
-    // Create pipes
-    if (pipe(stdin_pipe_) == -1) {
-        LOG_ERROR("Failed to create stdin pipe: ", strerror(errno));
-        return false;
-    }
-
-    if (pipe(stdout_pipe_) == -1) {
-        LOG_ERROR("Failed to create stdout pipe: ", strerror(errno));
-        close(stdin_pipe_[0]);
-        close(stdin_pipe_[1]);
-        return false;
-    }
-
-    // Create child process
-    process_id_ = fork();
-
-    if (process_id_ == -1) {
-        LOG_ERROR("Failed to fork process: ", strerror(errno));
-        close(stdin_pipe_[0]);
-        close(stdin_pipe_[1]);
-        close(stdout_pipe_[0]);
-        close(stdout_pipe_[1]);
-        return false;
-    }
-
-    if (process_id_ == 0) {
-        // Child process
-
-        // Set environment variables
-        if (!env_vars_.empty()) {
-            for (const auto& [key, value] : env_vars_.items()) {
-                std::string env_var = key + "=" + convert_to_string(value);
-                if (putenv(const_cast<char*>(env_var.c_str())) != 0) {
-                    LOG_ERROR("Failed to set environment variable: ", key);
-                }
-            }
-        }
-
-        // Close unnecessary pipe ends
-        close(stdin_pipe_[1]);  // Close write end
-        close(stdout_pipe_[0]); // Close read end
-
-        // Redirect standard input/output
-        if (dup2(stdin_pipe_[0], STDIN_FILENO) == -1) {
-            LOG_ERROR("Failed to redirect stdin: ", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-
-        if (dup2(stdout_pipe_[1], STDOUT_FILENO) == -1) {
-            LOG_ERROR("Failed to redirect stdout: ", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-
-        // Close already redirected file descriptors
-        close(stdin_pipe_[0]);
-        close(stdout_pipe_[1]);
-
-        // Set non-blocking mode
-        // int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-        // fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-
-        // Execute command
-        std::vector<std::string> args;
-        std::istringstream iss(command_);
-        std::string arg;
-
-        while (iss >> arg) {
-            args.push_back(arg);
-        }
-
-        std::vector<char*> c_args;
-        for (auto& a : args) {
-            c_args.push_back(const_cast<char*>(a.c_str()));
-        }
-        c_args.push_back(nullptr);
-
-        execvp(c_args[0], c_args.data());
-
-        // If execvp returns, it means an error occurred
-        LOG_ERROR("Failed to execute command: ", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    // Parent process
-
-    // Close unnecessary pipe ends
-    close(stdin_pipe_[0]);  // Close read end
-    close(stdout_pipe_[1]); // Close write end
-
-    // Set non-blocking mode
-    int flags = fcntl(stdout_pipe_[0], F_GETFL, 0);
-    fcntl(stdout_pipe_[0], F_SETFL, flags | O_NONBLOCK);
-
-    // Check if process is still running
-    int status;
-    pid_t result = waitpid(process_id_, &status, WNOHANG);
-
-    if (result == process_id_) {
-        LOG_ERROR("Server process exited immediately with status: ", WEXITSTATUS(status));
-        running_ = false;
-
-        if (read_thread_ && read_thread_->joinable()) {
-            read_thread_->join();
-        }
-
-        close(stdin_pipe_[1]);
-        close(stdout_pipe_[0]);
-
-        return false;
-    } else if (result == -1) {
-        LOG_ERROR("Failed to check process status: ", strerror(errno));
-        running_ = false;
-
-        if (read_thread_ && read_thread_->joinable()) {
-            read_thread_->join();
-        }
-
-        close(stdin_pipe_[1]);
-        close(stdout_pipe_[0]);
-
-        return false;
-    }
-#endif
-
     running_ = true;
 
     // Start read thread
@@ -447,7 +311,6 @@ bool stdio_client::start_server_process() {
     // Wait for a while to ensure process starts
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-#if defined(_WIN32)
     // Check if process is still running
     DWORD exit_code;
     if (GetExitCodeProcess(process_handle_, &exit_code) && exit_code != STILL_ACTIVE) {
@@ -464,7 +327,6 @@ bool stdio_client::start_server_process() {
 
         return false;
     }
-#endif
 
     LOG_INFO("Server process started successfully, PID: ", process_id_);
     return true;
@@ -479,7 +341,6 @@ void stdio_client::stop_server_process() {
 
     running_ = false;
 
-#if defined(_WIN32)
     // Windows implementation
     // Close pipes
     if (stdin_pipe_[1] != NULL) {
@@ -517,50 +378,6 @@ void stdio_client::stop_server_process() {
         process_handle_ = NULL;
         process_id_ = -1;
     }
-#else
-    // POSIX implementation
-    // Close pipes
-    if (stdin_pipe_[1] != -1) {
-        close(stdin_pipe_[1]);
-        stdin_pipe_[1] = -1;
-    }
-
-    if (stdout_pipe_[0] != -1) {
-        close(stdout_pipe_[0]);
-        stdout_pipe_[0] = -1;
-    }
-
-    // Wait for read thread to finish
-    if (read_thread_ && read_thread_->joinable()) {
-        read_thread_->join();
-    }
-
-    // Terminate process
-    if (process_id_ > 0) {
-        LOG_INFO("Sending SIGTERM to process: ", process_id_);
-        kill(process_id_, SIGTERM);
-
-        // Wait for process to finish
-        int status;
-        pid_t result = waitpid(process_id_, &status, WNOHANG);
-
-        if (result == 0) {
-            // Process is still running, wait for a while
-            std::this_thread::sleep_for(std::chrono::seconds(2));
-
-            result = waitpid(process_id_, &status, WNOHANG);
-
-            if (result == 0) {
-                // Process is still running, force termination
-                LOG_WARNING("Process did not terminate, sending SIGKILL");
-                kill(process_id_, SIGKILL);
-                waitpid(process_id_, &status, 0);
-            }
-        }
-
-        process_id_ = -1;
-    }
-#endif
 
     LOG_INFO("Server process stopped");
 }
@@ -572,7 +389,6 @@ void stdio_client::read_thread_func() {
     char buffer[buffer_size];
     std::string data_buffer;
 
-#if defined(_WIN32)
     // Windows implementation
     DWORD bytes_read;
     int retry_count = 0;
@@ -705,93 +521,6 @@ void stdio_client::read_thread_func() {
             }
         }
     }
-#else
-    // POSIX implementation
-    while (running_) {
-        // Read data
-        ssize_t bytes_read = read(stdout_pipe_[0], buffer, buffer_size - 1);
-
-        if (bytes_read > 0) {
-            buffer[bytes_read] = '\0';
-            data_buffer.append(buffer, bytes_read);
-
-            // Process complete JSON-RPC message
-            size_t pos = 0;
-            while ((pos = data_buffer.find('\n')) != std::string::npos) {
-                std::string line = data_buffer.substr(0, pos);
-                data_buffer.erase(0, pos + 1);
-
-                if (!line.empty()) {
-                    try {
-                        json message = json::parse(line);
-
-                        if (message.contains("jsonrpc") && message["jsonrpc"] == "2.0") {
-                            if (message.contains("id") && !message["id"].is_null()) {
-                                // This is a response
-                                json id = message["id"];
-
-                                std::lock_guard<std::mutex> lock(response_mutex_);
-                                auto it = pending_requests_.find(id);
-
-                                if (it != pending_requests_.end()) {
-                                    if (message.contains("result")) {
-                                        it->second.set_value(message["result"]);
-                                    } else if (message.contains("error")) {
-                                        json error_result = {{"isError", true}, {"error", message["error"]}};
-                                        it->second.set_value(error_result);
-                                    } else {
-                                        it->second.set_value(json::object());
-                                    }
-
-                                    pending_requests_.erase(it);
-                                } else {
-                                    LOG_WARNING("Received response for unknown request ID: ", id);
-                                }
-                            } else if (message.contains("method")) {
-                                // This is a request or notification
-                                std::string method = message["method"].get<std::string>();
-                                LOG_INFO("Received request/notification: ", method);
-
-                                // Handle progress notifications
-                                if (method == "notifications/progress" && message.contains("params")) {
-                                    progress_handler handler_copy;
-                                    {
-                                        std::lock_guard<std::mutex> lock(mutex_);
-                                        handler_copy = progress_handler_;
-                                    }
-
-                                    if (handler_copy) {
-                                        try {
-                                            progress_notification notif = progress_notification::from_params(
-                                                message["params"]);
-                                            handler_copy(notif);
-                                        } catch (const std::exception& e) {
-                                            LOG_ERROR("Error handling progress notification: ", e.what());
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } catch (const json::exception& e) {
-                        LOG_INFO("message: ", line);
-                    }
-                }
-            }
-        } else if (bytes_read == 0) {
-            // Pipe is closed
-            LOG_WARNING("Pipe closed by server");
-            break;
-        } else if (bytes_read == -1) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // No data to read in non-blocking mode
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            } else {
-                LOG_ERROR("Error reading from pipe: ", strerror(errno));
-                break;
-            }
-        }
-    }
-#endif
 
     LOG_INFO("Read thread stopped");
 }
@@ -804,7 +533,6 @@ json stdio_client::send_jsonrpc(const request& req) {
     json req_json = req.to_json();
     std::string req_str = req_json.dump() + "\n";
 
-#if defined(_WIN32)
     // Windows implementation
     DWORD bytes_written;
     BOOL success = WriteFile(stdin_pipe_[1], req_str.c_str(), static_cast<DWORD>(req_str.size()), &bytes_written, NULL);
@@ -813,15 +541,6 @@ json stdio_client::send_jsonrpc(const request& req) {
         LOG_ERROR("Failed to write complete request: ", GetLastError());
         throw mcp_exception(error_code::internal_error, "Failed to write to pipe");
     }
-#else
-    // POSIX implementation
-    ssize_t bytes_written = write(stdin_pipe_[1], req_str.c_str(), req_str.size());
-
-    if (bytes_written != static_cast<ssize_t>(req_str.size())) {
-        LOG_ERROR("Failed to write complete request: ", strerror(errno));
-        throw mcp_exception(error_code::internal_error, "Failed to write to pipe");
-    }
-#endif
 
     // If this is a notification, no need to wait for a response
     if (req.is_notification()) {

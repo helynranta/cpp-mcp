@@ -88,7 +88,7 @@ This implementation claims conformance with **MCP 2025-11-25** specification wit
 - **Total Tests**: 201+ tests
 - **Pass Rate**: 100%
 - **Test Framework**: Boost.Test 1.90.0
-- **CI/CD**: GitHub Actions on Linux and Windows
+- **CI/CD**: GitHub Actions on Windows
 
 ### Official Conformance Testing
 
@@ -130,16 +130,17 @@ See [CONFORMANCE.md](CONFORMANCE.md) and [CONFORMANCE_TESTING.md](CONFORMANCE_TE
 
 ### Requirements
 
+**Windows-Only Project**: This project targets Windows exclusively with MSVC compiler. Linux and macOS are not supported.
+
 **C++23 Compiler Required**: This project requires a C++23-compliant compiler. No backwards compatibility with older C++ standards is provided.
 
-Minimum compiler versions (with experimental C++23 support):
-- **GCC** 11 or later (GCC 13+ recommended for production)
-- **Clang** 12 or later (Clang 15+ recommended for production)
-- **MSVC** 2019 (v142) or later (MSVC 2022+ recommended for production)
+Minimum compiler version:
+- **MSVC** 2019 (v142) or later (MSVC 2022+ recommended for C++20 modules support)
 
 **Build Tools:**
 - **CMake** 3.25 or later
 - **Ninja** build system (used by all CMake presets for improved performance and C++ module support)
+- **Visual Studio 2019 or 2022** (for MSVC toolchain)
 
 ### Dependencies
 
@@ -158,28 +159,20 @@ This project provides CMake presets for standardized builds. Presets simplify co
 
 **Prerequisites:** 
 - Ensure `VCPKG_ROOT` environment variable points to your vcpkg installation.
-- **Windows users**: Run CMake from a Visual Studio Developer Command Prompt or PowerShell with MSVC environment loaded to ensure Ninja uses MSVC (not MinGW). The Windows-specific presets (`*-windows`) are configured to use `cl.exe`.
+- Run CMake from a Visual Studio Developer Command Prompt or PowerShell with MSVC environment loaded.
 
 **Available Presets:**
 
 Development presets:
 - `dev-debug` - Debug build with tests enabled
 - `dev-release` - Release build with tests enabled
-- `dev-debug-windows` - Debug build with tests for Windows using MSVC (Windows only)
-- `dev-release-windows` - Release build with tests for Windows using MSVC (Windows only)
-- `sanitizer-address` - Debug with AddressSanitizer (Linux/macOS only)
-- `sanitizer-undefined` - Debug with UndefinedBehaviorSanitizer (Linux/macOS only)
-- `coverage` - Debug with code coverage instrumentation (Linux/macOS only)
 
 Production presets:
 - `release` - Optimized release build without tests
 - `ssl` - Release build with SSL support
-- `release-windows` - Optimized release build for Windows using MSVC (Windows only)
-- `ssl-windows` - Release with SSL for Windows using MSVC (Windows only)
 
 CI presets:
-- `ci-linux` - CI build for Linux
-- `ci-windows` - CI build for Windows with MSVC
+- `ci` - CI build for automated testing
 
 **Quick Start:**
 
@@ -214,17 +207,6 @@ cmake --build --preset release
 # Build with SSL support
 cmake --preset ssl
 cmake --build --preset ssl
-
-# Run sanitizers (Linux/macOS)
-cmake --preset sanitizer-address
-cmake --build --preset sanitizer-address
-ctest --preset sanitizer-address
-
-# Code coverage (Linux/macOS)
-cmake --preset coverage
-cmake --build --preset coverage
-ctest --preset coverage
-# Then generate coverage report with lcov/gcov
 ```
 
 **List all available presets:**
@@ -328,15 +310,12 @@ These tests verify:
 - HTTP request/response types work correctly
 - Boost.Asio I/O context can be created
 
-#### Platform-Specific Notes
-
-**Linux:**
-- vcpkg typically installs to `/usr/local/share/vcpkg`
-- Use `VCPKG_ROOT` environment variable or specify the full path
+#### Installation Notes
 
 **Windows:**
 - vcpkg installs to `C:\vcpkg` by default
 - Use PowerShell syntax: `$env:VCPKG_ROOT`
+- Ensure Visual Studio or Build Tools are installed for MSVC
 
 For more information, see:
 - [Boost.Beast Documentation](https://www.boost.org/doc/libs/release/libs/beast/doc/html/index.html)
@@ -1396,27 +1375,33 @@ For a complete working example, see [`examples/session_state_example.cpp`](examp
 
 ## Using TLS clients and servers
 
-### Creating test certificates on Linux
+### Creating test certificates on Windows
+
+Use OpenSSL for Windows to generate test certificates:
+
 1. Generate Certificate Authority (CA) private key
-    ```bash
+    ```powershell
     openssl genrsa -out ca.key.pem 2048
     ```
-1. Generate CA certificate
-    ```bash
+2. Generate CA certificate
+    ```powershell
     openssl req -x509 -new -nodes -key ca.key.pem -sha256 -days 1 -out ca.cert.pem -subj "/CN=Test CA"
     ```
-1. Generate server private key
-    ```bash
+3. Generate server private key
+    ```powershell
     openssl genrsa -out server.key.pem 2048
     ```
-1. Generate Certificate Signing Request (CSR)
-    ```
+4. Generate Certificate Signing Request (CSR)
+    ```powershell
     openssl req -new -key server.key.pem -out server.csr.pem -subj "/O=TestServer/OU=Dev/CN=localhost"
     ```
-1. Generate server certificate signed by CA
-    ```
+5. Generate server certificate signed by CA
+    ```powershell
     openssl x509 -req -in server.csr.pem -CA ca.cert.pem -CAkey ca.key.pem -CAcreateserial -out server.cert.pem -days 1 -sha256
     ```
+
+**Note**: OpenSSL can be installed via vcpkg or downloaded from [slproweb.com/products/Win32OpenSSL.html](https://slproweb.com/products/Win32OpenSSL.html)
+
 ### Setting up an HTTPs server
 
 ```cpp

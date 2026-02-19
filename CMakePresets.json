@@ -36,7 +36,7 @@
       "name": "dev-debug",
       "displayName": "Development Debug",
       "description": "Debug build with tests enabled for development",
-      "inherits": "base",
+      "inherits": "windows-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "MCP_BUILD_TESTS": "ON",
@@ -47,28 +47,6 @@
       "name": "dev-release",
       "displayName": "Development Release",
       "description": "Release build with tests enabled for development",
-      "inherits": "base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "MCP_BUILD_TESTS": "ON",
-        "VCPKG_MANIFEST_FEATURES": "tests"
-      }
-    },
-    {
-      "name": "dev-debug-windows",
-      "displayName": "Development Debug (Windows/MSVC)",
-      "description": "Debug build with tests for Windows using MSVC",
-      "inherits": "windows-base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "MCP_BUILD_TESTS": "ON",
-        "VCPKG_MANIFEST_FEATURES": "tests"
-      }
-    },
-    {
-      "name": "dev-release-windows",
-      "displayName": "Development Release (Windows/MSVC)",
-      "description": "Release build with tests for Windows using MSVC",
       "inherits": "windows-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
@@ -77,23 +55,9 @@
       }
     },
     {
-      "name": "ci-linux",
-      "displayName": "CI Linux",
-      "description": "Release build with tests for Linux CI",
-      "inherits": "base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "MCP_BUILD_TESTS": "ON",
-        "VCPKG_MANIFEST_FEATURES": "tests"
-      },
-      "environment": {
-        "VCPKG_BINARY_SOURCES": "clear;files,${sourceDir}/vcpkg-cache,readwrite"
-      }
-    },
-    {
-      "name": "ci-windows",
-      "displayName": "CI Windows",
-      "description": "Release build with tests for Windows CI",
+      "name": "ci",
+      "displayName": "CI Build",
+      "description": "Release build with tests for CI",
       "inherits": "windows-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
@@ -102,64 +66,13 @@
       },
       "environment": {
         "VCPKG_BINARY_SOURCES": "clear;files,${sourceDir}/vcpkg-cache,readwrite"
-      }
-    },
-    {
-      "name": "sanitizer-address",
-      "displayName": "Sanitizer - Address",
-      "description": "Debug build with AddressSanitizer and tests",
-      "inherits": "dev-debug",
-      "cacheVariables": {
-        "CMAKE_CXX_FLAGS": "-fsanitize=address -fno-omit-frame-pointer -g",
-        "CMAKE_C_FLAGS": "-fsanitize=address -fno-omit-frame-pointer -g",
-        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address",
-        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address"
-      },
-      "condition": {
-        "type": "notEquals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "sanitizer-undefined",
-      "displayName": "Sanitizer - Undefined Behavior",
-      "description": "Debug build with UndefinedBehaviorSanitizer and tests",
-      "inherits": "dev-debug",
-      "cacheVariables": {
-        "CMAKE_CXX_FLAGS": "-fsanitize=undefined -fno-omit-frame-pointer -g",
-        "CMAKE_C_FLAGS": "-fsanitize=undefined -fno-omit-frame-pointer -g",
-        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=undefined",
-        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=undefined"
-      },
-      "condition": {
-        "type": "notEquals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "coverage",
-      "displayName": "Code Coverage",
-      "description": "Debug build with code coverage instrumentation",
-      "inherits": "dev-debug",
-      "cacheVariables": {
-        "CMAKE_CXX_FLAGS": "--coverage -fprofile-arcs -ftest-coverage",
-        "CMAKE_C_FLAGS": "--coverage -fprofile-arcs -ftest-coverage",
-        "CMAKE_EXE_LINKER_FLAGS": "--coverage",
-        "CMAKE_SHARED_LINKER_FLAGS": "--coverage"
-      },
-      "condition": {
-        "type": "notEquals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
       }
     },
     {
       "name": "release",
       "displayName": "Release",
       "description": "Optimized release build without tests",
-      "inherits": "base",
+      "inherits": "windows-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "MCP_BUILD_TESTS": "OFF"
@@ -170,25 +83,6 @@
       "displayName": "Release with SSL",
       "description": "Release build with SSL support enabled",
       "inherits": "release",
-      "cacheVariables": {
-        "MCP_SSL": "ON"
-      }
-    },
-    {
-      "name": "release-windows",
-      "displayName": "Release (Windows/MSVC)",
-      "description": "Optimized release build without tests for Windows using MSVC",
-      "inherits": "windows-base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "MCP_BUILD_TESTS": "OFF"
-      }
-    },
-    {
-      "name": "ssl-windows",
-      "displayName": "Release with SSL (Windows/MSVC)",
-      "description": "Release build with SSL support for Windows using MSVC",
-      "inherits": "release-windows",
       "cacheVariables": {
         "MCP_SSL": "ON"
       }
@@ -208,48 +102,11 @@
       "configuration": "Release"
     },
     {
-      "name": "dev-debug-windows",
-      "configurePreset": "dev-debug-windows",
-      "description": "Build using dev-debug-windows configuration",
-      "configuration": "Debug"
-    },
-    {
-      "name": "dev-release-windows",
-      "configurePreset": "dev-release-windows",
-      "description": "Build using dev-release-windows configuration",
-      "configuration": "Release"
-    },
-    {
-      "name": "ci-linux",
-      "configurePreset": "ci-linux",
-      "description": "Build using CI Linux configuration",
+      "name": "ci",
+      "configurePreset": "ci",
+      "description": "Build using CI configuration",
       "configuration": "Release",
       "jobs": 0
-    },
-    {
-      "name": "ci-windows",
-      "configurePreset": "ci-windows",
-      "description": "Build using CI Windows configuration",
-      "configuration": "Release",
-      "jobs": 0
-    },
-    {
-      "name": "sanitizer-address",
-      "configurePreset": "sanitizer-address",
-      "description": "Build with AddressSanitizer",
-      "configuration": "Debug"
-    },
-    {
-      "name": "sanitizer-undefined",
-      "configurePreset": "sanitizer-undefined",
-      "description": "Build with UndefinedBehaviorSanitizer",
-      "configuration": "Debug"
-    },
-    {
-      "name": "coverage",
-      "configurePreset": "coverage",
-      "description": "Build with code coverage",
-      "configuration": "Debug"
     },
     {
       "name": "release",
@@ -262,18 +119,6 @@
       "configurePreset": "ssl",
       "description": "Build release with SSL",
       "configuration": "Release"
-    },
-    {
-      "name": "release-windows",
-      "configurePreset": "release-windows",
-      "description": "Build optimized release for Windows/MSVC",
-      "configuration": "Release"
-    },
-    {
-      "name": "ssl-windows",
-      "configurePreset": "ssl-windows",
-      "description": "Build release with SSL for Windows/MSVC",
-      "configuration": "Release"
     }
   ],
   "testPresets": [
@@ -281,6 +126,7 @@
       "name": "dev-debug",
       "configurePreset": "dev-debug",
       "description": "Run tests for dev-debug configuration",
+      "configuration": "Debug",
       "output": {
         "outputOnFailure": true
       },
@@ -293,31 +139,6 @@
       "name": "dev-release",
       "configurePreset": "dev-release",
       "description": "Run tests for dev-release configuration",
-      "output": {
-        "outputOnFailure": true
-      },
-      "execution": {
-        "noTestsAction": "error",
-        "jobs": 0
-      }
-    },
-    {
-      "name": "dev-debug-windows",
-      "configurePreset": "dev-debug-windows",
-      "description": "Run tests for dev-debug-windows configuration",
-      "configuration": "Debug",
-      "output": {
-        "outputOnFailure": true
-      },
-      "execution": {
-        "noTestsAction": "error",
-        "jobs": 0
-      }
-    },
-    {
-      "name": "dev-release-windows",
-      "configurePreset": "dev-release-windows",
-      "description": "Run tests for dev-release-windows configuration",
       "configuration": "Release",
       "output": {
         "outputOnFailure": true
@@ -328,58 +149,13 @@
       }
     },
     {
-      "name": "ci-linux",
-      "configurePreset": "ci-linux",
-      "description": "Run tests for CI Linux in parallel",
-      "output": {
-        "outputOnFailure": true,
-        "verbosity": "verbose"
-      },
-      "execution": {
-        "jobs": 0
-      }
-    },
-    {
-      "name": "ci-windows",
-      "configurePreset": "ci-windows",
+      "name": "ci",
+      "configurePreset": "ci",
       "configuration": "Release",
-      "description": "Run tests for CI Windows in parallel",
+      "description": "Run tests for CI",
       "output": {
         "outputOnFailure": true,
         "verbosity": "verbose"
-      },
-      "execution": {
-        "jobs": 0
-      }
-    },
-    {
-      "name": "sanitizer-address",
-      "configurePreset": "sanitizer-address",
-      "description": "Run tests with AddressSanitizer",
-      "output": {
-        "outputOnFailure": true
-      },
-      "execution": {
-        "jobs": 0
-      }
-    },
-    {
-      "name": "sanitizer-undefined",
-      "configurePreset": "sanitizer-undefined",
-      "description": "Run tests with UndefinedBehaviorSanitizer",
-      "output": {
-        "outputOnFailure": true
-      },
-      "execution": {
-        "jobs": 0
-      }
-    },
-    {
-      "name": "coverage",
-      "configurePreset": "coverage",
-      "description": "Run tests for coverage analysis",
-      "output": {
-        "outputOnFailure": true
       },
       "execution": {
         "jobs": 0
