@@ -49,6 +49,26 @@ For the full specification and protocol details, see the official MCP resources 
 - **Extensible Architecture**: Easy to extend with new resource types and tools
 - **Multi-Transport Support**: Supports HTTP and standard input/output (stdio) communication methods
 
+## 🚧 C++ Modules Migration (In Progress)
+
+This project is undergoing a migration to C++20 Modules with a **Windows-first approach**. As part of this modernization:
+
+- **Platform Strategy**: Migrating to Windows-only, dropping Linux and macOS support
+- **Module Architecture**: Converting headers to C++20 module interface units (`.cppm`)
+- **Compiler Target**: MSVC 2022+ with native C++20 Modules support
+- **Timeline**: 14-week phased migration (10 phases)
+
+**Current Status**: **Phase 1 Complete** - Preparation & Planning
+
+For detailed information, see:
+- **[MODULES_MIGRATION_PLAN.md](MODULES_MIGRATION_PLAN.md)** - Comprehensive 10-phase migration plan
+- **[PLATFORM_AUDIT_SUMMARY.md](PLATFORM_AUDIT_SUMMARY.md)** - Platform-specific code audit
+
+**Impact on Users**: 
+- **Linux/macOS users**: This version will be Windows-only after migration
+- **Windows users**: No breaking changes expected, improved build times with modules
+- **Timeline**: Platform cleanup begins Phase 2, full migration complete by Phase 10
+
 ## Protocol Conformance and Testing
 
 This implementation claims conformance with **MCP 2025-11-25** specification with core features based on 2025-06-18 implementation.
