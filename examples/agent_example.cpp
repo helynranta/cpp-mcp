@@ -18,10 +18,8 @@
 #include "mcp_server.h"
 #include "mcp_sse_client.h"
 
-#if defined(_WIN32)
-    #include <fcntl.h>
-    #include <io.h>
-#endif
+#include <fcntl.h>
+#include <io.h>
 
 struct Config {
     // LLM Config
@@ -158,7 +156,6 @@ static mcp::json calculator_handler(const mcp::json& params, const std::string& 
 }
 
 static bool readline_utf8(std::string& line, bool multiline_input) {
-#if defined(_WIN32)
     std::wstring wline;
     if (!std::getline(std::wcin, wline)) {
         // Input stream is bad or EOF received
@@ -170,13 +167,7 @@ static bool readline_utf8(std::string& line, bool multiline_input) {
     int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wline[0], (int)wline.size(), NULL, 0, NULL, NULL);
     line.resize(size_needed);
     WideCharToMultiByte(CP_UTF8, 0, &wline[0], (int)wline.size(), &line[0], size_needed, NULL, NULL);
-#else
-    if (!std::getline(std::cin, line)) {
-        // Input stream is bad or EOF received
-        line.clear();
-        return false;
-    }
-#endif
+
     if (!line.empty()) {
         char last = line.back();
         if (last == '/') { // Always return control on '/' symbol
@@ -286,11 +277,9 @@ static void display_message(const mcp::json& message) {
 }
 
 int main(int argc, char* argv[]) {
-#if defined(_WIN32)
     SetConsoleCP(CP_UTF8);
     SetConsoleOutputCP(CP_UTF8);
     _setmode(_fileno(stdin), _O_WTEXT); // wide character input mode
-#endif
 
     // Global config
     config = parse_config(argc, argv);

@@ -26,9 +26,7 @@
 #include <thread>
 #include <vector>
 
-#if defined(_WIN32)
-    #include <windows.h>
-#endif
+#include <windows.h>
 
 namespace mcp {
 
@@ -186,20 +184,12 @@ private:
     // Process ID
     int process_id_ = -1;
 
-#if defined(_WIN32)
     // Windows platform specific process handle
     HANDLE process_handle_ = NULL;
 
     // Standard input/output pipes (Windows)
     HANDLE stdin_pipe_[2] = {NULL, NULL};
     HANDLE stdout_pipe_[2] = {NULL, NULL};
-#else
-    // Standard input pipe (POSIX)
-    int stdin_pipe_[2] = {-1, -1};
-
-    // Standard output pipe (POSIX)
-    int stdout_pipe_[2] = {-1, -1};
-#endif
 
     // Read thread
     std::unique_ptr<std::thread> read_thread_;
