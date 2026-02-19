@@ -11,6 +11,9 @@
 // Include nlohmann/json before importing modules that use it
 #include <nlohmann/json.hpp>
 
+// Import standard library module (requires CMake 3.28+ with experimental support)
+import std;
+
 // Import C++ modules
 import mcp.core;
 import mcp.logger;
