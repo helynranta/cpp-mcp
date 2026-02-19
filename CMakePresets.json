@@ -285,7 +285,8 @@
         "outputOnFailure": true
       },
       "execution": {
-        "noTestsAction": "error"
+        "noTestsAction": "error",
+        "jobs": 0
       }
     },
     {
@@ -296,7 +297,8 @@
         "outputOnFailure": true
       },
       "execution": {
-        "noTestsAction": "error"
+        "noTestsAction": "error",
+        "jobs": 0
       }
     },
     {
@@ -308,7 +310,8 @@
         "outputOnFailure": true
       },
       "execution": {
-        "noTestsAction": "error"
+        "noTestsAction": "error",
+        "jobs": 0
       }
     },
     {
@@ -320,36 +323,33 @@
         "outputOnFailure": true
       },
       "execution": {
-        "noTestsAction": "error"
+        "noTestsAction": "error",
+        "jobs": 0
       }
     },
     {
       "name": "ci-linux",
       "configurePreset": "ci-linux",
-      "description": "Run tests for CI Linux",
+      "description": "Run tests for CI Linux in parallel",
       "output": {
         "outputOnFailure": true,
         "verbosity": "verbose"
       },
-      "filter": {
-        "include": {
-          "name": "mcp_tests"
-        }
+      "execution": {
+        "jobs": 0
       }
     },
     {
       "name": "ci-windows",
       "configurePreset": "ci-windows",
       "configuration": "Release",
-      "description": "Run tests for CI Windows",
+      "description": "Run tests for CI Windows in parallel",
       "output": {
         "outputOnFailure": true,
         "verbosity": "verbose"
       },
-      "filter": {
-        "include": {
-          "name": "mcp_tests"
-        }
+      "execution": {
+        "jobs": 0
       }
     },
     {
@@ -358,6 +358,9 @@
       "description": "Run tests with AddressSanitizer",
       "output": {
         "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 0
       }
     },
     {
@@ -366,6 +369,9 @@
       "description": "Run tests with UndefinedBehaviorSanitizer",
       "output": {
         "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 0
       }
     },
     {
@@ -374,6 +380,9 @@
       "description": "Run tests for coverage analysis",
       "output": {
         "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 0
       }
     }
   ]
