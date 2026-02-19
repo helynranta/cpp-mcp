@@ -114,27 +114,27 @@ inline void set_log_level(log_level level) {
     mcp::logger::instance().set_level(level);
 }
 
-} // export namespace mcp
+} // namespace mcp
 
 // Export convenience macros as inline functions to avoid preprocessor issues
 export namespace mcp {
-    template <typename... Args>
-    inline void log_debug(Args&&... args) {
-        logger::instance().debug(std::forward<Args>(args)...);
-    }
-
-    template <typename... Args>
-    inline void log_info(Args&&... args) {
-        logger::instance().info(std::forward<Args>(args)...);
-    }
-
-    template <typename... Args>
-    inline void log_warning(Args&&... args) {
-        logger::instance().warning(std::forward<Args>(args)...);
-    }
-
-    template <typename... Args>
-    inline void log_error(Args&&... args) {
-        logger::instance().error(std::forward<Args>(args)...);
-    }
+template <typename... Args>
+inline void log_debug(Args&&... args) {
+    logger::instance().debug(std::forward<Args>(args)...);
 }
+
+template <typename... Args>
+inline void log_info(Args&&... args) {
+    logger::instance().info(std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+inline void log_warning(Args&&... args) {
+    logger::instance().warning(std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+inline void log_error(Args&&... args) {
+    logger::instance().error(std::forward<Args>(args)...);
+}
+} // namespace mcp

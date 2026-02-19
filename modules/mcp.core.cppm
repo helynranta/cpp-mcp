@@ -40,8 +40,7 @@ enum class error_code {
 // MCP exception class
 class mcp_exception : public std::runtime_error {
 public:
-    mcp_exception(error_code code, const std::string& message) 
-        : std::runtime_error(message), code_(code) {}
+    mcp_exception(error_code code, const std::string& message) : std::runtime_error(message), code_(code) {}
 
     error_code code() const { return code_; }
 
@@ -177,9 +176,7 @@ struct elicitation_params {
     std::string message;
     json requested_schema;
 
-    json to_json() const { 
-        return {{"message", message}, {"requestedSchema", requested_schema}}; 
-    }
+    json to_json() const { return {{"message", message}, {"requestedSchema", requested_schema}}; }
 
     static elicitation_params from_json(const json& j) {
         elicitation_params params;
@@ -345,4 +342,4 @@ struct complete_result {
     }
 };
 
-} // export namespace mcp
+} // namespace mcp
