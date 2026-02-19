@@ -88,7 +88,7 @@ This implementation claims conformance with **MCP 2025-11-25** specification wit
 - **Total Tests**: 201+ tests
 - **Pass Rate**: 100%
 - **Test Framework**: Boost.Test 1.90.0
-- **CI/CD**: GitHub Actions on Linux and Windows
+- **CI/CD**: GitHub Actions on Windows
 
 ### Official Conformance Testing
 
@@ -130,16 +130,17 @@ See [CONFORMANCE.md](CONFORMANCE.md) and [CONFORMANCE_TESTING.md](CONFORMANCE_TE
 
 ### Requirements
 
+**Windows-Only Project**: This project targets Windows exclusively with MSVC compiler. Linux and macOS are not supported.
+
 **C++23 Compiler Required**: This project requires a C++23-compliant compiler. No backwards compatibility with older C++ standards is provided.
 
-Minimum compiler versions (with experimental C++23 support):
-- **GCC** 11 or later (GCC 13+ recommended for production)
-- **Clang** 12 or later (Clang 15+ recommended for production)
-- **MSVC** 2019 (v142) or later (MSVC 2022+ recommended for production)
+Minimum compiler version:
+- **MSVC** 2019 (v142) or later (MSVC 2022+ recommended for C++20 modules support)
 
 **Build Tools:**
 - **CMake** 3.25 or later
 - **Ninja** build system (used by all CMake presets for improved performance and C++ module support)
+- **Visual Studio 2019 or 2022** (for MSVC toolchain)
 
 ### Dependencies
 
@@ -158,28 +159,20 @@ This project provides CMake presets for standardized builds. Presets simplify co
 
 **Prerequisites:** 
 - Ensure `VCPKG_ROOT` environment variable points to your vcpkg installation.
-- **Windows users**: Run CMake from a Visual Studio Developer Command Prompt or PowerShell with MSVC environment loaded to ensure Ninja uses MSVC (not MinGW). The Windows-specific presets (`*-windows`) are configured to use `cl.exe`.
+- Run CMake from a Visual Studio Developer Command Prompt or PowerShell with MSVC environment loaded.
 
 **Available Presets:**
 
 Development presets:
 - `dev-debug` - Debug build with tests enabled
 - `dev-release` - Release build with tests enabled
-- `dev-debug-windows` - Debug build with tests for Windows using MSVC (Windows only)
-- `dev-release-windows` - Release build with tests for Windows using MSVC (Windows only)
-- `sanitizer-address` - Debug with AddressSanitizer (Linux/macOS only)
-- `sanitizer-undefined` - Debug with UndefinedBehaviorSanitizer (Linux/macOS only)
-- `coverage` - Debug with code coverage instrumentation (Linux/macOS only)
 
 Production presets:
 - `release` - Optimized release build without tests
 - `ssl` - Release build with SSL support
-- `release-windows` - Optimized release build for Windows using MSVC (Windows only)
-- `ssl-windows` - Release with SSL for Windows using MSVC (Windows only)
 
 CI presets:
-- `ci-linux` - CI build for Linux
-- `ci-windows` - CI build for Windows with MSVC
+- `ci` - CI build for automated testing
 
 **Quick Start:**
 
@@ -214,17 +207,6 @@ cmake --build --preset release
 # Build with SSL support
 cmake --preset ssl
 cmake --build --preset ssl
-
-# Run sanitizers (Linux/macOS)
-cmake --preset sanitizer-address
-cmake --build --preset sanitizer-address
-ctest --preset sanitizer-address
-
-# Code coverage (Linux/macOS)
-cmake --preset coverage
-cmake --build --preset coverage
-ctest --preset coverage
-# Then generate coverage report with lcov/gcov
 ```
 
 **List all available presets:**
