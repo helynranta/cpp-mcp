@@ -84,18 +84,24 @@ This project is undergoing a migration to C++20 Modules with a **Windows-first a
 
 **New code can now use C++ modules:**
 ```cpp
-// Import MCP modules
+// Include third-party dependencies first
+#include <nlohmann/json.hpp>
+
+// Then import MCP modules
 import mcp.core;
 import mcp.logger;
 
 // Use module exports
+mcp::json params = {{"key", "value"}};
 mcp::request req = mcp::request::create("method", params);
 mcp::log_info("Server started");
 ```
 
 **Available modules:**
-- `mcp.core` - Core protocol types (request, response, error codes)
+- `mcp.core` - Core protocol types (request, response, error codes, json)
 - `mcp.logger` - Logging utilities
+
+**Important:** Files importing `mcp.core` must include `<nlohmann/json.hpp>` before the import to use `mcp::json` types. This is because nlohmann-json is in the module's global fragment and consumers need the complete type definition.
 
 **Note:** Modules use traditional `#include` directives for standard library headers for maximum compatibility.
 
