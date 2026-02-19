@@ -76,16 +76,15 @@ This project is undergoing a migration to C++20 Modules with a **Windows-first a
 - Created `modules/` directory structure
 - Implemented `mcp.core` module (core protocol types)
 - Implemented `mcp.logger` module (logging utilities)
-- Updated CMake for module scanning and `import std;` support
-- Enabled `CMAKE_CXX_SCAN_FOR_MODULES` and `CMAKE_CXX_MODULE_STD`
+- Updated CMake for module scanning (`CMAKE_CXX_SCAN_FOR_MODULES`)
 - Module test infrastructure created
+- Formatted with clang-format
 
 ### Module Usage
 
 **New code can now use C++ modules:**
 ```cpp
-// Import standard library and MCP modules
-import std;
+// Import MCP modules
 import mcp.core;
 import mcp.logger;
 
@@ -95,9 +94,10 @@ mcp::log_info("Server started");
 ```
 
 **Available modules:**
-- `std` - C++ standard library module (CMake 3.28+)
 - `mcp.core` - Core protocol types (request, response, error codes)
 - `mcp.logger` - Logging utilities
+
+**Note:** Modules use traditional `#include` directives for standard library headers for maximum compatibility.
 
 **Coexistence:** During migration, both traditional headers and modules are available. Old code continues to work with `#include` directives.
 
@@ -184,7 +184,7 @@ Minimum compiler version:
 - **MSVC** 2019 (v142) or later (MSVC 2022+ recommended for C++20 modules support)
 
 **Build Tools:**
-- **CMake** 3.28 or later (for `import std;` support)
+- **CMake** 3.25 or later
 - **Ninja** build system (used by all CMake presets for improved performance and C++ module support)
 - **Visual Studio 2019 or 2022** (for MSVC toolchain)
 
