@@ -116,6 +116,10 @@ Minimum compiler versions (with experimental C++23 support):
 - **Clang** 12 or later (Clang 15+ recommended for production)
 - **MSVC** 2019 (v142) or later (MSVC 2022+ recommended for production)
 
+**Build Tools:**
+- **CMake** 3.25 or later
+- **Ninja** build system (used by all CMake presets for improved performance and C++ module support)
+
 ### Dependencies
 
 This project uses vcpkg for dependency management. The following dependencies are automatically fetched via vcpkg:
@@ -131,13 +135,17 @@ All Boost components are version 1.90.0 and managed through vcpkg manifest mode 
 
 This project provides CMake presets for standardized builds. Presets simplify configuration and ensure consistency across development and CI environments.
 
-**Prerequisites:** Ensure `VCPKG_ROOT` environment variable points to your vcpkg installation.
+**Prerequisites:** 
+- Ensure `VCPKG_ROOT` environment variable points to your vcpkg installation.
+- **Windows users**: Run CMake from a Visual Studio Developer Command Prompt or PowerShell with MSVC environment loaded to ensure Ninja uses MSVC (not MinGW). The Windows-specific presets (`*-windows`) are configured to use `cl.exe`.
 
 **Available Presets:**
 
 Development presets:
 - `dev-debug` - Debug build with tests enabled
 - `dev-release` - Release build with tests enabled
+- `dev-debug-windows` - Debug build with tests for Windows using MSVC (Windows only)
+- `dev-release-windows` - Release build with tests for Windows using MSVC (Windows only)
 - `sanitizer-address` - Debug with AddressSanitizer (Linux/macOS only)
 - `sanitizer-undefined` - Debug with UndefinedBehaviorSanitizer (Linux/macOS only)
 - `coverage` - Debug with code coverage instrumentation (Linux/macOS only)
@@ -145,10 +153,12 @@ Development presets:
 Production presets:
 - `release` - Optimized release build without tests
 - `ssl` - Release build with SSL support
+- `release-windows` - Optimized release build for Windows using MSVC (Windows only)
+- `ssl-windows` - Release with SSL for Windows using MSVC (Windows only)
 
 CI presets:
 - `ci-linux` - CI build for Linux
-- `ci-windows` - CI build for Windows
+- `ci-windows` - CI build for Windows with MSVC
 
 **Quick Start:**
 
@@ -206,8 +216,8 @@ cmake --list-presets
 If you prefer not to use presets or need custom configuration:
 
 ```bash
-# Configure with vcpkg toolchain
-cmake -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
+# Configure with vcpkg toolchain and Ninja generator
+cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 
 # Build
 cmake --build build --config Release
@@ -215,7 +225,7 @@ cmake --build build --config Release
 
 **Build with tests:**
 ```bash
-cmake -B build \
+cmake -B build -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
   -DMCP_BUILD_TESTS=ON \
   -DVCPKG_MANIFEST_FEATURES="tests"
@@ -226,7 +236,7 @@ cd build && ctest -V
 
 **Build with SSL support:**
 ```bash
-cmake -B build \
+cmake -B build -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
   -DMCP_SSL=ON
 
@@ -242,7 +252,7 @@ If you prefer to install Boost manually, ensure:
 Then build without the vcpkg toolchain file:
 
 ```bash
-cmake -B build
+cmake -B build -G Ninja
 cmake --build build --config Release
 ```
 
@@ -776,7 +786,7 @@ AI agent that integrates an MCP server with an external LLM API. The agent:
 **Build and run:**
 ```bash
 # Build with SSL support for HTTPS connections
-cmake -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DMCP_SSL=ON
+cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DMCP_SSL=ON
 cmake --build build --target agent_example
 
 # Run with your LLM API

@@ -113,7 +113,7 @@ cmake --build --preset dev-debug
 ctest --preset dev-debug
 
 # Manual configuration (alternative)
-cmake -B build -DMCP_BUILD_TESTS=ON \
+cmake -B build -G Ninja -DMCP_BUILD_TESTS=ON \
   -DVCPKG_MANIFEST_FEATURES="tests" \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 
@@ -436,7 +436,7 @@ cmake --list-presets
 
 # Setup
 git submodule update --init --recursive
-cmake -B build -DMCP_BUILD_TESTS=ON \
+cmake -B build -G Ninja -DMCP_BUILD_TESTS=ON \
   -DVCPKG_MANIFEST_FEATURES="tests" \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 
@@ -450,7 +450,7 @@ cd build && ctest -V
 cd build && ctest -R mcp_tests -V
 
 # Clean build
-rm -rf build && cmake -B build ...
+rm -rf build && cmake -B build -G Ninja ...
 ```
 
 ### Commit Message Format
