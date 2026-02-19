@@ -9,13 +9,12 @@
 
 #include "mcp_stdio_client.h"
 
-#include <io.h>
-#include <windows.h>
-
 #include <chrono>
 #include <cstring>
+#include <io.h>
 #include <iostream>
 #include <sstream>
+#include <windows.h>
 
 namespace mcp {
 
