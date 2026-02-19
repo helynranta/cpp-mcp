@@ -135,13 +135,17 @@ All Boost components are version 1.90.0 and managed through vcpkg manifest mode 
 
 This project provides CMake presets for standardized builds. Presets simplify configuration and ensure consistency across development and CI environments.
 
-**Prerequisites:** Ensure `VCPKG_ROOT` environment variable points to your vcpkg installation.
+**Prerequisites:** 
+- Ensure `VCPKG_ROOT` environment variable points to your vcpkg installation.
+- **Windows users**: Run CMake from a Visual Studio Developer Command Prompt or PowerShell with MSVC environment loaded to ensure Ninja uses MSVC (not MinGW). The Windows-specific presets (`*-windows`) are configured to use `cl.exe`.
 
 **Available Presets:**
 
 Development presets:
 - `dev-debug` - Debug build with tests enabled
 - `dev-release` - Release build with tests enabled
+- `dev-debug-windows` - Debug build with tests for Windows using MSVC (Windows only)
+- `dev-release-windows` - Release build with tests for Windows using MSVC (Windows only)
 - `sanitizer-address` - Debug with AddressSanitizer (Linux/macOS only)
 - `sanitizer-undefined` - Debug with UndefinedBehaviorSanitizer (Linux/macOS only)
 - `coverage` - Debug with code coverage instrumentation (Linux/macOS only)
@@ -149,10 +153,12 @@ Development presets:
 Production presets:
 - `release` - Optimized release build without tests
 - `ssl` - Release build with SSL support
+- `release-windows` - Optimized release build for Windows using MSVC (Windows only)
+- `ssl-windows` - Release with SSL for Windows using MSVC (Windows only)
 
 CI presets:
 - `ci-linux` - CI build for Linux
-- `ci-windows` - CI build for Windows
+- `ci-windows` - CI build for Windows with MSVC
 
 **Quick Start:**
 

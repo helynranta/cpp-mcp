@@ -18,6 +18,21 @@
       }
     },
     {
+      "name": "windows-base",
+      "hidden": true,
+      "description": "Base preset for Windows with MSVC compiler",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl.exe",
+        "CMAKE_CXX_COMPILER": "cl.exe"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
       "name": "dev-debug",
       "displayName": "Development Debug",
       "description": "Debug build with tests enabled for development",
@@ -33,6 +48,28 @@
       "displayName": "Development Release",
       "description": "Release build with tests enabled for development",
       "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MCP_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests"
+      }
+    },
+    {
+      "name": "dev-debug-windows",
+      "displayName": "Development Debug (Windows/MSVC)",
+      "description": "Debug build with tests for Windows using MSVC",
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MCP_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests"
+      }
+    },
+    {
+      "name": "dev-release-windows",
+      "displayName": "Development Release (Windows/MSVC)",
+      "description": "Release build with tests for Windows using MSVC",
+      "inherits": "windows-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "MCP_BUILD_TESTS": "ON",
@@ -57,7 +94,7 @@
       "name": "ci-windows",
       "displayName": "CI Windows",
       "description": "Release build with tests for Windows CI",
-      "inherits": "base",
+      "inherits": "windows-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "MCP_BUILD_TESTS": "ON",
@@ -136,6 +173,25 @@
       "cacheVariables": {
         "MCP_SSL": "ON"
       }
+    },
+    {
+      "name": "release-windows",
+      "displayName": "Release (Windows/MSVC)",
+      "description": "Optimized release build without tests for Windows using MSVC",
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MCP_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "ssl-windows",
+      "displayName": "Release with SSL (Windows/MSVC)",
+      "description": "Release build with SSL support for Windows using MSVC",
+      "inherits": "release-windows",
+      "cacheVariables": {
+        "MCP_SSL": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -149,6 +205,18 @@
       "name": "dev-release",
       "configurePreset": "dev-release",
       "description": "Build using dev-release configuration",
+      "configuration": "Release"
+    },
+    {
+      "name": "dev-debug-windows",
+      "configurePreset": "dev-debug-windows",
+      "description": "Build using dev-debug-windows configuration",
+      "configuration": "Debug"
+    },
+    {
+      "name": "dev-release-windows",
+      "configurePreset": "dev-release-windows",
+      "description": "Build using dev-release-windows configuration",
       "configuration": "Release"
     },
     {
@@ -194,6 +262,18 @@
       "configurePreset": "ssl",
       "description": "Build release with SSL",
       "configuration": "Release"
+    },
+    {
+      "name": "release-windows",
+      "configurePreset": "release-windows",
+      "description": "Build optimized release for Windows/MSVC",
+      "configuration": "Release"
+    },
+    {
+      "name": "ssl-windows",
+      "configurePreset": "ssl-windows",
+      "description": "Build release with SSL for Windows/MSVC",
+      "configuration": "Release"
     }
   ],
   "testPresets": [
@@ -212,6 +292,30 @@
       "name": "dev-release",
       "configurePreset": "dev-release",
       "description": "Run tests for dev-release configuration",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "dev-debug-windows",
+      "configurePreset": "dev-debug-windows",
+      "description": "Run tests for dev-debug-windows configuration",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "dev-release-windows",
+      "configurePreset": "dev-release-windows",
+      "description": "Run tests for dev-release-windows configuration",
+      "configuration": "Release",
       "output": {
         "outputOnFailure": true
       },
