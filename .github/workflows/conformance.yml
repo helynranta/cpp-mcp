@@ -40,48 +40,18 @@ jobs:
       
       - name: Build
         run: cmake --build --preset ci-windows --target server_example
-      
-      - name: Start MCP server
-        shell: pwsh
-        run: ./.github/scripts/start-mcp-server.ps1
-      
-      - name: Verify server health
-        shell: pwsh
-        run: |
-          # Check process is alive
-          if ($env:SERVER_PID) {
-            if (-not (Get-Process -Id $env:SERVER_PID -ErrorAction SilentlyContinue)) {
-              Write-Host "❌ Server process died before tests!"
-              Write-Host "=== Server stdout ==="
-              Get-Content server-stdout.log -ErrorAction SilentlyContinue
-              Write-Host "=== Server stderr ==="
-              Get-Content server-stderr.log -ErrorAction SilentlyContinue
-              exit 1
-            }
-            Write-Host "✅ Server process running (PID: $env:SERVER_PID)"
-          }
-          # HTTP smoke test
-          try {
-            $body = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"health-check","version":"1.0"}}}'
-            $r = Invoke-WebRequest -Uri "http://127.0.0.1:3001/mcp" -Method POST -ContentType "application/json" -Body $body -TimeoutSec 10
-            Write-Host "✅ HTTP smoke test passed (status $($r.StatusCode))"
-            Write-Host "Response: $($r.Content.Substring(0, [Math]::Min(300, $r.Content.Length)))"
-          } catch {
-            Write-Host "❌ HTTP smoke test failed: $_"
-            Write-Host "=== Server stderr (last 20 lines) ==="
-            Get-Content server-stderr.log -Tail 20 -ErrorAction SilentlyContinue
-            exit 1
-          }
+
+      - name: Setup Node.js for conformance build
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - name: Run conformance tests
-        uses: modelcontextprotocol/conformance@v0.1.13
-        with:
-          mode: server
-          url: http://127.0.0.1:3001/mcp
-          suite: active
-          expected-failures: ./conformance-baseline.yml
-          verbose: true
-      
+        shell: pwsh
+        run: >-
+          ./.github/scripts/run-conformance-tests.ps1
+          -ExpectedFailures ./conformance-baseline.yml
+
       - name: Upload conformance results
         if: always()
         uses: actions/upload-artifact@v4
@@ -90,7 +60,7 @@ jobs:
           path: results/
           retention-days: 30
           if-no-files-found: warn
-      
+
       - name: Upload server logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -101,17 +71,12 @@ jobs:
             server-stderr.log
           retention-days: 30
           if-no-files-found: warn
-      
-      - name: Stop server
+
+      - name: Stop server (safety net)
         if: always()
         shell: pwsh
         run: |
           if ($env:SERVER_PID) {
-            Write-Host "Stopping server (PID: $env:SERVER_PID)..."
-            try {
-              Stop-Process -Id $env:SERVER_PID -Force -ErrorAction SilentlyContinue
-              Write-Host "Server stopped"
-            } catch {
-              Write-Host "Failed to stop server: $_"
-            }
+            Write-Host "Safety-net stop for PID $env:SERVER_PID"
+            Stop-Process -Id $env:SERVER_PID -Force -ErrorAction SilentlyContinue
           }
