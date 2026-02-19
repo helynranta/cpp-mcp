@@ -27,8 +27,8 @@ add_library(${TARGET} STATIC
 target_sources(${TARGET}
     PUBLIC
         FILE_SET CXX_MODULES FILES
-            ../modules/mcp.core.cppm
-            ../modules/mcp.logger.cppm
+            modules/mcp.core.cppm
+            modules/mcp.logger.cppm
 )
 
 target_link_libraries(${TARGET} PUBLIC ${CMAKE_THREAD_LIBS_INIT})

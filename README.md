@@ -73,7 +73,7 @@ This project is undergoing a migration to C++20 Modules with a **Windows-first a
 - Updated CI/CD workflows
 
 ✅ **Phase 3: Core Infrastructure** (Complete)
-- Created `modules/` directory structure
+- Created `src/modules/` directory structure
 - Implemented `mcp.core` module (core protocol types)
 - Implemented `mcp.logger` module (logging utilities)
 - Updated CMake for module scanning (`CMAKE_CXX_SCAN_FOR_MODULES`)

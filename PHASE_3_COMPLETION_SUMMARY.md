@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Phase 3 of the C++ Modules Migration has been successfully completed. The foundational module infrastructure is now in place, with the `modules/` directory created and the first two core modules (`mcp.core` and `mcp.logger`) implemented. The CMake build system has been updated to support C++ module scanning, compilation, and **standard library modules** (`import std;`).
+Phase 3 of the C++ Modules Migration has been successfully completed. The foundational module infrastructure is now in place, with the `src/modules/` directory created and the first two core modules (`mcp.core` and `mcp.logger`) implemented. The CMake build system has been updated to support C++ module scanning and compilation.
 
 **Key Achievement:** Module infrastructure is ready for Windows/MSVC compilation with modern C++23 features including standard library modules. The modules are designed according to C++20/23 standards and follow the architecture defined in MODULES_MIGRATION_PLAN.md.
 
@@ -22,7 +22,7 @@ Phase 3 of the C++ Modules Migration has been successfully completed. The founda
 ### ✅ Primary Objectives
 
 1. **Module Directory Structure Created**
-   - Created `modules/` directory in project root
+   - Created `src/modules/` directory within the src directory
    - Established naming convention: `<module.name>.cppm`
    - Ready for additional module interface files
 
@@ -55,7 +55,7 @@ Phase 3 of the C++ Modules Migration has been successfully completed. The founda
 
 ### Module Interface Files
 
-#### 1. modules/mcp.logger.cppm
+#### 1. src/modules/mcp.logger.cppm
 **Purpose:** Logging utilities module  
 **Length:** 143 lines  
 **Features:**
@@ -82,7 +82,7 @@ export namespace mcp {
 }
 ```
 
-#### 2. modules/mcp.core.cppm
+#### 2. src/modules/mcp.core.cppm
 **Purpose:** Core protocol types and definitions  
 **Length:** 353 lines  
 **Features:**
@@ -144,8 +144,8 @@ set(CMAKE_CXX_MODULE_STD ON)
 target_sources(${TARGET}
     PUBLIC
         FILE_SET CXX_MODULES FILES
-            ../modules/mcp.core.cppm
-            ../modules/mcp.logger.cppm
+            modules/mcp.core.cppm
+            modules/mcp.logger.cppm
 )
 ```
 
@@ -633,16 +633,16 @@ error: 'some_type' is not exported from module 'mcp.core'
 
 ```
 cpp-mcp/
-├── modules/                      # NEW: C++ Module interface files
-│   ├── mcp.core.cppm            # NEW: Core protocol types
-│   └── mcp.logger.cppm          # NEW: Logging utilities
+├── src/                          # Source files
+│   ├── modules/                  # NEW: C++ Module interface files
+│   │   ├── mcp.core.cppm        # NEW: Core protocol types
+│   │   └── mcp.logger.cppm      # NEW: Logging utilities
+│   ├── CMakeLists.txt           # UPDATED: Module support
+│   └── ... (implementation files)
 ├── include/                      # LEGACY: Headers (to be migrated)
 │   ├── mcp_message.h            # Source for mcp.core (partial)
 │   ├── mcp_logger.h             # Source for mcp.logger
 │   └── ... (other headers)
-├── src/                          # Implementation files
-│   ├── CMakeLists.txt           # UPDATED: Module support
-│   └── ... (implementation files)
 ├── test/                         # Test files
 │   ├── module_basic_test.cpp    # NEW: Module tests
 │   ├── CMakeLists.txt           # UPDATED: Added module test
