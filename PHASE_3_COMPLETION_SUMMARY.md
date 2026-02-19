@@ -9,9 +9,11 @@
 
 ## Executive Summary
 
-Phase 3 of the C++ Modules Migration has been successfully completed. The foundational module infrastructure is now in place, with the `modules/` directory created and the first two core modules (`mcp.core` and `mcp.logger`) implemented. The CMake build system has been updated to support C++ module scanning and compilation.
+Phase 3 of the C++ Modules Migration has been successfully completed. The foundational module infrastructure is now in place, with the `modules/` directory created and the first two core modules (`mcp.core` and `mcp.logger`) implemented. The CMake build system has been updated to support C++ module scanning, compilation, and **standard library modules** (`import std;`).
 
-**Key Achievement:** Module infrastructure is ready for Windows/MSVC compilation. The modules are designed according to C++20/23 standards and follow the architecture defined in MODULES_MIGRATION_PLAN.md.
+**Key Achievement:** Module infrastructure is ready for Windows/MSVC compilation with modern C++23 features including standard library modules. The modules are designed according to C++20/23 standards and follow the architecture defined in MODULES_MIGRATION_PLAN.md.
+
+**Major Enhancement:** Enabled `import std;` support via CMake 3.28+ experimental flag, allowing cleaner module code and faster compilation by using the pre-built standard library module instead of individual header includes.
 
 ---
 
@@ -31,8 +33,11 @@ Phase 3 of the C++ Modules Migration has been successfully completed. The founda
 
 3. **Build System Updated**
    - Enabled `CMAKE_CXX_SCAN_FOR_MODULES` in CMakeLists.txt
+   - Enabled `CMAKE_CXX_MODULE_STD` for standard library modules
+   - Set experimental flag for `import std;` support
    - Updated `src/CMakeLists.txt` with `FILE_SET CXX_MODULES`
    - Module scanning configured for automatic dependency resolution
+   - CMake minimum version raised to 3.28
 
 4. **Test Infrastructure Created**
    - Implemented `module_basic_test.cpp` with 7 test cases
@@ -52,8 +57,9 @@ Phase 3 of the C++ Modules Migration has been successfully completed. The founda
 
 #### 1. modules/mcp.logger.cppm
 **Purpose:** Logging utilities module  
-**Length:** 153 lines  
+**Length:** 143 lines  
 **Features:**
+- Uses `import std;` instead of individual standard library headers
 - `log_level` enum (debug, info, warning, error)
 - `logger` singleton class with template logging methods
 - Inline helper functions replacing macros
@@ -63,6 +69,8 @@ Phase 3 of the C++ Modules Migration has been successfully completed. The founda
 **Exports:**
 ```cpp
 export module mcp.logger;
+import std;  // Standard library module
+
 export namespace mcp {
     enum class log_level;
     class logger;
@@ -76,8 +84,9 @@ export namespace mcp {
 
 #### 2. modules/mcp.core.cppm
 **Purpose:** Core protocol types and definitions  
-**Length:** 365 lines  
+**Length:** 353 lines  
 **Features:**
+- Uses `import std;` for standard library
 - `json` type alias (nlohmann::ordered_json)
 - `MCP_VERSION` constant ("2025-11-25")
 - `error_code` enum with JSON-RPC codes
@@ -85,10 +94,13 @@ export namespace mcp {
 - `request` and `response` structs
 - `elicitation_params`, `elicitation_action`, `elicitation_result`
 - `complete_request` and `complete_result`
+- Third-party nlohmann/json in global module fragment
 
 **Exports:**
 ```cpp
 export module mcp.core;
+import std;  // Standard library module
+
 export namespace mcp {
     using json = nlohmann::ordered_json;
     inline constexpr const char* MCP_VERSION;
@@ -109,12 +121,20 @@ export namespace mcp {
 #### CMakeLists.txt Changes
 **Added:**
 ```cmake
-# Enable C++ Modules support (CMake 3.25+)
+# Enable C++ Modules support (CMake 3.28+)
 # This enables CMake's native module scanning and dependency tracking
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+
+# Enable experimental C++ standard library module support (CMake 3.28+)
+# This allows using 'import std;' instead of including standard headers
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "0e5b6991-d74f-4b3d-a41c-cf096e0b2508")
+set(CMAKE_CXX_MODULE_STD ON)
 ```
 
-**Impact:** CMake will now scan `.cppm` files for module dependencies and build them in the correct order.
+**Impact:** 
+- CMake will now scan `.cppm` files for module dependencies and build them in the correct order
+- Standard library can be imported as a module (`import std;`) instead of individual headers
+- Faster compilation with pre-built standard library module
 
 #### src/CMakeLists.txt Changes
 **Added:**
@@ -197,6 +217,12 @@ mcp.client → mcp.core, mcp.logger
    - `log_debug()`, `log_info()`, etc. as template functions
    - Module-friendly approach
 
+5. **Standard Library Modules (`import std;`)**
+   - Enabled with CMake 3.28+ experimental flag
+   - Replaces individual `#include <header>` directives
+   - Faster compilation with pre-built standard library
+   - Cleaner module code without standard header includes
+
 ---
 
 ## Build Instructions
@@ -206,7 +232,7 @@ mcp.client → mcp.core, mcp.logger
 **Required:**
 - Windows 10 or later
 - MSVC 2022 or later (C++20 modules support)
-- CMake 3.25 or higher
+- CMake 3.28 or higher (for `import std;` support)
 - Ninja build system
 - vcpkg package manager
 
@@ -281,12 +307,19 @@ LOG_INFO("Message");
 
 **New Way (Modules):**
 ```cpp
+import std;  // Import entire standard library as a module
 import mcp.core;
 import mcp.logger;
 
 mcp::request req = mcp::request::create("method");
 mcp::log_info("Message");
 ```
+
+**Benefits of `import std;`:**
+- Single import replaces all `#include <header>` directives
+- Faster compilation (standard library pre-compiled)
+- Reduced preprocessing time
+- Better build isolation
 
 ### Key Differences
 
@@ -345,8 +378,8 @@ During migration, both systems coexist:
 - **Incremental Builds:** Changing a module interface rebuilds dependents
 
 ### Module System
-- **No Standard Library Modules:** Not using `import std;` (not yet stable)
-- **Third-Party Headers:** Must be in global module fragment
+- **Standard Library Modules:** Using `import std;` via CMake 3.28+ experimental flag
+- **Third-Party Headers:** Must be in global module fragment (e.g., nlohmann/json)
 - **Macro Exports:** Macros cannot be exported from modules
 
 ---

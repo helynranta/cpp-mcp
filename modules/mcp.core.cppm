@@ -8,19 +8,14 @@
 
 module;
 
-// Global module fragment - include standard library and third-party headers
-#include <atomic>
-#include <functional>
-#include <map>
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include <vector>
-
-// Include nlohmann/json in global module fragment (third-party code)
+// Global module fragment - include third-party headers only
+// Third-party code must be included, not imported
 #include "json.hpp"
 
 export module mcp.core;
+
+// Import C++ standard library as a module (CMake 3.28+ with CMAKE_CXX_MODULE_STD)
+import std;
 
 // Export core MCP types and definitions
 export namespace mcp {

@@ -8,15 +8,12 @@
 
 module;
 
-// Global module fragment - include standard library headers
-#include <chrono>
-#include <iomanip>
-#include <iostream>
-#include <mutex>
-#include <sstream>
-#include <string>
+// Global module fragment - no standard library includes needed with import std
 
 export module mcp.logger;
+
+// Import C++ standard library as a module (CMake 3.28+ with CMAKE_CXX_MODULE_STD)
+import std;
 
 // Export the logger functionality
 export namespace mcp {

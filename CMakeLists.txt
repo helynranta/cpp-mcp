@@ -1,12 +1,19 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.28)
 project(MCP VERSION 2025.11.25 LANGUAGES CXX)
 
-# Verify CMake version for C++ module support and modern features
-if(CMAKE_VERSION VERSION_LESS "3.25")
-    message(FATAL_ERROR "CMake 3.25 or higher is required for robust C++ module support and modern CMake features. "
+# Verify CMake version for C++ standard library module support
+if(CMAKE_VERSION VERSION_LESS "3.28")
+    message(FATAL_ERROR "CMake 3.28 or higher is required for C++ standard library module support (import std). "
                         "Current version: ${CMAKE_VERSION}. "
                         "Please upgrade CMake from https://cmake.org/download/")
 endif()
+
+# Enable experimental C++ standard library module support (CMake 3.28+)
+# This allows using 'import std;' in module code instead of including standard headers
+# GUID is required for experimental features and may change between CMake versions
+# See: https://cmake.org/cmake/help/latest/variable/CMAKE_EXPERIMENTAL_CXX_IMPORT_STD.html
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "0e5b6991-d74f-4b3d-a41c-cf096e0b2508")
+set(CMAKE_CXX_MODULE_STD ON)
 
 set(CMAKE_WARN_UNUSED_CLI YES)
 

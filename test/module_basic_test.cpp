@@ -4,9 +4,12 @@
  *
  * This test verifies that:
  * 1. C++ modules compile successfully
- * 2. Module imports work correctly
+ * 2. Module imports work correctly (including import std)
  * 3. Basic module functionality is accessible
  */
+
+// Import C++ standard library module
+import std;
 
 // Import C++ modules
 import mcp.core;
