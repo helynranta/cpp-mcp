@@ -7,7 +7,7 @@ $hostName = "127.0.0.1"
 $port = 3001
 
 Write-Host "Checking for server binary..."
-if (-not (Test-Path "./build/ci-windows/examples")) {
+if (-not (Test-Path "./build/ci/examples") -and -not (Test-Path "./build/ci-windows/examples")) {
   Write-Host "❌ Build output directory not found"
   Write-Host "Available build directories:"
   Get-ChildItem -Path "./build/" -ErrorAction SilentlyContinue
@@ -15,6 +15,8 @@ if (-not (Test-Path "./build/ci-windows/examples")) {
 }
 
 $candidateServerPaths = @(
+  "./build/ci/examples/server_example.exe",
+  "./build/ci/examples/Release/server_example.exe",
   "./build/ci-windows/examples/server_example.exe",
   "./build/ci-windows/examples/Release/server_example.exe"
 )

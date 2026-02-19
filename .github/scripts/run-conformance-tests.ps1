@@ -44,7 +44,7 @@
 
     # Explicit binary path:
     .\.github\scripts\run-conformance-tests.ps1 `
-        -ServerBinary .\build\ci-windows\examples\server_example.exe
+        -ServerBinary .\build\ci\examples\server_example.exe
 #>
 param(
     [string] $ServerBinary     = "",
@@ -88,6 +88,8 @@ Write-Section "Step 1: Locate server binary"
 
 $candidates = @(
     $ServerBinary,
+    "./build/ci/examples/server_example.exe",
+    "./build/ci/examples/Release/server_example.exe",
     "./build/ci-windows/examples/server_example.exe",
     "./build/ci-windows/examples/Release/server_example.exe",
     "./build/examples/server_example.exe",

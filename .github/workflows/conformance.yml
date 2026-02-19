@@ -45,7 +45,7 @@ jobs:
         run: cmake --preset ci
       
       - name: Build
-        run: cmake --build --preset ci-windows --target server_example
+        run: cmake --build --preset ci --target server_example
 
       - name: Setup Node.js for conformance build
         uses: actions/setup-node@v4
