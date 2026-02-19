@@ -177,7 +177,7 @@ cd build && ctest -R mcp_catch2_tests -V
 
 - **vcpkg** (for dependency management)
 - **GoogleTest** (installed via vcpkg feature "tests")
-- **CMake 3.10+**
+- **CMake 3.25+** (required for C++ module support and modern CMake features)
 
 ## Success Criteria
 

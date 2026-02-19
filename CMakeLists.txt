@@ -1,5 +1,12 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.25)
 project(MCP VERSION 2025.11.25 LANGUAGES CXX)
+
+# Verify CMake version for C++ module support and modern features
+if(CMAKE_VERSION VERSION_LESS "3.25")
+    message(FATAL_ERROR "CMake 3.25 or higher is required for robust C++ module support and modern CMake features. "
+                        "Current version: ${CMAKE_VERSION}. "
+                        "Please upgrade CMake from https://cmake.org/download/")
+endif()
 
 set(CMAKE_WARN_UNUSED_CLI YES)
 

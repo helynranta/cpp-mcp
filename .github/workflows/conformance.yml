@@ -19,6 +19,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Install latest CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: '~4.2.0'
+          ninjaVersion: '^1.11.1'
+      
       - name: Setup MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
       
