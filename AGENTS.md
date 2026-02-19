@@ -155,7 +155,7 @@ Tasks are organized as GitHub issues with specific labels:
 
 All code changes must be reviewed:
 - **Self-review** - Review your own changes before submitting
-- **Automated checks** - CI/CD pipeline must pass (builds on Linux and Windows)
+- **Automated checks** - CI/CD pipeline must pass (Windows build)
 - **Style compliance** - clang-format checks must pass in CI
 - **Peer review** - At least one approval required from another contributor
 - **Test validation** - All tests must pass in CI
@@ -270,7 +270,6 @@ The project uses GitHub Actions for continuous integration:
 
 - **Platform tested:** Windows
 - **Build configurations:** Release
-
 - **Test framework:** Boost.Test
 - **Dependency management:** vcpkg with binary caching
 

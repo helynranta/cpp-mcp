@@ -310,15 +310,12 @@ These tests verify:
 - HTTP request/response types work correctly
 - Boost.Asio I/O context can be created
 
-#### Platform-Specific Notes
-
-**Linux:**
-- vcpkg typically installs to `/usr/local/share/vcpkg`
-- Use `VCPKG_ROOT` environment variable or specify the full path
+#### Installation Notes
 
 **Windows:**
 - vcpkg installs to `C:\vcpkg` by default
 - Use PowerShell syntax: `$env:VCPKG_ROOT`
+- Ensure Visual Studio or Build Tools are installed for MSVC
 
 For more information, see:
 - [Boost.Beast Documentation](https://www.boost.org/doc/libs/release/libs/beast/doc/html/index.html)
@@ -1378,27 +1375,33 @@ For a complete working example, see [`examples/session_state_example.cpp`](examp
 
 ## Using TLS clients and servers
 
-### Creating test certificates on Linux
+### Creating test certificates on Windows
+
+Use OpenSSL for Windows to generate test certificates:
+
 1. Generate Certificate Authority (CA) private key
-    ```bash
+    ```powershell
     openssl genrsa -out ca.key.pem 2048
     ```
-1. Generate CA certificate
-    ```bash
+2. Generate CA certificate
+    ```powershell
     openssl req -x509 -new -nodes -key ca.key.pem -sha256 -days 1 -out ca.cert.pem -subj "/CN=Test CA"
     ```
-1. Generate server private key
-    ```bash
+3. Generate server private key
+    ```powershell
     openssl genrsa -out server.key.pem 2048
     ```
-1. Generate Certificate Signing Request (CSR)
-    ```
+4. Generate Certificate Signing Request (CSR)
+    ```powershell
     openssl req -new -key server.key.pem -out server.csr.pem -subj "/O=TestServer/OU=Dev/CN=localhost"
     ```
-1. Generate server certificate signed by CA
-    ```
+5. Generate server certificate signed by CA
+    ```powershell
     openssl x509 -req -in server.csr.pem -CA ca.cert.pem -CAkey ca.key.pem -CAcreateserial -out server.cert.pem -days 1 -sha256
     ```
+
+**Note**: OpenSSL can be installed via vcpkg or downloaded from [slproweb.com/products/Win32OpenSSL.html](https://slproweb.com/products/Win32OpenSSL.html)
+
 ### Setting up an HTTPs server
 
 ```cpp
