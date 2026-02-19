@@ -6,7 +6,6 @@
  * framework.
  */
 
-#define BOOST_TEST_MODULE MCP_Tests
 #include "mcp_client.h"
 #include "mcp_http_factory.h"
 #include "mcp_message.h"
