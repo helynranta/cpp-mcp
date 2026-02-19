@@ -8,46 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-formatting:
-    name: Check Code Formatting
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Run clang-format check
-      run: |
-        # Find all C++ source and header files
-        files=$(find src include examples test -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cppm" \) 2>/dev/null || true)
-        
-        if [ -z "$files" ]; then
-          echo "No C++ files found to check"
-          exit 0
-        fi
-        
-        # Run clang-format in check mode
-        echo "Checking formatting for C++ files..."
-        clang-format --dry-run --Werror $files
-        
-        if [ $? -ne 0 ]; then
-          echo ""
-          echo "❌ Formatting check failed!"
-          echo ""
-          echo "Please format your code using:"
-          echo "  find src include examples test -name '*.cpp' -o -name '*.h' | xargs clang-format -i"
-          echo ""
-          echo "Or format specific files:"
-          echo "  clang-format -i <file1> <file2> ..."
-          exit 1
-        fi
-        
-        echo "✅ All files are properly formatted"
-  
-  test-windows:
-    name: Test on Windows
+  test:
+    name: Build and Test
     runs-on: windows-latest
-    needs: check-formatting
     
     env:
       VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/vcpkg-cache,readwrite'
@@ -78,11 +41,46 @@ jobs:
       with:
         vcpkgJsonGlob: 'vcpkg.json'
     
+    - name: Check code formatting
+      shell: pwsh
+      run: |
+        # Find all C++ source and header files
+        $files = Get-ChildItem -Path src,include,examples,test -Include *.cpp,*.h,*.hpp,*.cppm -Recurse -ErrorAction SilentlyContinue
+        
+        if ($files.Count -eq 0) {
+          Write-Host "No C++ files found to check"
+          exit 0
+        }
+        
+        # Run clang-format in check mode
+        Write-Host "Checking formatting for $($files.Count) C++ files..."
+        $failed = $false
+        foreach ($file in $files) {
+          & clang-format --dry-run --Werror $file.FullName
+          if ($LASTEXITCODE -ne 0) {
+            $failed = $true
+          }
+        }
+        
+        if ($failed) {
+          Write-Host ""
+          Write-Host "❌ Formatting check failed!"
+          Write-Host ""
+          Write-Host "Please format your code using:"
+          Write-Host "  clang-format -i src/**/*.cpp include/**/*.h examples/**/*.cpp test/**/*.cpp"
+          Write-Host ""
+          Write-Host "Or format specific files:"
+          Write-Host "  clang-format -i <file1> <file2> ..."
+          exit 1
+        }
+        
+        Write-Host "✅ All files are properly formatted"
+    
     - name: Configure CMake
-      run: cmake --preset ci-windows
+      run: cmake --preset ci
     
     - name: Build
-      run: cmake --build --preset ci-windows
+      run: cmake --build --preset ci
     
     - name: Run Boost.Test tests
-      run: ctest --preset ci-windows
+      run: ctest --preset ci

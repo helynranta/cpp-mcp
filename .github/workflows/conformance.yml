@@ -42,24 +42,24 @@ jobs:
           vcpkgJsonGlob: 'vcpkg.json'
       
       - name: Configure CMake
-        run: cmake --preset ci-windows
+        run: cmake --preset ci
       
       - name: Build
-        run: cmake --build --preset ci-windows --target server_example
+        run: cmake --build --preset ci --target server_example
       
       - name: Start MCP server
         shell: pwsh
         run: |
           # Debug: Check if binary exists
           Write-Host "Checking for server binary..."
-          if (-not (Test-Path "./build/ci-windows/examples/Release")) {
+          if (-not (Test-Path "./build/ci/examples/Release")) {
             Write-Host "❌ Build directory not found"
             Write-Host "Available build directories:"
             Get-ChildItem -Path "./build/" -ErrorAction SilentlyContinue
             exit 1
           }
           
-          if (-not (Test-Path "./build/ci-windows/examples/Release/server_example.exe")) {
+          if (-not (Test-Path "./build/ci/examples/Release/server_example.exe")) {
             Write-Host "❌ server_example.exe binary not found"
             exit 1
           }
@@ -67,7 +67,7 @@ jobs:
           Write-Host "✅ server_example.exe binary found"
           
           # Start server in background
-          $process = Start-Process -FilePath "./build/ci-windows/examples/Release/server_example.exe" `
+          $process = Start-Process -FilePath "./build/ci/examples/Release/server_example.exe" `
             -ArgumentList "--host", "127.0.0.1", "--port", "3001" `
             -RedirectStandardOutput "server.log" `
             -RedirectStandardError "server.log" `
