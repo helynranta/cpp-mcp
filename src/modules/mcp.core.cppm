@@ -18,7 +18,7 @@ module;
 #include <vector>
 
 // Include nlohmann/json in global module fragment (third-party code)
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 export module mcp.core;
 
