@@ -131,7 +131,8 @@
         "outputOnFailure": true
       },
       "execution": {
-        "noTestsAction": "error"
+        "noTestsAction": "error",
+        "jobs": 0
       }
     },
     {
@@ -143,7 +144,8 @@
         "outputOnFailure": true
       },
       "execution": {
-        "noTestsAction": "error"
+        "noTestsAction": "error",
+        "jobs": 0
       }
     },
     {
@@ -155,10 +157,8 @@
         "outputOnFailure": true,
         "verbosity": "verbose"
       },
-      "filter": {
-        "include": {
-          "name": "mcp_tests"
-        }
+      "execution": {
+        "jobs": 0
       }
     }
   ]
