@@ -84,3 +84,62 @@ jobs:
     
     - name: Run Boost.Test tests
       run: ctest --preset ci
+
+    - name: Install to staging prefix
+      run: cmake --install build/ci --prefix "${{ github.workspace }}/install-staging" --config Release
+
+    - name: Verify installed package config files
+      shell: pwsh
+      run: |
+        $prefix = "${{ github.workspace }}/install-staging"
+        $required = @(
+          "lib/cmake/mcp/mcpConfig.cmake",
+          "lib/cmake/mcp/mcpConfigVersion.cmake",
+          "lib/cmake/mcp/mcpTargets.cmake"
+        )
+        $missing = $false
+        foreach ($rel in $required) {
+          $full = Join-Path $prefix $rel
+          if (-not (Test-Path $full)) {
+            Write-Host "MISSING: $full"
+            $missing = $true
+          } else {
+            Write-Host "OK: $full"
+          }
+        }
+        if ($missing) { exit 1 }
+        Write-Host "All expected install artifacts present."
+
+    - name: Test downstream find_package(mcp) usage
+      shell: pwsh
+      run: |
+        # Write a minimal downstream CMakeLists.txt that uses find_package(mcp)
+        $downstreamDir = "${{ github.workspace }}/downstream-test"
+        New-Item -ItemType Directory -Force -Path $downstreamDir | Out-Null
+
+        $prefix = "${{ github.workspace }}/install-staging"
+        $cmakeContent = "cmake_minimum_required(VERSION 3.25)`n" +
+          "project(DownstreamTest LANGUAGES CXX)`n" +
+          "set(CMAKE_CXX_STANDARD 23)`n" +
+          "set(CMAKE_CXX_STANDARD_REQUIRED ON)`n" +
+          "add_compile_definitions(_WIN32_WINNT=0x0A00)`n" +
+          "find_package(mcp REQUIRED CONFIG)`n" +
+          "add_executable(downstream_test main.cpp)`n" +
+          "target_link_libraries(downstream_test PRIVATE mcp::mcp)`n"
+        Set-Content -Path "$downstreamDir/CMakeLists.txt" -Value $cmakeContent
+
+        $mainContent = "#include <mcp_server.h>`nint main() { return 0; }`n"
+        Set-Content -Path "$downstreamDir/main.cpp" -Value $mainContent
+
+        cmake -B "$downstreamDir/build" -G Ninja `
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+          -DVCPKG_MANIFEST_INSTALL=OFF `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_PREFIX_PATH="$prefix" `
+          "$downstreamDir"
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+
+        cmake --build "$downstreamDir/build" --config Release
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+
+        Write-Host "Downstream find_package(mcp) build succeeded."
