@@ -19,11 +19,11 @@
  * - Boost.Beast Adapter: https://github.com/helynranta/cpp-mcp/blob/main/include/mcp_http_beast_adapter.h
  */
 
-#include <nlohmann/json.hpp>
 #include "mcp_http_factory.h"
 
 #include <chrono>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <thread>
 
 using json = nlohmann::json;
