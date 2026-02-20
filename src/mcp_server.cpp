@@ -54,6 +54,59 @@ server::server(const server::configuration& conf)
 #else
     http_server_ = http::create_server();
 #endif
+
+    // Register default resource handlers so empty-resource servers return
+    // valid empty responses rather than "method not found".
+    method_handlers_["resources/read"] = [this](const json& params, const std::string& session_id) -> json {
+        if (!params.contains("uri")) {
+            throw mcp_exception(error_code::invalid_params, "Missing 'uri' parameter");
+        }
+
+        std::string uri = params["uri"];
+        auto it = resources_.find(uri);
+        if (it == resources_.end()) {
+            throw mcp_exception(error_code::invalid_params, "Resource not found: " + uri);
+        }
+
+        json contents = json::array();
+        contents.push_back(it->second->read());
+
+        return json{{"contents", contents}};
+    };
+
+    method_handlers_["resources/list"] = [this](const json& params, const std::string& session_id) -> json {
+        json resources = json::array();
+
+        for (const auto& [uri, res] : resources_) {
+            resources.push_back(res->get_metadata());
+        }
+
+        json result = {{"resources", resources}};
+
+        if (params.contains("cursor")) {
+            result["nextCursor"] = "";
+        }
+
+        return result;
+    };
+
+    method_handlers_["resources/subscribe"] = [this](const json& params, const std::string& session_id) -> json {
+        if (!params.contains("uri")) {
+            throw mcp_exception(error_code::invalid_params, "Missing 'uri' parameter");
+        }
+
+        std::string uri = params["uri"];
+        auto it = resources_.find(uri);
+        if (it == resources_.end()) {
+            throw mcp_exception(error_code::invalid_params, "Resource not found: " + uri);
+        }
+
+        return json::object();
+    };
+
+    method_handlers_["resources/templates/list"] = [this](const json& params, const std::string& session_id) -> json {
+        return json::array();
+    };
 }
 
 server::~server() {
@@ -314,65 +367,6 @@ void server::register_notification(const std::string& method, notification_handl
 void server::register_resource(const std::string& path, std::shared_ptr<resource> resource) {
     std::lock_guard<std::mutex> lock(mutex_);
     resources_[path] = resource;
-
-    // Register methods for resource access
-    if (method_handlers_.find("resources/read") == method_handlers_.end()) {
-        method_handlers_["resources/read"] = [this](const json& params, const std::string& session_id) -> json {
-            if (!params.contains("uri")) {
-                throw mcp_exception(error_code::invalid_params, "Missing 'uri' parameter");
-            }
-
-            std::string uri = params["uri"];
-            auto it = resources_.find(uri);
-            if (it == resources_.end()) {
-                throw mcp_exception(error_code::invalid_params, "Resource not found: " + uri);
-            }
-
-            json contents = json::array();
-            contents.push_back(it->second->read());
-
-            return json{{"contents", contents}};
-        };
-    }
-
-    if (method_handlers_.find("resources/list") == method_handlers_.end()) {
-        method_handlers_["resources/list"] = [this](const json& params, const std::string& session_id) -> json {
-            json resources = json::array();
-
-            for (const auto& [uri, res] : resources_) {
-                resources.push_back(res->get_metadata());
-            }
-
-            json result = {{"resources", resources}};
-
-            if (params.contains("cursor")) {
-                result["nextCursor"] = "";
-            }
-
-            return result;
-        };
-    }
-
-    if (method_handlers_.find("resources/subscribe") == method_handlers_.end()) {
-        method_handlers_["resources/subscribe"] = [this](const json& params, const std::string& session_id) -> json {
-            if (!params.contains("uri")) {
-                throw mcp_exception(error_code::invalid_params, "Missing 'uri' parameter");
-            }
-
-            std::string uri = params["uri"];
-            auto it = resources_.find(uri);
-            if (it == resources_.end()) {
-                throw mcp_exception(error_code::invalid_params, "Resource not found: " + uri);
-            }
-
-            return json::object();
-        };
-    }
-
-    if (method_handlers_.find("resources/templates/list") == method_handlers_.end()) {
-        method_handlers_["resources/templates/list"] =
-            [this](const json& params, const std::string& session_id) -> json { return json::array(); };
-    }
 }
 
 void server::register_tool(const tool& tool, tool_handler handler) {
