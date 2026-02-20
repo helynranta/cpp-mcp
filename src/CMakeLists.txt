@@ -2,24 +2,48 @@ include(GNUInstallDirs)
 
 set(TARGET mcp)
 
-add_library(${TARGET} STATIC
-    ../include/mcp_client.h
+set(MCP_CORE_SOURCES
     mcp_message.cpp
     ../include/mcp_message.h
     mcp_resource.cpp
     ../include/mcp_resource.h
-    mcp_server.cpp
-    ../include/mcp_server.h
     mcp_tool.cpp
     ../include/mcp_tool.h
+    mcp_progress.cpp
+    ../include/mcp_progress.h
+)
+
+set(MCP_SERVER_SOURCES
+    mcp_server.cpp
+    ../include/mcp_server.h
+)
+
+set(MCP_CLIENT_SOURCES
+    ../include/mcp_client.h
     mcp_stdio_client.cpp
     ../include/mcp_stdio_client.h
     mcp_sse_client.cpp
     ../include/mcp_sse_client.h
     mcp_streamable_http_client.cpp
     ../include/mcp_streamable_http_client.h
-    mcp_progress.cpp
-    ../include/mcp_progress.h
+)
+
+set(MCP_SOURCES ${MCP_CORE_SOURCES})
+if(MCP_BUILD_SERVER)
+    list(APPEND MCP_SOURCES ${MCP_SERVER_SOURCES})
+endif()
+if(MCP_BUILD_CLIENT)
+    list(APPEND MCP_SOURCES ${MCP_CLIENT_SOURCES})
+endif()
+
+add_library(${TARGET} STATIC ${MCP_SOURCES})
+
+target_compile_definitions(${TARGET}
+    PUBLIC
+        $<$<BOOL:${MCP_BUILD_SERVER}>:MCP_BUILD_SERVER=1>
+        $<$<NOT:$<BOOL:${MCP_BUILD_SERVER}>>:MCP_BUILD_SERVER=0>
+        $<$<BOOL:${MCP_BUILD_CLIENT}>:MCP_BUILD_CLIENT=1>
+        $<$<NOT:$<BOOL:${MCP_BUILD_CLIENT}>>:MCP_BUILD_CLIENT=0>
 )
 
 # Expose include directories to consumers via target properties

@@ -40,6 +40,10 @@ find_package(nlohmann_json CONFIG REQUIRED)
 # Boost::system provides compiled components for error codes
 
 option(MCP_SSL "Enable SSL support" OFF)
+option(MCP_BUILD_SERVER "Build MCP server implementation" ON)
+option(MCP_BUILD_CLIENT "Build MCP client implementations" ON)
+option(MCP_BUILD_EXAMPLES "Build examples" ON)
+option(MCP_BUILD_TESTS "Build the tests" OFF)
 
 if(MCP_SSL)
     find_package(OpenSSL 3.0.0 COMPONENTS Crypto SSL REQUIRED)
@@ -55,11 +59,15 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common)
 add_subdirectory(src)
 
 # Add examples
-add_subdirectory(examples)
+if(MCP_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 # Add test directory
-option(MCP_BUILD_TESTS "Build the tests" OFF)
 if(MCP_BUILD_TESTS)
+    if(NOT MCP_BUILD_SERVER OR NOT MCP_BUILD_CLIENT)
+        message(FATAL_ERROR "MCP_BUILD_TESTS requires both MCP_BUILD_SERVER=ON and MCP_BUILD_CLIENT=ON")
+    endif()
     enable_testing()
     add_subdirectory(test)
 endif()
