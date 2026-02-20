@@ -20,6 +20,15 @@ add_library(${TARGET} STATIC
     ../include/mcp_progress.h
 )
 
+# Expose include directories to consumers via target properties
+target_include_directories(${TARGET}
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/common>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/mcp/common>
+)
+
 target_link_libraries(${TARGET} PUBLIC ${CMAKE_THREAD_LIBS_INIT})
 
 # Link Boost libraries
@@ -29,3 +38,31 @@ target_link_libraries(${TARGET} PUBLIC Boost::system)
 if(OPENSSL_FOUND)
     target_link_libraries(${TARGET} PUBLIC ${OPENSSL_LIBRARIES})
 endif()
+
+# Install the library and export the targets
+include(GNUInstallDirs)
+install(TARGETS ${TARGET}
+    EXPORT mcpTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Install public headers
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+)
+
+# Install common headers (bundled third-party helpers) under include/mcp/common
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/common/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mcp/common
+    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+)
+
+# Export the targets file for downstream find_package() support
+install(EXPORT mcpTargets
+    FILE mcpTargets.cmake
+    NAMESPACE mcp::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mcp
+)

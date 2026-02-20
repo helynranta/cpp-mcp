@@ -62,3 +62,28 @@ if(MCP_BUILD_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
+
+# ── CMake package config (install support) ──────────────────────────────────
+include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
+
+# Generate mcpConfig.cmake from the template in cmake/
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/mcpConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/mcpConfig.cmake"
+    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/mcp"
+)
+
+# Generate mcpConfigVersion.cmake
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/mcpConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+# Install the config files so that find_package(mcp) works after install
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/mcpConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/mcpConfigVersion.cmake"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/mcp"
+)

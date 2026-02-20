@@ -321,6 +321,57 @@ For more information, see:
 - [Boost.Beast Documentation](https://www.boost.org/doc/libs/release/libs/beast/doc/html/index.html)
 - [vcpkg Documentation](https://vcpkg.io/en/docs/)
 
+## Installing and Using as a Package
+
+After building, you can install the library so that other CMake projects can consume it via `find_package(mcp)`.
+
+### Installing
+
+```bash
+# Build first (see Build Instructions above)
+cmake --preset release
+cmake --build --preset release
+
+# Install to a custom prefix (e.g. C:/mcp-install on Windows)
+cmake --install build/release --prefix C:/mcp-install --config Release
+```
+
+This installs:
+- The static library (`lib/mcp.lib`)
+- All public headers (`include/*.h`)
+- CMake package config files (`lib/cmake/mcp/mcpConfig.cmake`, `mcpConfigVersion.cmake`, `mcpTargets.cmake`)
+
+### Using from a downstream CMake project
+
+After installing, any CMake project can find and link the library:
+
+```cmake
+cmake_minimum_required(VERSION 3.25)
+project(MyApp LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 23)
+
+find_package(mcp REQUIRED CONFIG)
+
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE mcp::mcp)
+```
+
+When configuring the downstream project, supply the same vcpkg toolchain and the install prefix so that both Boost and `mcp` are found:
+
+```bash
+cmake -B build -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake \
+  -DCMAKE_PREFIX_PATH=C:/mcp-install
+
+cmake --build build --config Release
+```
+
+### vcpkg / Conan integration
+
+The install layout follows standard CMake conventions and is compatible with vcpkg port overlays and Conan CMakeDeps. The exported target is `mcp::mcp`.
+
+
+
 ## HTTP Transport
 
 This framework implements the MCP 2025-06-18 Streamable HTTP transport specification with a unified `/mcp` endpoint.
