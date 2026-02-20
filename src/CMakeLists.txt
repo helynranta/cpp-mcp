@@ -1,3 +1,5 @@
+include(GNUInstallDirs)
+
 set(TARGET mcp)
 
 add_library(${TARGET} STATIC
@@ -25,8 +27,8 @@ target_include_directories(${TARGET}
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/common>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/mcp/common>
+        $<INSTALL_INTERFACE:include>
+        $<INSTALL_INTERFACE:include/common>
 )
 
 target_link_libraries(${TARGET} PUBLIC ${CMAKE_THREAD_LIBS_INIT})
@@ -40,7 +42,6 @@ if(OPENSSL_FOUND)
 endif()
 
 # Install the library and export the targets
-include(GNUInstallDirs)
 install(TARGETS ${TARGET}
     EXPORT mcpTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -54,9 +55,9 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
     FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
 )
 
-# Install common headers (bundled third-party helpers) under include/mcp/common
+# Install common headers (bundled third-party helpers) under include/common
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/common/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mcp/common
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/common
     FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
 )
 

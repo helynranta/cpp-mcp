@@ -404,6 +404,23 @@ Maintain TESTING_IMPLEMENTATION_PLAN.md and related docs:
 
 ### Common Commands
 
+If `cl.exe` is not on `PATH`, initialize the MSVC toolchain first:
+
+**cmd:**
+```cmd
+"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvarsall.bat" x64 -vcvars_ver=14.44 && cmake --preset debug && cmake --build --preset debug
+```
+
+**PowerShell:**
+```powershell
+cmd /c "`"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvarsall.bat`" x64 -vcvars_ver=14.44 && cmake --preset debug && cmake --build --preset debug"
+```
+
+**bash (Git Bash / MSYS / Claude Code):**
+```bash
+powershell -Command "cmd /c '\"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvarsall.bat\" x64 -vcvars_ver=14.44 && cmake --preset debug && cmake --build --preset debug'"
+```
+
 ```bash
 # Using CMake Presets (Recommended)
 
