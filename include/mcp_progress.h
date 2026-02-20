@@ -128,7 +128,7 @@ public:
      */
     static std::optional<json> extract_progress_token(const json& params) {
         if (params.contains("_meta") && params["_meta"].contains("progressToken")) {
-            return params["_meta"]["progressToken"];
+            return std::optional<json>{json(params["_meta"]["progressToken"])};
         }
         return std::nullopt;
     }
@@ -171,7 +171,7 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = active_tokens_.find(token.dump());
         if (it != active_tokens_.end()) {
-            return it->second;
+            return std::optional<json>{json(it->second)};
         }
         return std::nullopt;
     }

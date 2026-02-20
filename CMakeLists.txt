@@ -35,6 +35,7 @@ find_package(Threads REQUIRED)
 # Find Boost components: Beast (header-only) and System (compiled)
 # Beast is header-only but depends on System for error handling
 find_package(Boost REQUIRED COMPONENTS system)
+find_package(nlohmann_json CONFIG REQUIRED)
 # Note: Boost.Beast is header-only and included in Boost::headers
 # Boost::system provides compiled components for error codes
 

@@ -35,6 +35,7 @@ target_link_libraries(${TARGET} PUBLIC ${CMAKE_THREAD_LIBS_INIT})
 
 # Link Boost libraries
 target_link_libraries(${TARGET} PUBLIC Boost::system)
+target_link_libraries(${TARGET} PUBLIC nlohmann_json::nlohmann_json)
 
 # If OpenSSL is found, link the OpenSSL libraries
 if(OPENSSL_FOUND)
