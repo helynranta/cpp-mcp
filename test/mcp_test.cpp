@@ -672,6 +672,63 @@ BOOST_AUTO_TEST_CASE(CallTool) {
 
 BOOST_AUTO_TEST_SUITE_END()
 
+// Default resources behavior tests - each test gets isolated server
+struct ResourcesDefaultTest {
+    ResourcesDefaultTest() {
+        static std::atomic<int> port_counter{16000};
+        port_ = port_counter.fetch_add(1);
+
+        server::configuration config;
+        config.host = "localhost";
+        config.port = port_;
+        config.name = "ResourcesDefaultServer";
+        config.version = "1.0.0";
+        server_ = std::make_unique<server>(config);
+
+        json server_capabilities = {{"resources", {{"subscribe", true}, {"listChanged", true}}}};
+        server_->set_capabilities(server_capabilities);
+        server_->start(false);
+        std::this_thread::sleep_for(kServerStartupDelay);
+
+        client_ = std::make_unique<sse_client>("http://localhost:" + std::to_string(port_));
+        bool init_result = client_->initialize("ResourcesDefaultClient", "1.0.0");
+        if (!init_result) {
+            throw std::runtime_error("Client initialization failed");
+        }
+    }
+
+    ~ResourcesDefaultTest() {
+        if (server_) {
+            server_->stop();
+        }
+        client_.reset();
+        server_.reset();
+    }
+
+    int port_;
+    std::unique_ptr<server> server_;
+    std::unique_ptr<sse_client> client_;
+};
+
+BOOST_FIXTURE_TEST_SUITE(ResourcesDefaultTestSuite, ResourcesDefaultTest)
+
+BOOST_AUTO_TEST_CASE(ListResourcesReturnsEmptyByDefault) {
+    json result;
+    BOOST_CHECK_NO_THROW(result = client_->list_resources());
+    BOOST_CHECK(result.contains("resources"));
+    BOOST_CHECK(result["resources"].is_array());
+    BOOST_CHECK_EQUAL(result["resources"].size(), 0);
+}
+
+BOOST_AUTO_TEST_CASE(ListResourceTemplatesReturnsEmptyByDefault) {
+    json result;
+    BOOST_CHECK_NO_THROW(result = client_->list_resource_templates());
+    BOOST_CHECK(result.is_array());
+    BOOST_CHECK_EQUAL(result.size(), 0);
+}
+
+BOOST_AUTO_TEST_SUITE_END()
+
 // Test tool metadata annotations
 struct ToolMetadataTest {
     ToolMetadataTest() {
