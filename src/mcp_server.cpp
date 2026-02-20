@@ -523,7 +523,7 @@ elicitation_result server::request_elicitation(const std::string& session_id, co
     request elicit_req = request::create("elicitation/create", params.to_json());
     json req_id = elicit_req.id;
 
-    LOG_INFO("Sending elicitation request to session: ", session_id, ", request ID: ", req_id.dump());
+    LOG_DEBUG("Sending elicitation request to session: ", session_id, ", request ID: ", req_id.dump());
 
     // Create promise and future for async response
     auto promise_ptr = std::make_shared<std::promise<elicitation_result>>();
@@ -549,7 +549,7 @@ elicitation_result server::request_elicitation(const std::string& session_id, co
     }
 
     if (status == std::future_status::timeout) {
-        LOG_ERROR("Elicitation request timed out for session: ", session_id, ", request ID: ", req_id.dump());
+        LOG_DEBUG("Elicitation request timed out for session: ", session_id, ", request ID: ", req_id.dump());
         throw mcp_exception(error_code::internal_error, "Elicitation request timed out. User did not respond within " +
                                                             std::to_string(request_timeout_seconds_) + " seconds.");
     }
@@ -636,7 +636,7 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
                     bool sent = session_dispatcher->send_event(heartbeat.str());
                     if (!sent) {
                         if (alive && alive->load(std::memory_order_acquire)) {
-                            LOG_WARNING("Failed to send heartbeat, client may have closed connection: ", session_id);
+                            LOG_DEBUG("Failed to send heartbeat, client may have closed connection: ", session_id);
                         }
                         break;
                     }
@@ -652,7 +652,7 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
             }
         } catch (const std::exception& e) {
             if (alive && alive->load(std::memory_order_acquire)) {
-                LOG_ERROR("SSE session thread exception: ", session_id, ", ", e.what());
+                LOG_DEBUG("SSE session thread exception: ", session_id, ", ", e.what());
             }
         }
 
@@ -691,7 +691,7 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
             if (!result) {
                 // Check alive again before accessing server methods
                 if (alive && alive->load(std::memory_order_acquire)) {
-                    LOG_WARNING("Failed to wait for event, closing connection: ", session_id);
+                    LOG_DEBUG("Failed to wait for event, closing connection: ", session_id);
                     close_session(session_id);
                 }
                 return false;
@@ -787,7 +787,7 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
                 res.set_content("Accepted", "text/plain");
                 return;
             }
-            LOG_ERROR("Session not found: ", session_id);
+            LOG_DEBUG("Session not found: ", session_id);
             res.set_status(404);
             res.set_content("{\"error\":\"Session not found\"}", "application/json");
             return;
@@ -862,7 +862,7 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
         bool result = dispatcher->send_event(ss.str());
 
         if (!result) {
-            LOG_ERROR("Failed to send response via SSE: session_id=", session_id);
+            LOG_DEBUG("Failed to send response via SSE: session_id=", session_id);
         }
     });
 
@@ -1006,7 +1006,7 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
                 }
             } catch (const std::exception& e) {
                 if (alive && alive->load(std::memory_order_acquire)) {
-                    LOG_ERROR("SSE session thread exception: ", session_id, ", ", e.what());
+                    LOG_DEBUG("SSE session thread exception: ", session_id, ", ", e.what());
                 }
             }
 
@@ -1054,7 +1054,7 @@ void server::handle_mcp_get(const http::request_data& req, http::response_builde
             bool result = session_dispatcher->wait_event(&sink);
             if (!result) {
                 if (alive && alive->load(std::memory_order_acquire)) {
-                    LOG_WARNING("Failed to wait for event, closing connection: ", session_id);
+                    LOG_DEBUG("Failed to wait for event, closing connection: ", session_id);
                     close_session(session_id);
                 }
                 return false;
@@ -1135,10 +1135,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
 
     // Debug: Log session ID extraction
     if (session_id.empty()) {
-        LOG_WARNING("No session ID found in request. Headers present: ");
-        for (const auto& [key, value] : req.headers) {
-            LOG_WARNING("  ", key, ": ", value.substr(0, std::min(size_t(50), value.size())));
-        }
+        LOG_DEBUG("No session ID found in request");
     }
 
     // Validate MCP-Protocol-Version header (MCP 2025-06-18+)
@@ -1212,7 +1209,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
             // Stateless mode: create a temporary session for this request
             if (is_stateless_request) {
                 session_id = generate_session_id();
-                LOG_INFO("Stateless request detected, creating temporary session: ", session_id);
+                LOG_DEBUG("Stateless request detected, creating temporary session: ", session_id);
                 dispatcher = std::make_shared<event_dispatcher>();
                 session_dispatchers_[session_id] = dispatcher;
                 session_lifecycle_[session_id] = lifecycle_state::uninitialized;
@@ -1220,7 +1217,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
                 session_is_stateless = true;
             } else {
                 // Session ID was provided but not found - return 404
-                LOG_ERROR("Session not found: ", session_id);
+                LOG_DEBUG("Session not found: ", session_id);
                 res.set_status(404);
                 res.set_header("Content-Type", "application/json");
                 res.set_content("{\"error\":\"Session not found\"}", "application/json");
@@ -1350,7 +1347,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
             bool send_result = dispatcher->send_event(ss.str());
 
             if (!send_result) {
-                LOG_ERROR("Failed to send response via SSE: session_id=", session_id,
+                LOG_DEBUG("Failed to send response via SSE: session_id=", session_id,
                           ", request_id=", mcp_req.id.dump());
             }
         } catch (const std::exception& e) {
@@ -1457,9 +1454,9 @@ json server::process_request(const request& req, const std::string& session_id) 
             auto current_state = get_session_lifecycle_state(session_id);
             if (current_state == lifecycle_state::initializing) {
                 set_session_lifecycle_state(session_id, lifecycle_state::ready);
-                LOG_INFO("Session ", session_id, " transitioned to ready state");
+                LOG_DEBUG("Session ", session_id, " transitioned to ready state");
             } else {
-                LOG_WARNING("Received initialized notification in unexpected state for session: ", session_id);
+                LOG_DEBUG("Received initialized notification in unexpected state for session: ", session_id);
             }
         } else if (req.method == "notifications/cancelled") {
             // Handle cancellation notification per MCP 2025-03-26
@@ -1469,7 +1466,7 @@ json server::process_request(const request& req, const std::string& session_id) 
                                          ? req.params["reason"].get<std::string>()
                                          : "No reason provided";
 
-                LOG_INFO("Received cancellation notification for request: ", request_id.dump(), ", reason: ", reason,
+                LOG_DEBUG("Received cancellation notification for request: ", request_id.dump(), ", reason: ", reason,
                          ", session: ", session_id);
 
                 // Call cancellation handler if registered
@@ -1489,7 +1486,7 @@ json server::process_request(const request& req, const std::string& session_id) 
                     }
                 }
             } else {
-                LOG_WARNING("Received malformed cancellation notification (missing requestId) for session: ",
+                LOG_DEBUG("Received malformed cancellation notification (missing requestId) for session: ",
                             session_id);
             }
         }
@@ -1570,7 +1567,7 @@ json server::process_request(const request& req, const std::string& session_id) 
         if (req.method == "initialize") {
             // Initialize can only be sent when uninitialized
             if (current_state != lifecycle_state::uninitialized) {
-                LOG_ERROR("Initialize request received in invalid state: ", session_id);
+                LOG_DEBUG("Initialize request received in invalid state: ", session_id);
                 return response::create_error(req.id, error_code::invalid_request,
                                               "Initialize already called for this session")
                     .to_json();
@@ -1583,7 +1580,7 @@ json server::process_request(const request& req, const std::string& session_id) 
 
         // All other requests require ready state (after initialized notification)
         if (current_state != lifecycle_state::ready) {
-            LOG_WARNING("Request received before session ready: ", session_id, ", method: ", req.method);
+            LOG_DEBUG("Request received before session ready: ", session_id, ", method: ", req.method);
             return response::create_error(req.id, error_code::invalid_request,
                                           "Session not ready - initialize handshake not complete")
                 .to_json();
@@ -1679,7 +1676,7 @@ json server::handle_initialize(const request& req, const std::string& session_id
     if (params.contains("capabilities")) {
         std::lock_guard<std::mutex> lock(mutex_);
         session_client_capabilities_[session_id] = params["capabilities"];
-        LOG_INFO("Stored client capabilities for session: ", session_id);
+        LOG_DEBUG("Stored client capabilities for session: ", session_id);
     }
 
     // Store negotiated protocol version for this session (MCP 2025-06-18+)
@@ -1688,12 +1685,12 @@ json server::handle_initialize(const request& req, const std::string& session_id
         std::lock_guard<std::mutex> lock(mutex_);
         json version_state = {{"negotiated_version", requested_version}};
         session_state_[session_id] = version_state;
-        LOG_INFO("Stored negotiated protocol version for session: ", session_id, ", version: ", requested_version);
+        LOG_DEBUG("Stored negotiated protocol version for session: ", session_id, ", version: ", requested_version);
     }
 
     // Transition session to initializing state
     set_session_lifecycle_state(session_id, lifecycle_state::initializing);
-    LOG_INFO("Session ", session_id, " transitioned to initializing state");
+    LOG_DEBUG("Session ", session_id, " transitioned to initializing state");
 
     // Return server info and capabilities
     json server_info = {{"name", name_}, {"version", version_}};
@@ -1708,7 +1705,7 @@ json server::handle_initialize(const request& req, const std::string& session_id
 void server::send_jsonrpc(const std::string& session_id, const json& message) {
     // Check if session ID is valid
     if (session_id.empty()) {
-        LOG_WARNING("Cannot send message to empty session_id");
+        LOG_DEBUG("Cannot send message to empty session_id");
         return;
     }
 
@@ -1718,7 +1715,7 @@ void server::send_jsonrpc(const std::string& session_id, const json& message) {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = session_dispatchers_.find(session_id);
         if (it == session_dispatchers_.end()) {
-            LOG_ERROR("Session not found: ", session_id);
+            LOG_DEBUG("Session not found: ", session_id);
             return;
         }
         dispatcher = it->second;
@@ -1726,7 +1723,7 @@ void server::send_jsonrpc(const std::string& session_id, const json& message) {
 
     // Confirm dispatcher is still valid
     if (!dispatcher || dispatcher->is_closed()) {
-        LOG_WARNING("Cannot send to closed session: ", session_id);
+        LOG_DEBUG("Cannot send to closed session: ", session_id);
         return;
     }
 
@@ -1736,7 +1733,7 @@ void server::send_jsonrpc(const std::string& session_id, const json& message) {
     bool result = dispatcher->send_event(ss.str());
 
     if (!result) {
-        LOG_ERROR("Failed to send message to session: ", session_id);
+        LOG_DEBUG("Failed to send message to session: ", session_id);
     }
 }
 
@@ -1772,7 +1769,7 @@ lifecycle_state server::get_session_lifecycle_state(const std::string& session_i
 void server::set_session_lifecycle_state(const std::string& session_id, lifecycle_state state) {
     // Check if session ID is valid
     if (session_id.empty()) {
-        LOG_WARNING("Cannot set lifecycle state for empty session_id");
+        LOG_DEBUG("Cannot set lifecycle state for empty session_id");
         return;
     }
 
@@ -1781,7 +1778,7 @@ void server::set_session_lifecycle_state(const std::string& session_id, lifecycl
         // Check if session still exists
         auto it = session_dispatchers_.find(session_id);
         if (it == session_dispatchers_.end()) {
-            LOG_WARNING("Cannot set lifecycle state for non-existent session: ", session_id);
+            LOG_DEBUG("Cannot set lifecycle state for non-existent session: ", session_id);
             return;
         }
         session_lifecycle_[session_id] = state;
@@ -1907,7 +1904,7 @@ void server::check_inactive_sessions() {
 
     // Close inactive sessions
     for (const auto& session_id : sessions_to_close) {
-        LOG_INFO("Closing inactive session: ", session_id);
+        LOG_DEBUG("Closing inactive session: ", session_id);
 
         close_session(session_id);
     }
@@ -1939,7 +1936,7 @@ void server::clear_session_state(const std::string& session_id) {
 void server::close_session(const std::string& session_id) {
     // Clean up resources safely
     try {
-        LOG_INFO("close_session begin: ", session_id);
+        LOG_DEBUG("close_session begin: ", session_id);
         for (const auto& [key, handler] : session_cleanup_handler_) {
             handler(key);
         }
@@ -1985,24 +1982,24 @@ void server::close_session(const std::string& session_id) {
         if (thread_to_release) {
             auto thread_id = thread_to_release->get_id();
             if (thread_id == std::this_thread::get_id()) {
-                LOG_INFO("close_session self-thread cleanup: ", session_id);
+                LOG_DEBUG("close_session self-thread cleanup: ", session_id);
                 // We're being called from within the thread itself
                 // Just request stop and let the thread exit naturally
                 thread_to_release->request_stop();
                 // Release ownership without joining (thread will clean up on exit)
                 thread_to_release.release();
             } else {
-                LOG_INFO("close_session joining thread for: ", session_id);
+                LOG_DEBUG("close_session joining thread for: ", session_id);
                 // Safe to request stop and join
                 thread_to_release->request_stop();
                 thread_to_release.reset(); // jthread joins automatically
             }
         }
-        LOG_INFO("close_session end: ", session_id);
+        LOG_DEBUG("close_session end: ", session_id);
     } catch (const std::exception& e) {
-        LOG_WARNING("Exception while cleaning up session resources: ", session_id, ", ", e.what());
+        LOG_DEBUG("Exception while cleaning up session resources: ", session_id, ", ", e.what());
     } catch (...) {
-        LOG_WARNING("Unknown exception while cleaning up session resources: ", session_id);
+        LOG_DEBUG("Unknown exception while cleaning up session resources: ", session_id);
     }
 }
 
@@ -2108,7 +2105,7 @@ bool server::validate_protocol_version_header(const http::request_data& req, con
     if (!version_header || version_header->empty()) {
         // Backward compatibility: assume 2025-03-26 if no header
         // This allows legacy clients to continue working
-        LOG_WARNING("MCP-Protocol-Version header missing for session: ", session_id,
+        LOG_DEBUG("MCP-Protocol-Version header missing for session: ", session_id,
                     ", assuming 2025-03-26 for backward compatibility");
         return true;
     }
