@@ -349,19 +349,19 @@ int main(int argc, char* argv[]) {
     server.register_tool(
         mcp::tool_builder("test_tool_with_logging").with_description("Conformance: logging tool").build(),
         [&server](const mcp::json&, const std::string& session_id) -> mcp::json {
-            auto send_log = [&server, &session_id](const std::string& level, const std::string& message) {
+            auto send_log = [&server, &session_id](const std::string& level, const std::string& data) {
                 mcp::request req;
                 req.jsonrpc = "2.0";
-                req.id = nullptr; // notification
-                req.method = "logging/message";
-                req.params = {{"level", level}, {"message", message}};
+                req.id = nullptr; // notification (no ID)
+                req.method = "notifications/message";
+                req.params = {{"level", level}, {"data", data}};
                 server.send_request(session_id, req);
             };
-            send_log("debug", "Logging tool started");
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
-            send_log("info", "Logging tool in progress");
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
-            send_log("notice", "Logging tool completed");
+            send_log("info", "Tool execution started");
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            send_log("info", "Tool processing data");
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            send_log("info", "Tool execution completed");
             return {
                 {"content", mcp::json::array({{{"type", "text"}, {"text", "Logging tool completed successfully"}}})}};
         });

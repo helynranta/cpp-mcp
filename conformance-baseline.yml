@@ -15,7 +15,6 @@
 server:
   # Optional features - not implemented by design
   - tools-call-sampling          # LLM sampling (optional, application-specific, not planned)
-  - tools-call-with-logging      # Logging notifications (MCP notification, not implemented yet)
   
   # Multiple SSE streams - May require specific harness setup
   - server-sse-multiple-streams  # May need conformance test environment adjustments
