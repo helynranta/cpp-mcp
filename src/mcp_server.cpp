@@ -1280,14 +1280,24 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
 
     // Check if this is a notification (no ID)
     if (mcp_req.is_notification()) {
-        // Process notification asynchronously
-        thread_pool_.enqueue([this, mcp_req, session_id, dispatcher]() {
+        // Process lifecycle notifications synchronously to avoid race conditions
+        // (e.g., tools/call arriving before notifications/initialized is processed)
+        if (mcp_req.method == "notifications/initialized" || mcp_req.method == "notifications/cancelled") {
             try {
                 this->process_request(mcp_req, session_id);
             } catch (const std::exception& e) {
                 LOG_ERROR("Exception processing notification: ", e.what());
             }
-        });
+        } else {
+            // Process other notifications asynchronously
+            thread_pool_.enqueue([this, mcp_req, session_id, dispatcher]() {
+                try {
+                    this->process_request(mcp_req, session_id);
+                } catch (const std::exception& e) {
+                    LOG_ERROR("Exception processing notification: ", e.what());
+                }
+            });
+        }
 
         // Return 202 Accepted for notifications
         res.set_status(202);
