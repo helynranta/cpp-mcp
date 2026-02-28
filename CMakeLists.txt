@@ -23,6 +23,7 @@ add_compile_options("$<$<COMPILE_LANGUAGE:C>:/utf-8>")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/utf-8>")
 add_compile_options("$<$<COMPILE_LANGUAGE:C>:/bigobj>")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/bigobj>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/EHsc>")
 
 # C++23 required - no backwards compatibility with older standards
 # Minimum compiler version: MSVC 2019+ (MSVC 2022+ recommended for C++20 modules)
@@ -32,9 +33,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Find required packages
 find_package(Threads REQUIRED)
-# Find Boost components: Beast (header-only) and System (compiled)
-# Beast is header-only but depends on System for error handling
-find_package(Boost REQUIRED COMPONENTS system)
+# Find Boost components: Beast (header-only), System, and throw_exception (compiled)
+# Beast is header-only but depends on compiled Boost components for error handling
+find_package(Boost REQUIRED COMPONENTS system throw_exception)
 find_package(nlohmann_json CONFIG REQUIRED)
 # Note: Boost.Beast is header-only and included in Boost::headers
 # Boost::system provides compiled components for error codes

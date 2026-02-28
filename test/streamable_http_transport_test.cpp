@@ -201,6 +201,24 @@ BOOST_AUTO_TEST_CASE(PostMcpWithoutSessionStatelessSucceeds) {
     BOOST_CHECK(session_header != res.headers.end());
 }
 
+// Test: initialize response returns negotiated protocol version (not hardcoded latest)
+BOOST_AUTO_TEST_CASE(PostMcpInitializeNegotiatesRequestedProtocolVersion) {
+    json init_request = {{"jsonrpc", "2.0"},
+                         {"id", 1},
+                         {"method", "initialize"},
+                         {"params", {{"protocolVersion", "2025-06-18"},
+                                     {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+
+    http::headers_map empty_headers;
+    auto res = http_client->post("/mcp", empty_headers, init_request.dump(), "application/json");
+
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(200, res.status_code);
+
+    json body = json::parse(res.body);
+    BOOST_CHECK_EQUAL(body["result"]["protocolVersion"], "2025-06-18");
+}
+
 // Test: POST /mcp with invalid session ID returns 404
 BOOST_AUTO_TEST_CASE(PostMcpWithInvalidSessionReturns404) {
     json test_request = {{"jsonrpc", "2.0"}, {"id", 1}, {"method", "tools/list"}};

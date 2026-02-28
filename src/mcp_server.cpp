@@ -1695,7 +1695,7 @@ json server::handle_initialize(const request& req, const std::string& session_id
     // Return server info and capabilities
     json server_info = {{"name", name_}, {"version", version_}};
 
-    json result = {{"protocolVersion", MCP_VERSION}, {"capabilities", capabilities_}, {"serverInfo", server_info}};
+    json result = {{"protocolVersion", requested_version}, {"capabilities", capabilities_}, {"serverInfo", server_info}};
 
     LOG_INFO("Initialization successful, waiting for notifications/initialized notification");
 
