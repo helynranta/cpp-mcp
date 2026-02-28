@@ -134,6 +134,7 @@ jobs:
         cmake -B "$downstreamDir/build" -G Ninja `
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
           -DVCPKG_MANIFEST_INSTALL=OFF `
+          -DVCPKG_INSTALLED_DIR="${{ github.workspace }}/build/ci/vcpkg_installed" `
           -DCMAKE_BUILD_TYPE=Release `
           -DCMAKE_PREFIX_PATH="$prefix" `
           "$downstreamDir"
