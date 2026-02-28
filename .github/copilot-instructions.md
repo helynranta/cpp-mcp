@@ -141,10 +141,11 @@ cpp-mcp/
 ├── test/             # Boost.Test test files
 │   ├── mcp_test.cpp  # Main test module
 │   └── *_test.cpp    # Additional test suites
-├── examples/         # Example applications
-│   ├── server_example.cpp
-│   ├── stdio_client_example.cpp
-│   └── agent_example.cpp
+├── examples/         # Example applications (each in its own subfolder with README.md)
+│   ├── server/
+│   ├── sse_client/
+│   ├── agent/
+│   └── ...
 ├── .github/
 │   └── workflows/
 │       └── test.yml  # CI/CD pipeline

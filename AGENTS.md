@@ -177,9 +177,10 @@ cpp-mcp/
 │   ├── mcp_test.cpp         # Boost.Test tests
 │   └── ...                  # Other test files
 ├── examples/         # Example applications
-│   ├── server_example.cpp
-│   ├── stdio_client_example.cpp
-│   └── agent_example.cpp
+│   ├── server/              # MCP server example
+│   ├── sse_client/          # SSE client example
+│   ├── agent/               # LLM agent example
+│   └── ...                  # Each example in its own folder with README.md
 ├── .github/          # GitHub Actions workflows
 │   └── workflows/
 │       └── test.yml  # CI/CD pipeline
