@@ -67,6 +67,7 @@ add_mcp_test(elicitation_integration_test elicitation_integration_test.cpp)
 add_mcp_test(completion_test completion_test.cpp)
 add_mcp_test(error_result_compliance_test error_result_compliance_test.cpp)
 add_mcp_test(structured_tool_handler_test structured_tool_handler_test.cpp)
+add_mcp_test(protocol_negotiation_test protocol_negotiation_test.cpp)
 
 # Add custom target to run all tests in parallel
 add_custom_target(run_tests
@@ -93,4 +94,5 @@ add_custom_target(run_tests
         completion_test
         error_result_compliance_test
         structured_tool_handler_test
+        protocol_negotiation_test
 )

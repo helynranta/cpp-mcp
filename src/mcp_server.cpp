@@ -837,8 +837,17 @@ void server::handle_jsonrpc(const http::request_data& req, http::response_builde
 
     // If it is a notification (no ID), process it directly and return 202 status code
     if (mcp_req.is_notification()) {
-        // Process it asynchronously in the thread pool
-        thread_pool_.enqueue([this, mcp_req, session_id]() { process_request(mcp_req, session_id); });
+        // Process lifecycle notifications synchronously to avoid race conditions
+        if (mcp_req.method == "notifications/initialized" || mcp_req.method == "notifications/cancelled") {
+            try {
+                process_request(mcp_req, session_id);
+            } catch (const std::exception& e) {
+                LOG_ERROR("Exception processing notification: ", e.what());
+            }
+        } else {
+            // Process other notifications asynchronously in the thread pool
+            thread_pool_.enqueue([this, mcp_req, session_id]() { process_request(mcp_req, session_id); });
+        }
 
         // Return 202 Accepted
         res.set_status(202);
@@ -1588,8 +1597,10 @@ json server::process_request(const request& req, const std::string& session_id) 
             return response::create_success(req.id, json::object()).to_json();
         }
 
-        // All other requests require ready state (after initialized notification)
-        if (current_state != lifecycle_state::ready) {
+        // All other requests require at least initializing state
+        // Accept both initializing and ready states for compatibility with clients
+        // that may not send notifications/initialized before making requests
+        if (current_state != lifecycle_state::ready && current_state != lifecycle_state::initializing) {
             LOG_DEBUG("Request received before session ready: ", session_id, ", method: ", req.method);
             return response::create_error(req.id, error_code::invalid_request,
                                           "Session not ready - initialize handshake not complete")
