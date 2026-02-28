@@ -718,210 +718,25 @@ server->run(); // Blocking call
 For more details, see:
 - [Boost.Beast Documentation](https://www.boost.org/doc/libs/release/libs/beast/doc/html/index.html)
 - [Boost.Beast HTTP Examples](https://www.boost.org/doc/libs/release/libs/beast/example/http/)
-- [HTTP Client/Server Example](https://github.com/helynranta/cpp-mcp/blob/main/examples/http_example.cpp) - Complete working example in this repository
+- [HTTP Client/Server Example](examples/http/) - Complete working example in this repository
 
 ## Examples
 
-All examples use the Boost.Beast-based HTTP transport for communication. Source code is available in the [`examples/`](https://github.com/helynranta/cpp-mcp/tree/main/examples) directory.
+All examples use the Boost.Beast-based HTTP transport. Each example has its own directory with a README explaining usage. Build all examples with CMake presets (e.g., `cmake --preset dev-release && cmake --build --preset dev-release`).
 
-### HTTP Server Example ([`examples/server_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/server_example.cpp))
-
-Example MCP server implementation with custom tools demonstrating **MCP 2025-06-18 structured tool output**:
-- Time tool: Get current time with structured timestamp data
-- Calculator tool: Perform mathematical operations with structured results
-- Echo tool: Echo input with optional transformations (uppercase, reverse) and transformation metadata
-- Greeting tool: Returns personalized greeting with structured output
-
-**All tools include:**
-- Optional `title` field for display names
-- `outputSchema` defining structured result format
-- `structuredContent` in responses matching the declared schema
-- Human-readable `content` for backward compatibility
-
-**Build and run:**
-```bash
-cmake --build build --target server_example
-./build/examples/server_example
-```
-
-The server listens on `http://localhost:8888` by default. You can verify it's working by connecting with the SSE client example in another terminal.
-
-**Testing:**
-```bash
-# Terminal 1: Start the server
-./build/examples/server_example
-
-# Terminal 2: Connect with the client
-./build/examples/sse_client_example
-```
-
-### SSE Client Example ([`examples/sse_client_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/sse_client_example.cpp))
-
-Example MCP client connecting to a server via Server-Sent Events (legacy transport):
-- Connect to an MCP server using HTTP/SSE transport
-- Get server information and capabilities
-- List available tools
-- Call tools with parameters
-- Handle errors and exceptions
-
-**Build and run:**
-```bash
-cmake --build build --target sse_client_example
-# First start the server in another terminal
-./build/examples/sse_client_example
-```
-
-### Streamable HTTP Client Example ([`examples/streamable_http_client_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/streamable_http_client_example.cpp))
-
-**New in MCP 2025-06-18** - Demonstrates both SSE (legacy) and Streamable HTTP (modern) transports side-by-side:
-- Compare SSE client vs. Streamable HTTP client
-- See differences in endpoint usage (`/sse` + `/message` vs. unified `/mcp`)
-- Session management (query parameters vs. `Mcp-Session-Id` header)
-- Explicit session termination with Streamable HTTP
-- Recommended transport for new applications
-
-**Build and run:**
-```bash
-cmake --build build --target streamable_http_client_example
-./build/examples/streamable_http_client_example
-```
-
-**Key differences highlighted:**
-- SSE Client uses `/sse` and `/message` endpoints with session ID in query parameters
-- Streamable HTTP Client uses unified `/mcp` endpoint with `Mcp-Session-Id` header
-- Streamable HTTP returns HTTP 202 Accepted for async processing
-- Streamable HTTP supports explicit session termination via DELETE method
-
-### Stdio Client Example ([`examples/stdio_client_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/stdio_client_example.cpp))
-
-Demonstrates how to use the stdio client to communicate with a local server:
-- Launch a local server process
-- Access filesystem resources
-- Call server tools
-- Communicate via stdin/stdout
-
-**Build and run:**
-```bash
-cmake --build build --target stdio_client_example
-./build/examples/stdio_client_example "npx -y @modelcontextprotocol/server-everything"
-```
-
-### HTTP Client/Server Example ([`examples/http_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/http_example.cpp))
-
-Minimal example demonstrating the low-level Boost.Beast HTTP APIs:
-- Creating an HTTP server with custom route handlers (GET, POST)
-- Creating an HTTP client
-- Making HTTP requests and handling responses
-- JSON request/response handling
-- Error handling and validation
-
-This example showcases the HTTP abstraction layer (`mcp::http::create_server()` and `mcp::http::create_client()`) that powers the higher-level MCP protocol implementations.
-
-**Build and run:**
-```bash
-cmake --build build --target http_example
-./build/examples/http_example
-```
-
-The example will:
-1. Start an HTTP server on `localhost:8890`
-2. Create a client and make several test requests
-3. Demonstrate GET with query parameters, POST with JSON, calculator endpoint, and error handling
-4. Keep the server running (press Ctrl+C to stop)
-
-**Sample output:**
-```
-Creating HTTP server using Boost.Beast...
-Starting HTTP server on localhost:8890...
-
-Creating HTTP client using Boost.Beast...
-
---- Test 1: GET /hello ---
-Status: 200
-Body: {"message":"Hello, World!","timestamp":1771173000}
-
---- Test 4: POST /calculate (10 + 5) ---
-Status: 200
-Body: {"operands":[10.0,5.0],"operation":"add","result":15.0}
-```
-
-### Agent Example ([`examples/agent_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/agent_example.cpp))
-
-AI agent that integrates an MCP server with an external LLM API. The agent:
-- Runs a local MCP server with tools (e.g., calculator)
-- Connects to an LLM API (OpenAI, OpenRouter, etc.) using Boost.Beast HTTP client
-- Allows the LLM to call MCP tools to answer user queries
-- Implements a chat loop with tool execution
-
-**Command-line options:**
-
-| Option | Description |
-| :- | :- |
-| `--base-url` | LLM base URL (e.g. `https://openrouter.ai`) |
-| `--endpoint` | LLM endpoint (default to `/v1/chat/completions/`) |
-| `--api-key` | LLM API key |
-| `--model` | Model name (e.g. `gpt-3.5-turbo`) |
-| `--system-prompt` | System prompt |
-| `--max-tokens` | Maximum number of tokens to generate (default to 2048) |
-| `--temperature` | Temperature (default to 0.0) |
-| `--max-steps` | Maximum steps calling tools without user input (default to 3) |
-
-**Build and run:**
-```bash
-# Build with SSL support for HTTPS connections
-cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DMCP_SSL=ON
-cmake --build build --target agent_example
-
-# Run with your LLM API
-./build/examples/agent_example --base-url <base_url> --endpoint <endpoint> --api-key <api_key> --model <model_name>
-```
-
-**Note**: Remember to compile with `-DMCP_SSL=ON` when connecting to an https base URL.
-
-### Structured Tool Output Example ([`examples/structured_tool_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/structured_tool_example.cpp))
-
-**MCP 2025-06-18 Feature** - Comprehensive demonstration of structured tool output schemas:
-- Weather tool: Returns structured weather data (temperature, conditions, humidity, wind speed)
-- API query tool: Complex nested schema with status, data objects, and metadata
-- Calculator tool: Simple schema with result and expression
-- Legacy echo tool: Demonstrates backward compatibility (no schema)
-
-**Key features demonstrated:**
-- Optional `title` field for display names
-- `outputSchema` defining expected output structure using JSON Schema
-- Tool handlers returning both `content` (human-readable) and `structuredContent` (machine-readable)
-- Full backward compatibility with tools that don't use schemas
-
-**Build and run:**
-```bash
-cmake --build build --target structured_tool_example
-./build/examples/structured_tool_example
-```
-
-The server listens on `http://localhost:8080/mcp` and demonstrates how MCP 2025-06-18 clients can receive both text and structured data from tools.
-
-### Progress Notification Example ([`examples/progress_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/progress_example.cpp))
-
-Demonstrates real-time progress notifications:
-- Server sends progress updates during long-running operations
-- Client receives and displays progress in real-time
-- Shows both with and without progress tokens
-- Example of proper progress token handling
-
-**Build and run:**
-```bash
-cmake --build build --target progress_example
-./build/examples/progress_example
-```
-
-### Session State Management Example ([`examples/session_state_example.cpp`](https://github.com/helynranta/cpp-mcp/blob/main/examples/session_state_example.cpp))
-
-Demonstrates how to use the session state storage API to maintain state across tool calls within a session:
-
-```bash
-cmake --build build --target session_state_example
-./build/examples/session_state_example
-```
+| Example | Description |
+| :------ | :---------- |
+| [server](examples/server/) | MCP server with tools, resources, prompts, and conformance endpoints |
+| [sse_client](examples/sse_client/) | SSE (legacy) client connecting to an MCP server |
+| [streamable_http_client](examples/streamable_http_client/) | Streamable HTTP (modern) client for MCP 2025-06-18+ |
+| [stdio_client](examples/stdio_client/) | Stdio transport client launching a local server process |
+| [http](examples/http/) | Low-level Boost.Beast HTTP client/server demo |
+| [agent](examples/agent/) | AI agent integrating MCP tools with an external LLM API |
+| [structured_tool](examples/structured_tool/) | Structured tool output with JSON Schema (MCP 2025-06-18) |
+| [progress](examples/progress/) | Real-time progress notifications |
+| [session_state](examples/session_state/) | Per-session state management across tool calls |
+| [elicitation](examples/elicitation/) | Human-in-the-loop elicitation (MCP 2025-06-18) |
+| [completion](examples/completion/) | Argument autocompletion for prompts and templates |
 
 ## How to Use
 
@@ -1413,7 +1228,7 @@ server.register_session_cleanup("my_tool", [&server](const std::string& session_
 });
 ```
 
-For a complete working example, see [`examples/session_state_example.cpp`](examples/session_state_example.cpp).
+For a complete working example, see the [session_state example](examples/session_state/).
 
 
 ## Using TLS clients and servers
@@ -1582,9 +1397,9 @@ This C++ implementation fully conforms to the [MCP 2025-06-18 specification](htt
 - Test suite: `test/structured_tool_output_test.cpp` (15 tests)
 - Reference: [MCP PR #371](https://github.com/modelcontextprotocol/specification/pull/371)
 - Examples: 
-  - `examples/structured_tool_example.cpp` - Comprehensive demonstration with multiple schema types
-  - `examples/server_example.cpp` - All 4 tools use structured output with schemas
-  - `examples/agent_example.cpp` - Calculator tool with structured output
+  - [structured_tool example](examples/structured_tool/) - Comprehensive demonstration with multiple schema types
+  - [server example](examples/server/) - All 4 tools use structured output with schemas
+  - [agent example](examples/agent/) - Calculator tool with structured output
 
 #### 4. Elicitation (Human-in-the-Loop) ✅
 **Status:** Fully Implemented
@@ -1595,7 +1410,7 @@ This C++ implementation fully conforms to the [MCP 2025-06-18 specification](htt
 - Client capability declaration supported
 - Test suite: `test/elicitation_test.cpp` (15 tests) + `test/elicitation_integration_test.cpp` (8 tests)
 - Reference: [MCP PR #382](https://github.com/modelcontextprotocol/specification/pull/382)
-- Example: `examples/elicitation_example.cpp`
+- Example: [elicitation example](examples/elicitation/)
 
 **Elicitation Features:**
 - Request user input during tool execution
@@ -1644,7 +1459,7 @@ if (server.client_supports_elicitation(session_id)) {
 - Handles both prompt argument and resource template completions
 - Test suite: `test/completion_test.cpp` (17 tests)
 - Reference: [MCP PR #598](https://github.com/modelcontextprotocol/specification/pull/598)
-- Example: `examples/completion_example.cpp`
+- Example: [completion example](examples/completion/)
 
 **Completion Features:**
 - Argument autocompletion for prompts (e.g., suggesting values for prompt parameters)
