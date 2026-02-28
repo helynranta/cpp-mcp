@@ -746,11 +746,9 @@ BOOST_AUTO_TEST_SUITE_END()
 
 ### Internal Documentation
 
-- **Implementation Plan**: [MCP_UPGRADE_IMPLEMENTATION_PLAN.md](MCP_UPGRADE_IMPLEMENTATION_PLAN.md)
-- **Protocol Survey**: [MCP_PROTOCOL_CHANGES_SURVEY.md](MCP_PROTOCOL_CHANGES_SURVEY.md)
-- **Phase 1 Completion**: [PHASE_1_COMPLETION_SUMMARY.md](PHASE_1_COMPLETION_SUMMARY.md)
 - **Security**: [SECURITY.md](SECURITY.md)
 - **README**: [README.md](README.md)
+- **Conformance Test Guide**: [CONFORMANCE_TESTING.md](CONFORMANCE_TESTING.md)
 
 ---
 

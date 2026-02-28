@@ -49,25 +49,17 @@ For the full specification and protocol details, see the official MCP resources 
 - **Extensible Architecture**: Easy to extend with new resource types and tools
 - **Multi-Transport Support**: Supports HTTP and standard input/output (stdio) communication methods
 
-## 🚧 C++ Modules Migration (In Progress)
+## C++ Modules and Platform Notes
 
-This project is undergoing a migration to C++20 Modules with a **Windows-first approach**. As part of this modernization:
+This project targets **Windows + MSVC** and includes ongoing modernization around C++ modules and protocol upgrades.
 
-- **Platform Strategy**: Migrating to Windows-only, dropping Linux and macOS support
-- **Module Architecture**: Converting headers to C++20 module interface units (`.cppm`)
-- **Compiler Target**: MSVC 2022+ with native C++20 Modules support
-- **Timeline**: 14-week phased migration (10 phases)
+- **Platform**: Windows-only
+- **Compiler**: MSVC 2022+ (C++23)
+- **Build System**: CMake + Ninja + vcpkg
 
-**Current Status**: **Phase 1 Complete** - Preparation & Planning
-
-For detailed information, see:
-- **[MODULES_MIGRATION_PLAN.md](MODULES_MIGRATION_PLAN.md)** - Comprehensive 10-phase migration plan
-- **[PLATFORM_AUDIT_SUMMARY.md](PLATFORM_AUDIT_SUMMARY.md)** - Platform-specific code audit
-
-**Impact on Users**: 
-- **Linux/macOS users**: This version will be Windows-only after migration
-- **Windows users**: No breaking changes expected, improved build times with modules
-- **Timeline**: Platform cleanup begins Phase 2, full migration complete by Phase 10
+For current behavior and changes, use:
+- **[CHANGELOG.md](CHANGELOG.md)** for release history
+- **[CONFORMANCE.md](CONFORMANCE.md)** for protocol conformance details
 
 ## Protocol Conformance and Testing
 

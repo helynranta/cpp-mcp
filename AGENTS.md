@@ -379,19 +379,19 @@ Update README.md when:
 
 ### Changelog
 
-Maintain TESTING_IMPLEMENTATION_PLAN.md and related docs:
-- Mark tasks as complete when done
-- Update status of ongoing work
-- Document any blockers or issues
+Maintain CHANGELOG.md and conformance documentation:
+- Add user-visible changes to CHANGELOG.md
+- Keep CONFORMANCE.md and CONFORMANCE_TESTING.md aligned with current behavior
+- Document blockers in issue/PR discussion when needed
 
 ## Resources
 
 ### Project Documentation
 
 - **README.md** - Project overview and quick start
-- **TESTING_IMPLEMENTATION_PLAN.md** - Current testing roadmap
-- **MCP_UPDATE_PLAN.md** - Feature update roadmap
-- **TECHNICAL_ARCHITECTURE.md** - Technical design details
+- **CHANGELOG.md** - Release and change history
+- **CONFORMANCE.md** - Protocol conformance notes
+- **CONFORMANCE_TESTING.md** - How to run official conformance tests
 
 ### External Resources
 
