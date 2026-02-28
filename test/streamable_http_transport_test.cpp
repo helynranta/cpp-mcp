@@ -219,8 +219,8 @@ BOOST_AUTO_TEST_CASE(PostMcpInitializeNegotiatesRequestedProtocolVersion) {
     BOOST_CHECK_EQUAL(body["result"]["protocolVersion"], "2025-06-18");
 }
 
-// Test: POST /mcp with invalid session ID returns 404
-BOOST_AUTO_TEST_CASE(PostMcpWithInvalidSessionReturns404) {
+// Test: POST /mcp with invalid session ID creates recovery session (stale session resilience)
+BOOST_AUTO_TEST_CASE(PostMcpWithInvalidSessionCreatesRecoverySession) {
     json test_request = {{"jsonrpc", "2.0"}, {"id", 1}, {"method", "tools/list"}};
 
     http::headers_map headers = {{"Mcp-Session-Id", "invalid-session-id-12345"}};
@@ -228,7 +228,12 @@ BOOST_AUTO_TEST_CASE(PostMcpWithInvalidSessionReturns404) {
     auto res = http_client->post("/mcp", headers, test_request.dump(), "application/json");
 
     BOOST_REQUIRE(res.success);
-    BOOST_CHECK_EQUAL(404, res.status_code);
+    // Server creates a recovery session instead of returning 404
+    BOOST_CHECK_EQUAL(200, res.status_code);
+    // Response should contain a new session ID (different from the invalid one)
+    auto new_session = res.headers.find("Mcp-Session-Id");
+    BOOST_REQUIRE(new_session != res.headers.end());
+    BOOST_CHECK(new_session->second != "invalid-session-id-12345");
 }
 
 // Test: Stateless session ID can be reused synchronously without SSE

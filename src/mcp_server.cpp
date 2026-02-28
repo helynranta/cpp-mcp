@@ -1216,6 +1216,7 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
             }
 
             // Stateless mode: create a temporary session for this request
+            // Also handles stale session IDs from clients that reconnect after server restart
             if (is_stateless_request) {
                 session_id = generate_session_id();
                 LOG_DEBUG("Stateless request detected, creating temporary session: ", session_id);
@@ -1225,12 +1226,17 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
                 stateless_sessions_.insert(session_id);
                 session_is_stateless = true;
             } else {
-                // Session ID was provided but not found - return 404
-                LOG_DEBUG("Session not found: ", session_id);
-                res.set_status(404);
-                res.set_header("Content-Type", "application/json");
-                res.set_content("{\"error\":\"Session not found\"}", "application/json");
-                return;
+                // Stale session: client sent an unknown session ID (e.g., after server restart).
+                // Create a new stateless session so the request can proceed.
+                LOG_INFO("Stale session ID, creating recovery session for: ", session_id);
+                session_id = generate_session_id();
+                dispatcher = std::make_shared<event_dispatcher>();
+                session_dispatchers_[session_id] = dispatcher;
+                // Use initializing state so tool calls are accepted immediately
+                // (the client may not re-initialize when reconnecting)
+                session_lifecycle_[session_id] = lifecycle_state::initializing;
+                stateless_sessions_.insert(session_id);
+                session_is_stateless = true;
             }
         } else {
             dispatcher = disp_it->second;

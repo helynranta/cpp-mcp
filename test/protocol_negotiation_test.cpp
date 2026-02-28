@@ -194,6 +194,48 @@ BOOST_AUTO_TEST_CASE(ToolCallSucceedsWithFullHandshake) {
     BOOST_CHECK(tool_body.contains("result"));
 }
 
+/**
+ * Tool calls must succeed even when the client sends a stale (unknown) session ID.
+ * This handles the case where a server restarts and the client has a cached session ID.
+ * The server should create a new stateless session instead of returning 404.
+ */
+BOOST_AUTO_TEST_CASE(ToolCallSucceedsWithStaleSessionId) {
+    // Step 1: Initialize to set up tools
+    json init_request = {{"jsonrpc", "2.0"},
+                         {"id", 1},
+                         {"method", "initialize"},
+                         {"params", {{"protocolVersion", "2025-06-18"},
+                                     {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+
+    http::headers_map empty_headers;
+    auto init_res = http_client->post("/mcp", empty_headers, init_request.dump(), "application/json");
+    BOOST_REQUIRE(init_res.success);
+
+    // Step 2: Use a completely fake/stale session ID (simulating server restart)
+    std::string stale_session_id = "00000000-dead-beef-0000-000000000000";
+    http::headers_map stale_headers = {{"Mcp-Session-Id", stale_session_id}};
+
+    json tool_call = {{"jsonrpc", "2.0"},
+                      {"id", 2},
+                      {"method", "tools/call"},
+                      {"params", {{"name", "echo"}, {"arguments", {{"message", "stale session test"}}}}}};
+
+    auto tool_res = http_client->post("/mcp", stale_headers, tool_call.dump(), "application/json");
+
+    BOOST_REQUIRE(tool_res.success);
+    // Should succeed with 200, not 404
+    BOOST_CHECK_EQUAL(200, tool_res.status_code);
+
+    json tool_body = json::parse(tool_res.body);
+    BOOST_CHECK(!tool_body.contains("error"));
+    BOOST_CHECK(tool_body.contains("result"));
+
+    // Verify the server returned a NEW session ID (not the stale one)
+    auto new_session_header = tool_res.headers.find("Mcp-Session-Id");
+    BOOST_REQUIRE(new_session_header != tool_res.headers.end());
+    BOOST_CHECK(new_session_header->second != stale_session_id);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 
 // --------------------------------------------------------------------------
