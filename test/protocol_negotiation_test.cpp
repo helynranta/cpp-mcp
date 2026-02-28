@@ -42,10 +42,8 @@ struct ProtocolNegotiationTest {
         json caps = {{"tools", {{"listChanged", true}}}};
         server_->set_capabilities(caps);
 
-        tool echo = tool_builder("echo")
-                        .with_description("Echo tool")
-                        .with_string_param("message", "Message", "")
-                        .build();
+        tool echo =
+            tool_builder("echo").with_description("Echo tool").with_string_param("message", "Message", "").build();
 
         server_->register_tool(echo, [](const json& params, const std::string&) -> json {
             return {{"content", json::array({{{"type", "text"}, {"text", params.value("message", "")}}})}};
@@ -73,11 +71,11 @@ BOOST_FIXTURE_TEST_SUITE(ProtocolNegotiationTestSuite, ProtocolNegotiationTest)
  * not always return MCP_VERSION (the latest version the server supports).
  */
 BOOST_AUTO_TEST_CASE(InitializeReturnsRequestedProtocolVersion) {
-    json init_request = {{"jsonrpc", "2.0"},
-                         {"id", 1},
-                         {"method", "initialize"},
-                         {"params", {{"protocolVersion", "2025-06-18"},
-                                     {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+    json init_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "initialize"},
+        {"params", {{"protocolVersion", "2025-06-18"}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
     http::headers_map headers;
     auto res = http_client->post("/mcp", headers, init_request.dump(), "application/json");
@@ -94,11 +92,11 @@ BOOST_AUTO_TEST_CASE(InitializeReturnsRequestedProtocolVersion) {
  * Server must also negotiate 2025-03-26 when requested.
  */
 BOOST_AUTO_TEST_CASE(InitializeNegotiatesOldestSupportedVersion) {
-    json init_request = {{"jsonrpc", "2.0"},
-                         {"id", 1},
-                         {"method", "initialize"},
-                         {"params", {{"protocolVersion", "2025-03-26"},
-                                     {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+    json init_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "initialize"},
+        {"params", {{"protocolVersion", "2025-03-26"}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
     http::headers_map headers;
     auto res = http_client->post("/mcp", headers, init_request.dump(), "application/json");
@@ -117,11 +115,11 @@ BOOST_AUTO_TEST_CASE(InitializeNegotiatesOldestSupportedVersion) {
  */
 BOOST_AUTO_TEST_CASE(ToolCallSucceedsWithoutInitializedNotification) {
     // Step 1: Initialize (stateless - no session ID)
-    json init_request = {{"jsonrpc", "2.0"},
-                         {"id", 1},
-                         {"method", "initialize"},
-                         {"params", {{"protocolVersion", "2025-06-18"},
-                                     {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+    json init_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "initialize"},
+        {"params", {{"protocolVersion", "2025-06-18"}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
     http::headers_map empty_headers;
     auto init_res = http_client->post("/mcp", empty_headers, init_request.dump(), "application/json");
@@ -158,11 +156,11 @@ BOOST_AUTO_TEST_CASE(ToolCallSucceedsWithoutInitializedNotification) {
  */
 BOOST_AUTO_TEST_CASE(ToolCallSucceedsWithFullHandshake) {
     // Step 1: Initialize
-    json init_request = {{"jsonrpc", "2.0"},
-                         {"id", 1},
-                         {"method", "initialize"},
-                         {"params", {{"protocolVersion", "2025-06-18"},
-                                     {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+    json init_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "initialize"},
+        {"params", {{"protocolVersion", "2025-06-18"}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
     http::headers_map empty_headers;
     auto init_res = http_client->post("/mcp", empty_headers, init_request.dump(), "application/json");
@@ -201,11 +199,11 @@ BOOST_AUTO_TEST_CASE(ToolCallSucceedsWithFullHandshake) {
  */
 BOOST_AUTO_TEST_CASE(ToolCallSucceedsWithStaleSessionId) {
     // Step 1: Initialize to set up tools
-    json init_request = {{"jsonrpc", "2.0"},
-                         {"id", 1},
-                         {"method", "initialize"},
-                         {"params", {{"protocolVersion", "2025-06-18"},
-                                     {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+    json init_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "initialize"},
+        {"params", {{"protocolVersion", "2025-06-18"}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
     http::headers_map empty_headers;
     auto init_res = http_client->post("/mcp", empty_headers, init_request.dump(), "application/json");
@@ -257,10 +255,8 @@ struct LegacySseLifecycleTest {
         json caps = {{"tools", {{"listChanged", true}}}};
         server_->set_capabilities(caps);
 
-        tool echo = tool_builder("echo")
-                        .with_description("Echo tool")
-                        .with_string_param("message", "Message", "")
-                        .build();
+        tool echo =
+            tool_builder("echo").with_description("Echo tool").with_string_param("message", "Message", "").build();
 
         server_->register_tool(echo, [](const json& params, const std::string&) -> json {
             return {{"content", json::array({{{"type", "text"}, {"text", params.value("message", "")}}})}};

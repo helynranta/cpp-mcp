@@ -238,11 +238,11 @@ BOOST_AUTO_TEST_CASE(PostMcpWithoutSessionToolsListSucceeds) {
 
 // Test: initialize response returns negotiated protocol version (not hardcoded latest)
 BOOST_AUTO_TEST_CASE(PostMcpInitializeNegotiatesRequestedProtocolVersion) {
-    json init_request = {{"jsonrpc", "2.0"},
-                         {"id", 1},
-                         {"method", "initialize"},
-                         {"params", {{"protocolVersion", "2025-06-18"},
-                                     {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
+    json init_request = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "initialize"},
+        {"params", {{"protocolVersion", "2025-06-18"}, {"clientInfo", {{"name", "test"}, {"version", "1.0.0"}}}}}};
 
     http::headers_map empty_headers;
     auto res = http_client->post("/mcp", empty_headers, init_request.dump(), "application/json");

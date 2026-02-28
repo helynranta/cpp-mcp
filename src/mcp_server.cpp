@@ -594,73 +594,73 @@ void server::handle_sse(const http::request_data& req, http::response_builder& r
     // Create session thread - use jthread with stop_token for cooperative cancellation
     // Capture alive_ for safe access in the thread
     auto alive = alive_;
-    auto thread = std::make_unique<std::jthread>([this, alive, session_id, session_uri,
-                                                  session_dispatcher](std::stop_token stoken) {
-        try {
-            // Send initial session URI
-            if (!interruptible_sleep(stoken, std::chrono::milliseconds(500))) {
-                return;
-            }
-
-            // Check if server is still alive or stop requested
-            if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire)) {
-                return;
-            }
-
-            std::stringstream ss;
-            ss << "event: endpoint\r\ndata: " << session_uri << "\r\n\r\n";
-            session_dispatcher->send_event(ss.str());
-
-            // Update activity time (after sending message)
-            session_dispatcher->update_activity();
-
-            // Send periodic heartbeats to detect connection status
-            int heartbeat_count = 0;
-            while (!stoken.stop_requested() && alive && alive->load(std::memory_order_acquire) && running_ &&
-                   !session_dispatcher->is_closed()) {
-                auto heartbeat_sleep = std::chrono::seconds(5) + std::chrono::milliseconds(heartbeat_jitter_ms());
-                if (!interruptible_sleep(stoken,
-                                         std::chrono::duration_cast<std::chrono::milliseconds>(heartbeat_sleep))) {
-                    break;
-                } // NOTE: DO NOT set it the same as the timeout of wait_event
-
-                if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire) ||
-                    session_dispatcher->is_closed() || !running_) {
-                    break;
+    auto thread = std::make_unique<std::jthread>(
+        [this, alive, session_id, session_uri, session_dispatcher](std::stop_token stoken) {
+            try {
+                // Send initial session URI
+                if (!interruptible_sleep(stoken, std::chrono::milliseconds(500))) {
+                    return;
                 }
 
-                std::stringstream heartbeat;
-                heartbeat << "event: heartbeat\r\ndata: " << heartbeat_count++ << "\r\n\r\n";
+                // Check if server is still alive or stop requested
+                if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire)) {
+                    return;
+                }
 
-                try {
-                    bool sent = session_dispatcher->send_event(heartbeat.str());
-                    if (!sent) {
-                        if (alive && alive->load(std::memory_order_acquire)) {
-                            LOG_DEBUG("Failed to send heartbeat, client may have closed connection: ", session_id);
-                        }
+                std::stringstream ss;
+                ss << "event: endpoint\r\ndata: " << session_uri << "\r\n\r\n";
+                session_dispatcher->send_event(ss.str());
+
+                // Update activity time (after sending message)
+                session_dispatcher->update_activity();
+
+                // Send periodic heartbeats to detect connection status
+                int heartbeat_count = 0;
+                while (!stoken.stop_requested() && alive && alive->load(std::memory_order_acquire) && running_ &&
+                       !session_dispatcher->is_closed()) {
+                    auto heartbeat_sleep = std::chrono::seconds(5) + std::chrono::milliseconds(heartbeat_jitter_ms());
+                    if (!interruptible_sleep(stoken,
+                                             std::chrono::duration_cast<std::chrono::milliseconds>(heartbeat_sleep))) {
+                        break;
+                    } // NOTE: DO NOT set it the same as the timeout of wait_event
+
+                    if (stoken.stop_requested() || !alive || !alive->load(std::memory_order_acquire) ||
+                        session_dispatcher->is_closed() || !running_) {
                         break;
                     }
 
-                    // Update activity time (heartbeat successful)
-                    session_dispatcher->update_activity();
-                } catch (const std::exception& e) {
-                    if (alive && alive->load(std::memory_order_acquire)) {
-                        LOG_ERROR("Failed to send heartbeat: ", e.what());
+                    std::stringstream heartbeat;
+                    heartbeat << "event: heartbeat\r\ndata: " << heartbeat_count++ << "\r\n\r\n";
+
+                    try {
+                        bool sent = session_dispatcher->send_event(heartbeat.str());
+                        if (!sent) {
+                            if (alive && alive->load(std::memory_order_acquire)) {
+                                LOG_DEBUG("Failed to send heartbeat, client may have closed connection: ", session_id);
+                            }
+                            break;
+                        }
+
+                        // Update activity time (heartbeat successful)
+                        session_dispatcher->update_activity();
+                    } catch (const std::exception& e) {
+                        if (alive && alive->load(std::memory_order_acquire)) {
+                            LOG_ERROR("Failed to send heartbeat: ", e.what());
+                        }
+                        break;
                     }
-                    break;
+                }
+            } catch (const std::exception& e) {
+                if (alive && alive->load(std::memory_order_acquire)) {
+                    LOG_DEBUG("SSE session thread exception: ", session_id, ", ", e.what());
                 }
             }
-        } catch (const std::exception& e) {
-            if (alive && alive->load(std::memory_order_acquire)) {
-                LOG_DEBUG("SSE session thread exception: ", session_id, ", ", e.what());
-            }
-        }
 
-        // Only call close_session if server is still alive
-        if (alive && alive->load(std::memory_order_acquire)) {
-            close_session(session_id);
-        }
-    });
+            // Only call close_session if server is still alive
+            if (alive && alive->load(std::memory_order_acquire)) {
+                close_session(session_id);
+            }
+        });
 
     // Store thread
     {
@@ -1224,10 +1224,10 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
                 session_dispatchers_[session_id] = dispatcher;
                 // For stateless non-initialize requests, allow immediate handling without
                 // requiring a separate initialize/initialized roundtrip.
-                const bool is_initialize_request =
-                    req_json.contains("method") && req_json["method"].is_string() && req_json["method"] == "initialize";
-                session_lifecycle_[session_id] =
-                    is_initialize_request ? lifecycle_state::uninitialized : lifecycle_state::initializing;
+                const bool is_initialize_request = req_json.contains("method") && req_json["method"].is_string() &&
+                                                   req_json["method"] == "initialize";
+                session_lifecycle_[session_id] = is_initialize_request ? lifecycle_state::uninitialized
+                                                                       : lifecycle_state::initializing;
                 stateless_sessions_.insert(session_id);
                 session_is_stateless = true;
             } else {
@@ -1497,7 +1497,7 @@ json server::process_request(const request& req, const std::string& session_id) 
                                          : "No reason provided";
 
                 LOG_DEBUG("Received cancellation notification for request: ", request_id.dump(), ", reason: ", reason,
-                         ", session: ", session_id);
+                          ", session: ", session_id);
 
                 // Call cancellation handler if registered
                 cancellation_handler handler;
@@ -1516,8 +1516,7 @@ json server::process_request(const request& req, const std::string& session_id) 
                     }
                 }
             } else {
-                LOG_DEBUG("Received malformed cancellation notification (missing requestId) for session: ",
-                            session_id);
+                LOG_DEBUG("Received malformed cancellation notification (missing requestId) for session: ", session_id);
             }
         }
         // Handle other notifications registered via register_notification
@@ -1734,7 +1733,8 @@ json server::handle_initialize(const request& req, const std::string& session_id
     // Return server info and capabilities
     json server_info = {{"name", name_}, {"version", version_}};
 
-    json result = {{"protocolVersion", requested_version}, {"capabilities", capabilities_}, {"serverInfo", server_info}};
+    json result = {
+        {"protocolVersion", requested_version}, {"capabilities", capabilities_}, {"serverInfo", server_info}};
 
     LOG_INFO("Initialization successful, waiting for notifications/initialized notification");
 
@@ -2145,7 +2145,7 @@ bool server::validate_protocol_version_header(const http::request_data& req, con
         // Backward compatibility: assume 2025-03-26 if no header
         // This allows legacy clients to continue working
         LOG_DEBUG("MCP-Protocol-Version header missing for session: ", session_id,
-                    ", assuming 2025-03-26 for backward compatibility");
+                  ", assuming 2025-03-26 for backward compatibility");
         return true;
     }
 
