@@ -27,7 +27,10 @@
 #include <ctime>
 #include <filesystem>
 #include <iostream>
+#include <mutex>
 #include <thread>
+#include <unordered_map>
+#include <unordered_set>
 
 // Global server pointer for signal handling
 static mcp::server* g_server = nullptr;
@@ -578,6 +581,9 @@ int main(int argc, char* argv[]) {
         return {{"completion", {{"values", mcp::json::array({"example-completion"})}}}};
     });
 
+    std::mutex resource_subscriptions_mutex;
+    std::unordered_map<std::string, std::unordered_set<std::string>> resource_subscriptions_by_session;
+
     server.register_method("resources/list", [](const mcp::json&, const std::string&) -> mcp::json {
         mcp::json resources = mcp::json::array({{{"uri", "test://static-text"},
                                                  {"name", "Static Text"},
@@ -619,6 +625,38 @@ int main(int argc, char* argv[]) {
         }
         return {{"contents", mcp::json::array({content})}};
     });
+
+    server.register_method("resources/subscribe",
+                           [&resource_subscriptions_mutex, &resource_subscriptions_by_session](
+                               const mcp::json& params, const std::string& session_id) -> mcp::json {
+                               if (!params.contains("uri")) {
+                                   throw mcp::mcp_exception(mcp::error_code::invalid_params, "Missing 'uri' parameter");
+                               }
+
+                               const std::string uri = params["uri"];
+                               std::lock_guard<std::mutex> lock(resource_subscriptions_mutex);
+                               resource_subscriptions_by_session[session_id].insert(uri);
+                               return mcp::json::object();
+                           });
+
+    server.register_method("resources/unsubscribe",
+                           [&resource_subscriptions_mutex, &resource_subscriptions_by_session](
+                               const mcp::json& params, const std::string& session_id) -> mcp::json {
+                               if (!params.contains("uri")) {
+                                   throw mcp::mcp_exception(mcp::error_code::invalid_params, "Missing 'uri' parameter");
+                               }
+
+                               const std::string uri = params["uri"];
+                               std::lock_guard<std::mutex> lock(resource_subscriptions_mutex);
+                               auto session_it = resource_subscriptions_by_session.find(session_id);
+                               if (session_it != resource_subscriptions_by_session.end()) {
+                                   session_it->second.erase(uri);
+                                   if (session_it->second.empty()) {
+                                       resource_subscriptions_by_session.erase(session_it);
+                                   }
+                               }
+                               return mcp::json::object();
+                           });
 
     server.register_method("prompts/list", [](const mcp::json&, const std::string&) -> mcp::json {
         mcp::json prompts = mcp::json::array(

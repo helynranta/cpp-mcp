@@ -9,18 +9,13 @@
 #   - Scenario passes + in baseline = Exit 1 (stale baseline, remove entry)
 #   - Scenario passes + not in baseline = Exit 0 (normal pass)
 #
-# Last updated: 2026-02-17
+# Last updated: 2026-02-28
 # See CONFORMANCE_TESTING.md for details on each scenario
 
 server:
   # Optional features - not implemented by design
   - tools-call-sampling          # LLM sampling (optional, application-specific, not planned)
   - tools-call-with-logging      # Logging notifications (MCP notification, not implemented yet)
-  
-  # Resource subscriptions - Partial implementation
-  # Basic subscribe/unsubscribe implemented, but live update delivery may be incomplete
-  - resources-subscribe          # Partial: basic subscription, needs live update testing
-  - resources-unsubscribe        # Partial: basic unsubscribe, needs full testing
   
   # Multiple SSE streams - May require specific harness setup
   - server-sse-multiple-streams  # May need conformance test environment adjustments
