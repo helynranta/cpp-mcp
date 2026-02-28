@@ -1222,7 +1222,12 @@ void server::handle_mcp_post(const http::request_data& req, http::response_build
                 LOG_DEBUG("Stateless request detected, creating temporary session: ", session_id);
                 dispatcher = std::make_shared<event_dispatcher>();
                 session_dispatchers_[session_id] = dispatcher;
-                session_lifecycle_[session_id] = lifecycle_state::uninitialized;
+                // For stateless non-initialize requests, allow immediate handling without
+                // requiring a separate initialize/initialized roundtrip.
+                const bool is_initialize_request =
+                    req_json.contains("method") && req_json["method"].is_string() && req_json["method"] == "initialize";
+                session_lifecycle_[session_id] =
+                    is_initialize_request ? lifecycle_state::uninitialized : lifecycle_state::initializing;
                 stateless_sessions_.insert(session_id);
                 session_is_stateless = true;
             } else {
@@ -1601,6 +1606,13 @@ json server::process_request(const request& req, const std::string& session_id) 
         } else if (req.method == "ping") {
             // Ping is allowed in any state per MCP 2025-03-26
             return response::create_success(req.id, json::object()).to_json();
+        }
+
+        // Compatibility mode: some clients issue tools/* calls without an explicit initialize
+        // handshake on newly opened sessions. Promote uninitialized sessions so these calls work.
+        if (current_state == lifecycle_state::uninitialized && req.method.rfind("tools/", 0) == 0) {
+            set_session_lifecycle_state(session_id, lifecycle_state::initializing);
+            current_state = lifecycle_state::initializing;
         }
 
         // All other requests require at least initializing state

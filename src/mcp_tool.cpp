@@ -121,7 +121,9 @@ tool tool_builder::build() const {
     // Create the parameters schema
     json schema = parameters_;
     schema["type"] = "object";
-    ;
+    if (!schema.contains("properties") || !schema["properties"].is_object()) {
+        schema["properties"] = json::object();
+    }
 
     if (!required_params_.empty()) {
         schema["required"] = required_params_;

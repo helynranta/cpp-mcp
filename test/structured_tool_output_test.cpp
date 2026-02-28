@@ -42,6 +42,19 @@ BOOST_AUTO_TEST_CASE(ToolWithoutTitleOmitsField) {
     BOOST_CHECK(!tool_json.contains("title"));
 }
 
+// Test 2b: Tools without parameters still emit valid empty object schema
+BOOST_AUTO_TEST_CASE(ToolWithoutParamsHasEmptyPropertiesObject) {
+    tool t = tool_builder("no_param_tool").with_description("No params").build();
+
+    json tool_json = t.to_json();
+
+    BOOST_CHECK(tool_json.contains("inputSchema"));
+    BOOST_CHECK_EQUAL(tool_json["inputSchema"]["type"].get<std::string>(), "object");
+    BOOST_CHECK(tool_json["inputSchema"].contains("properties"));
+    BOOST_CHECK(tool_json["inputSchema"]["properties"].is_object());
+    BOOST_CHECK(tool_json["inputSchema"]["properties"].empty());
+}
+
 // Test 3: Tool can have an optional outputSchema field
 BOOST_AUTO_TEST_CASE(ToolHasOptionalOutputSchema) {
     // Define output schema

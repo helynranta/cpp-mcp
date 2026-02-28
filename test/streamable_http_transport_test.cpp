@@ -201,6 +201,41 @@ BOOST_AUTO_TEST_CASE(PostMcpWithoutSessionStatelessSucceeds) {
     BOOST_CHECK(session_header != res.headers.end());
 }
 
+// Test: Stateless tools/call request works without explicit initialize handshake
+BOOST_AUTO_TEST_CASE(PostMcpWithoutSessionToolsCallSucceeds) {
+    json call_request = {{"jsonrpc", "2.0"},
+                         {"id", 1},
+                         {"method", "tools/call"},
+                         {"params", {{"name", "echo"}, {"arguments", {{"message", "hello"}}}}}};
+
+    http::headers_map empty_headers;
+    auto res = http_client->post("/mcp", empty_headers, call_request.dump(), "application/json");
+
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(200, res.status_code);
+
+    json body = json::parse(res.body);
+    BOOST_CHECK(!body.contains("error"));
+    BOOST_CHECK(body.contains("result"));
+    BOOST_CHECK(body["result"].is_object());
+}
+
+// Test: Stateless tools/list request works without explicit initialize handshake
+BOOST_AUTO_TEST_CASE(PostMcpWithoutSessionToolsListSucceeds) {
+    json tools_list_request = {{"jsonrpc", "2.0"}, {"id", 1}, {"method", "tools/list"}};
+
+    http::headers_map empty_headers;
+    auto res = http_client->post("/mcp", empty_headers, tools_list_request.dump(), "application/json");
+
+    BOOST_REQUIRE(res.success);
+    BOOST_CHECK_EQUAL(200, res.status_code);
+
+    json body = json::parse(res.body);
+    BOOST_CHECK(body.contains("result"));
+    BOOST_CHECK(body["result"].contains("tools"));
+    BOOST_CHECK(body["result"]["tools"].is_array());
+}
+
 // Test: initialize response returns negotiated protocol version (not hardcoded latest)
 BOOST_AUTO_TEST_CASE(PostMcpInitializeNegotiatesRequestedProtocolVersion) {
     json init_request = {{"jsonrpc", "2.0"},
