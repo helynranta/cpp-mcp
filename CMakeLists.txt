@@ -14,16 +14,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Windows-only project
 add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-# Define Windows version to suppress Boost.Asio warnings
-# Windows 10 (0x0A00) or later required for Boost.Beast
-add_compile_definitions(_WIN32_WINNT=0x0A00)
 
-# MSVC compiler settings
-add_compile_options("$<$<COMPILE_LANGUAGE:C>:/utf-8>")
-add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/utf-8>")
-add_compile_options("$<$<COMPILE_LANGUAGE:C>:/bigobj>")
-add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/bigobj>")
-add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/EHsc>")
+if(MSVC)
+    # Define Windows version to suppress Boost.Asio warnings
+    # Windows 10 (0x0A00) or later required for Boost.Beast
+    add_compile_definitions(_WIN32_WINNT=0x0A00)
+
+    # MSVC compiler settings
+    add_compile_options("$<$<COMPILE_LANGUAGE:C>:/utf-8>")
+    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/utf-8>")
+    add_compile_options("$<$<COMPILE_LANGUAGE:C>:/bigobj>")
+    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/bigobj>")
+    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/EHsc>")
+endif()
 
 # C++23 required - no backwards compatibility with older standards
 # Minimum compiler version: MSVC 2019+ (MSVC 2022+ recommended for C++20 modules)
