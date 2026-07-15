@@ -92,6 +92,99 @@ BOOST_AUTO_TEST_CASE(stdio_cancellation_notification_interrupts_a_running_tool_c
     BOOST_CHECK_EQUAL(messages[1].at("id"), 2);
 }
 
+BOOST_AUTO_TEST_CASE(stdio_elicitation_response_reaches_a_blocked_tool_handler) {
+    std::ostringstream input_text;
+    input_text << json{{"jsonrpc", "2.0"},
+                       {"id", 1},
+                       {"method", "initialize"},
+                       {"params",
+                        {{"protocolVersion", "2025-11-25"},
+                         {"capabilities", {{"elicitation", json::object()}}},
+                         {"clientInfo", {{"name", "stdio-test"}, {"version", "1.0"}}}}}}
+                      .dump()
+               << '\n';
+    input_text << json{{"jsonrpc", "2.0"}, {"method", "notifications/initialized"}}.dump() << '\n';
+    input_text << json{{"jsonrpc", "2.0"}, {"id", 2}, {"method", "test/block"}}.dump() << '\n';
+    input_text << json{{"jsonrpc", "2.0"},
+                       {"id", 3},
+                       {"method", "elicitation/response"},
+                       {"params", {{"action", "accept"}, {"content", json::object()}}}}
+                      .dump()
+               << '\n';
+
+    std::istringstream input(input_text.str());
+    std::ostringstream output;
+    std::ostringstream errors;
+    mcp::stdio_server server({.input = &input, .output = &output, .error = &errors});
+    std::mutex response_mutex;
+    std::condition_variable response_condition;
+    bool elicitation_received = false;
+    std::atomic_bool received_before_tool_completed = false;
+    server.register_method("elicitation/response", [&](const json&, const std::string&) -> json {
+        {
+            std::lock_guard lock(response_mutex);
+            elicitation_received = true;
+        }
+        response_condition.notify_all();
+        return json::object();
+    });
+    server.register_method("test/block", [&](const json&, const std::string&) -> json {
+        std::unique_lock lock(response_mutex);
+        received_before_tool_completed.store(
+            response_condition.wait_for(lock, std::chrono::milliseconds(250), [&] { return elicitation_received; }));
+        return json::object();
+    });
+
+    BOOST_REQUIRE(server.start());
+
+    BOOST_CHECK(received_before_tool_completed.load());
+    BOOST_CHECK(server.client_supports_elicitation());
+    const auto messages = parse_lines(output.str());
+    BOOST_REQUIRE_EQUAL(messages.size(), 3u);
+}
+
+BOOST_AUTO_TEST_CASE(stdio_progress_notifications_are_emitted_during_a_tool_call) {
+    std::ostringstream input_text;
+    input_text << json{{"jsonrpc", "2.0"},
+                       {"id", 1},
+                       {"method", "initialize"},
+                       {"params",
+                        {{"protocolVersion", "2025-11-25"},
+                         {"capabilities", json::object()},
+                         {"clientInfo", {{"name", "stdio-test"}, {"version", "1.0"}}}}}}
+                      .dump()
+               << '\n';
+    input_text << json{{"jsonrpc", "2.0"}, {"method", "notifications/initialized"}}.dump() << '\n';
+    input_text
+        << json{{"jsonrpc", "2.0"},
+                {"id", 2},
+                {"method", "tools/call"},
+                {"params",
+                 {{"name", "work"}, {"arguments", json::object()}, {"_meta", {{"progressToken", "progress-2"}}}}}}
+               .dump()
+        << '\n';
+
+    std::istringstream input(input_text.str());
+    std::ostringstream output;
+    std::ostringstream errors;
+    mcp::stdio_server server({.input = &input, .output = &output, .error = &errors});
+    server.register_tool(mcp::tool_builder("work").with_description("Reports work").build(),
+                         [&](const json& arguments, const std::string&) -> json {
+                             const auto token = mcp::progress_tracker::extract_progress_token(arguments);
+                             BOOST_REQUIRE(token.has_value());
+                             server.send_progress(mcp::progress_notification::create(*token, 1.0, 2.0, "halfway"));
+                             return json{{"content", json::array()}};
+                         });
+
+    BOOST_REQUIRE(server.start());
+
+    const auto messages = parse_lines(output.str());
+    BOOST_REQUIRE_EQUAL(messages.size(), 3u);
+    BOOST_CHECK_EQUAL(messages[1].at("method"), "notifications/progress");
+    BOOST_CHECK_EQUAL(messages[1].at("params").at("progressToken"), "progress-2");
+    BOOST_CHECK_EQUAL(messages[1].at("params").at("progress"), 1.0);
+}
+
 BOOST_AUTO_TEST_CASE(stdio_server_stays_available_for_a_complete_client_session_until_input_eof) {
     std::ostringstream input_text;
     input_text << json{{"jsonrpc", "2.0"},

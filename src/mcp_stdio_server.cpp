@@ -61,7 +61,7 @@ bool stdio_server::start() {
             const auto message = json::parse(line);
             const auto method = message.value("method", std::string{});
             const auto is_notification = !message.contains("id");
-            if (is_notification || method == "initialize") {
+            if (is_notification || method == "initialize" || method == "elicitation/response") {
                 if (const auto response = protocol_.process_jsonrpc(message, session_id)) {
                     write_message(*response);
                 }
@@ -142,6 +142,18 @@ json stdio_server::get_session_state() const {
 
 void stdio_server::clear_session_state() {
     protocol_.clear_session_state(session_id);
+}
+
+bool stdio_server::client_supports_elicitation() const {
+    return protocol_.client_supports_elicitation(session_id);
+}
+
+elicitation_result stdio_server::request_elicitation(const std::string& message, const json& requested_schema) {
+    return protocol_.request_elicitation(session_id, message, requested_schema);
+}
+
+void stdio_server::send_progress(const progress_notification& notification) {
+    protocol_.send_progress(session_id, notification);
 }
 
 std::optional<json> stdio_server::current_request_id() const {

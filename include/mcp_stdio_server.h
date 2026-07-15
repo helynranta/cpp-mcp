@@ -47,6 +47,12 @@ public:
     void set_session_state(const json& state);
     json get_session_state() const;
     void clear_session_state();
+    /** Check the implicit client's elicitation capability. Example: before confirming a destructive tool. */
+    [[nodiscard]] bool client_supports_elicitation() const;
+    /** Request user input from the implicit client. Example: confirm deletion with an object schema. */
+    elicitation_result request_elicitation(const std::string& message, const json& requested_schema);
+    /** Send progress to the implicit client. Example: progress token "build-1" at 50 of 100. */
+    void send_progress(const progress_notification& notification);
     /** Return the request ID currently executing on this thread. Example: JSON-RPC ID `42` inside a tool handler. */
     [[nodiscard]] std::optional<json> current_request_id() const;
 
