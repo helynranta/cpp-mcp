@@ -16,6 +16,10 @@
 #include "mcp_server.h"
 
 #include <boost/test/unit_test.hpp>
+#include <chrono>
+#include <condition_variable>
+#include <future>
+#include <mutex>
 
 using namespace mcp;
 
@@ -36,6 +40,50 @@ BOOST_AUTO_TEST_CASE(ServerTracksClientCapabilities) {
 
     // Without client declaring capability, should return false
     BOOST_CHECK(!srv.client_supports_elicitation(session_id));
+}
+
+BOOST_AUTO_TEST_CASE(ZeroRequestTimeoutWaitsForElicitationResponse) {
+    server::configuration config;
+    config.host = "localhost";
+    config.port = 9102;
+    config.request_timeout_seconds = 0;
+
+    server srv(config);
+    const std::string session_id = "test-session-no-timeout";
+    std::mutex outbound_mutex;
+    std::condition_variable outbound_condition;
+    json outbound_request;
+    srv.set_outbound_message_handler([&](const std::string&, const json& message) {
+        {
+            std::lock_guard lock(outbound_mutex);
+            outbound_request = message;
+        }
+        outbound_condition.notify_all();
+    });
+    srv.process_jsonrpc({{"jsonrpc", "2.0"},
+                         {"id", 1},
+                         {"method", "initialize"},
+                         {"params",
+                          {{"protocolVersion", "2025-11-25"},
+                           {"capabilities", {{"elicitation", json::object()}}},
+                           {"clientInfo", {{"name", "elicitation-test"}, {"version", "1.0"}}}}}},
+                        session_id);
+
+    auto pending = std::async(std::launch::async,
+                              [&] { return srv.request_elicitation(session_id, "Proceed?", {{"type", "object"}}); });
+    {
+        std::unique_lock lock(outbound_mutex);
+        BOOST_REQUIRE(
+            outbound_condition.wait_for(lock, std::chrono::seconds(1), [&] { return !outbound_request.empty(); }));
+    }
+    srv.process_jsonrpc({{"jsonrpc", "2.0"},
+                         {"id", outbound_request.at("id")},
+                         {"method", "elicitation/response"},
+                         {"params", {{"action", "accept"}, {"content", json::object()}}}},
+                        session_id);
+
+    BOOST_REQUIRE(pending.wait_for(std::chrono::seconds(1)) == std::future_status::ready);
+    BOOST_CHECK(pending.get().action == elicitation_action::accept);
 }
 
 // ============================================================================

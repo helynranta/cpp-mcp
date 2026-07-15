@@ -639,9 +639,13 @@ elicitation_result server::request_elicitation(const std::string& session_id, co
     // Send the request
     send_request(session_id, elicit_req);
 
-    // Wait for response with timeout
-    auto timeout = std::chrono::seconds(request_timeout_seconds_);
-    auto status = result_future.wait_for(timeout);
+    // A zero timeout means the server should wait for the client indefinitely.
+    auto status = std::future_status::ready;
+    if (request_timeout_seconds_ == 0) {
+        result_future.wait();
+    } else {
+        status = result_future.wait_for(std::chrono::seconds(request_timeout_seconds_));
+    }
 
     // Remove from pending requests map
     {
