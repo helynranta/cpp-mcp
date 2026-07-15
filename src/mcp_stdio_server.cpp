@@ -144,6 +144,10 @@ void stdio_server::clear_session_state() {
     protocol_.clear_session_state(session_id);
 }
 
+std::optional<json> stdio_server::current_request_id() const {
+    return protocol_.current_request_id();
+}
+
 void stdio_server::write_message(const json& message) {
     std::lock_guard<std::mutex> lock(output_mutex_);
     *config_.output << message.dump() << '\n';

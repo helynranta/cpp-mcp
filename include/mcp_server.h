@@ -457,6 +457,9 @@ public:
      */
     std::optional<json> process_jsonrpc(const json& message, const std::string& session_id);
 
+    /** Return the request ID currently executing on this thread. Example: JSON-RPC ID `42` inside a tool handler. */
+    [[nodiscard]] std::optional<json> current_request_id() const;
+
     /** Route server-initiated messages through a non-HTTP transport. Example: stdio writes the JSON to stdout. */
     void set_outbound_message_handler(outbound_message_handler handler);
 

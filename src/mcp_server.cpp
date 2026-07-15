@@ -13,6 +13,20 @@
 namespace mcp {
 
 namespace {
+thread_local std::optional<json> executing_request_id;
+
+struct executing_request_scope {
+    explicit executing_request_scope(json request_id) : previous(std::move(executing_request_id)) {
+        executing_request_id = std::move(request_id);
+    }
+
+    ~executing_request_scope() { executing_request_id = std::move(previous); }
+
+    std::optional<json> previous;
+};
+} // namespace
+
+namespace {
 bool interruptible_sleep(const std::stop_token& stoken, std::chrono::milliseconds duration) {
     constexpr auto kStopCheckInterval = std::chrono::milliseconds(
         100); // Balance shutdown responsiveness and CPU overhead
@@ -1723,6 +1737,7 @@ json server::process_request(const request& req, const std::string& session_id) 
         if (handler) {
             // Call handler
             LOG_INFO("Calling method handler: ", req.method);
+            const executing_request_scope request_scope{req.id};
             json result = handler(req.params, session_id);
 
             // Create success response
@@ -2095,6 +2110,10 @@ std::optional<json> server::process_jsonrpc(const json& message, const std::stri
         return std::nullopt;
     }
     return result;
+}
+
+std::optional<json> server::current_request_id() const {
+    return executing_request_id;
 }
 
 void server::set_outbound_message_handler(outbound_message_handler handler) {

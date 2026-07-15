@@ -60,6 +60,7 @@ BOOST_AUTO_TEST_CASE(stdio_cancellation_notification_interrupts_a_running_tool_c
     bool cancelled = false;
     std::atomic_bool tool_finished = false;
     std::atomic_bool interrupted_before_completion = false;
+    std::atomic_bool request_id_available_to_handler = false;
     server.set_cancellation_handler([&](const json& request_id, const std::string& reason, const std::string&) {
         BOOST_CHECK_EQUAL(request_id, 2);
         BOOST_CHECK_EQUAL(reason, "client stopped waiting");
@@ -72,6 +73,8 @@ BOOST_AUTO_TEST_CASE(stdio_cancellation_notification_interrupts_a_running_tool_c
     });
     server.register_tool(mcp::tool_builder("wait").with_description("Wait until cancelled").build(),
                          [&](const json&, const std::string&) -> json {
+                             const auto request_id = server.current_request_id();
+                             request_id_available_to_handler.store(request_id && *request_id == 2);
                              std::unique_lock lock(cancellation_mutex);
                              cancellation_condition.wait_for(lock, std::chrono::milliseconds(250),
                                                              [&] { return cancelled; });
@@ -82,6 +85,7 @@ BOOST_AUTO_TEST_CASE(stdio_cancellation_notification_interrupts_a_running_tool_c
     BOOST_REQUIRE(server.start());
 
     BOOST_CHECK(interrupted_before_completion.load());
+    BOOST_CHECK(request_id_available_to_handler.load());
     const auto messages = parse_lines(output.str());
     BOOST_REQUIRE_EQUAL(messages.size(), 2u);
     BOOST_CHECK_EQUAL(messages[0].at("id"), 1);

@@ -47,6 +47,8 @@ public:
     void set_session_state(const json& state);
     json get_session_state() const;
     void clear_session_state();
+    /** Return the request ID currently executing on this thread. Example: JSON-RPC ID `42` inside a tool handler. */
+    [[nodiscard]] std::optional<json> current_request_id() const;
 
 private:
     static constexpr auto session_id = "stdio";
