@@ -185,6 +185,54 @@ BOOST_AUTO_TEST_CASE(stdio_progress_notifications_are_emitted_during_a_tool_call
     BOOST_CHECK_EQUAL(messages[1].at("params").at("progress"), 1.0);
 }
 
+BOOST_AUTO_TEST_CASE(stdio_confirmation_handler_guards_tools_that_require_confirmation) {
+    std::ostringstream input_text;
+    input_text << json{{"jsonrpc", "2.0"},
+                       {"id", 1},
+                       {"method", "initialize"},
+                       {"params",
+                        {{"protocolVersion", "2025-11-25"},
+                         {"capabilities", json::object()},
+                         {"clientInfo", {{"name", "stdio-test"}, {"version", "1.0"}}}}}}
+                      .dump()
+               << '\n';
+    input_text << json{{"jsonrpc", "2.0"}, {"method", "notifications/initialized"}}.dump() << '\n';
+    input_text << json{{"jsonrpc", "2.0"},
+                       {"id", 2},
+                       {"method", "tools/call"},
+                       {"params", {{"name", "destroy"}, {"arguments", json::object()}}}}
+                      .dump()
+               << '\n';
+
+    std::istringstream input(input_text.str());
+    std::ostringstream output;
+    std::ostringstream errors;
+    mcp::stdio_server server({.input = &input, .output = &output, .error = &errors});
+    std::atomic_bool confirmation_requested = false;
+    std::atomic_bool tool_executed = false;
+    server.set_tool_confirmation_handler([&](const std::string& name, const json&, const std::string&) {
+        confirmation_requested.store(name == "destroy");
+        return false;
+    });
+    server.register_tool(mcp::tool_builder("destroy")
+                             .with_description("Destroy test state")
+                             .with_destructive(true)
+                             .with_confirmation_required(true)
+                             .build(),
+                         [&](const json&, const std::string&) -> json {
+                             tool_executed.store(true);
+                             return json{{"content", json::array()}};
+                         });
+
+    BOOST_REQUIRE(server.start());
+
+    BOOST_CHECK(confirmation_requested.load());
+    BOOST_CHECK(!tool_executed.load());
+    const auto messages = parse_lines(output.str());
+    BOOST_REQUIRE_EQUAL(messages.size(), 2u);
+    BOOST_CHECK(messages[1].at("result").at("isError").get<bool>());
+}
+
 BOOST_AUTO_TEST_CASE(stdio_server_stays_available_for_a_complete_client_session_until_input_eof) {
     std::ostringstream input_text;
     input_text << json{{"jsonrpc", "2.0"},

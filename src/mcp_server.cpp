@@ -591,6 +591,7 @@ void server::set_cancellation_handler(cancellation_handler handler) {
 void server::set_tool_confirmation_handler(tool_confirmation_handler handler) {
     std::lock_guard<std::mutex> lock(mutex_);
     tool_confirmation_handler_ = handler;
+    enable_tool_confirmation_ = static_cast<bool>(tool_confirmation_handler_);
 }
 
 bool server::client_supports_elicitation(const std::string& session_id) const {
