@@ -69,8 +69,8 @@ endif()
 
 # Add test directory
 if(MCP_BUILD_TESTS)
-    if(NOT MCP_BUILD_SERVER OR NOT MCP_BUILD_CLIENT)
-        message(FATAL_ERROR "MCP_BUILD_TESTS requires both MCP_BUILD_SERVER=ON and MCP_BUILD_CLIENT=ON")
+    if(NOT MCP_BUILD_SERVER)
+        message(FATAL_ERROR "MCP_BUILD_TESTS requires MCP_BUILD_SERVER=ON")
     endif()
     enable_testing()
     add_subdirectory(test)

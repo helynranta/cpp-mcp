@@ -462,6 +462,27 @@ void server::register_tool(const tool& tool, tool_handler handler) {
     }
 }
 
+bool server::unregister_tool(const std::string& name) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return tools_.erase(name) != 0;
+}
+
+void server::notify_tool_list_changed() {
+    std::vector<std::string> ready_sessions;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (const auto& [session_id, state] : session_lifecycle_) {
+            if (state == lifecycle_state::ready || state == lifecycle_state::initializing) {
+                ready_sessions.push_back(session_id);
+            }
+        }
+    }
+    const auto notification = request::create_notification("tools/list_changed").to_json();
+    for (const auto& session_id : ready_sessions) {
+        send_jsonrpc(session_id, notification);
+    }
+}
+
 void server::register_session_cleanup(const std::string& key, session_cleanup_handler handler) {
     std::lock_guard<std::mutex> lock(mutex_);
     session_cleanup_handler_[key] = handler;
@@ -1748,6 +1769,16 @@ void server::send_jsonrpc(const std::string& session_id, const json& message) {
         return;
     }
 
+    outbound_message_handler outbound;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        outbound = outbound_message_handler_;
+    }
+    if (outbound) {
+        outbound(session_id, message);
+        return;
+    }
+
     // Get session dispatcher
     std::shared_ptr<event_dispatcher> dispatcher;
     {
@@ -1970,6 +2001,40 @@ json server::get_session_state(const std::string& session_id) const {
 void server::clear_session_state(const std::string& session_id) {
     std::lock_guard<std::mutex> lock(mutex_);
     session_state_.erase(session_id);
+}
+
+std::optional<json> server::process_jsonrpc(const json& message, const std::string& session_id) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (outbound_message_handler_ && session_dispatchers_.find(session_id) == session_dispatchers_.end()) {
+            // Non-HTTP transports still use the shared lifecycle/session state. The
+            // dispatcher is a session-presence marker; outbound delivery uses the
+            // configured transport callback instead of its SSE queue.
+            session_dispatchers_[session_id] = std::make_shared<event_dispatcher>();
+            session_lifecycle_[session_id] = lifecycle_state::uninitialized;
+        }
+    }
+    std::string validation_error;
+    if (!validate_request_message(message, validation_error)) {
+        const auto id = message.is_object() && message.contains("id") ? message["id"] : json(nullptr);
+        return response::create_error(id, error_code::invalid_request, validation_error).to_json();
+    }
+
+    request parsed{};
+    parsed.jsonrpc = "2.0";
+    parsed.id = message.contains("id") ? message["id"] : json(nullptr);
+    parsed.method = message.at("method").get<std::string>();
+    parsed.params = message.contains("params") ? message["params"] : json::object();
+    auto result = process_request(parsed, session_id);
+    if (parsed.is_notification()) {
+        return std::nullopt;
+    }
+    return result;
+}
+
+void server::set_outbound_message_handler(outbound_message_handler handler) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    outbound_message_handler_ = std::move(handler);
 }
 
 void server::close_session(const std::string& session_id) {

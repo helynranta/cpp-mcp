@@ -55,6 +55,7 @@ using auth_handler = std::function<bool(const std::string&, const std::string&)>
 using session_cleanup_handler = std::function<void(const std::string&)>;
 using cancellation_handler =
     std::function<void(const json& request_id, const std::string& reason, const std::string& session_id)>;
+using outbound_message_handler = std::function<void(const std::string& session_id, const json& message)>;
 
 /**
  * @brief Tool confirmation handler type
@@ -333,6 +334,12 @@ public:
      */
     void register_tool(const tool& tool, tool_handler handler);
 
+    /** Remove a registered tool by name. Example: `unregister_tool("plugin.paint")`. */
+    bool unregister_tool(const std::string& name);
+
+    /** Notify ready clients that `tools/list` changed. Example: after replacing a plugin catalog. */
+    void notify_tool_list_changed();
+
     /**
      * @brief Register a session cleanup handler
      * @param key Tool or resource name to be cleaned up
@@ -433,6 +440,15 @@ public:
      */
     void clear_session_state(const std::string& session_id);
 
+    /**
+     * Process one transport-decoded JSON-RPC message. Example: a stdio transport passes one parsed input line.
+     * Notifications return no response.
+     */
+    std::optional<json> process_jsonrpc(const json& message, const std::string& session_id);
+
+    /** Route server-initiated messages through a non-HTTP transport. Example: stdio writes the JSON to stdout. */
+    void set_outbound_message_handler(outbound_message_handler handler);
+
 private:
     std::string host_;
     int port_;
@@ -485,6 +501,7 @@ private:
 
     // Tool confirmation handler (MCP 2025-03-26 safety)
     tool_confirmation_handler tool_confirmation_handler_;
+    outbound_message_handler outbound_message_handler_;
 
     // Pending elicitation requests (MCP 2025-06-18)
     // Maps request ID to promise for async elicitation responses

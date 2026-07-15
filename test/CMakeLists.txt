@@ -56,9 +56,13 @@ add_mcp_test(boost_integration_test boost_integration_test.cpp)
 add_mcp_test(beast_sse_proof_of_concept beast_sse_proof_of_concept.cpp)
 add_mcp_test(http_abstraction_test http_abstraction_test.cpp)
 add_mcp_test(beast_adapter_test beast_adapter_test.cpp)
-add_mcp_test(sse_client_beast_test sse_client_beast_test.cpp)
+if(MCP_BUILD_CLIENT)
+    add_mcp_test(sse_client_beast_test sse_client_beast_test.cpp)
+endif()
 add_mcp_test(session_management_test session_management_test.cpp)
-add_mcp_test(streamable_http_client_test streamable_http_client_test.cpp)
+if(MCP_BUILD_CLIENT)
+    add_mcp_test(streamable_http_client_test streamable_http_client_test.cpp)
+endif()
 add_mcp_test(batch_rejection_test batch_rejection_test.cpp)
 add_mcp_test(protocol_version_header_test protocol_version_header_test.cpp)
 add_mcp_test(structured_tool_output_test structured_tool_output_test.cpp)
@@ -68,6 +72,7 @@ add_mcp_test(completion_test completion_test.cpp)
 add_mcp_test(error_result_compliance_test error_result_compliance_test.cpp)
 add_mcp_test(structured_tool_handler_test structured_tool_handler_test.cpp)
 add_mcp_test(protocol_negotiation_test protocol_negotiation_test.cpp)
+add_mcp_test(stdio_server_test stdio_server_test.cpp)
 
 # Add custom target to run all tests in parallel
 add_custom_target(run_tests
@@ -83,9 +88,7 @@ add_custom_target(run_tests
         beast_sse_proof_of_concept
         http_abstraction_test
         beast_adapter_test
-        sse_client_beast_test
         session_management_test
-        streamable_http_client_test
         batch_rejection_test
         protocol_version_header_test
         structured_tool_output_test
@@ -95,4 +98,9 @@ add_custom_target(run_tests
         error_result_compliance_test
         structured_tool_handler_test
         protocol_negotiation_test
+        stdio_server_test
 )
+
+if(MCP_BUILD_CLIENT)
+    add_dependencies(run_tests sse_client_beast_test streamable_http_client_test)
+endif()

@@ -16,6 +16,8 @@ set(MCP_CORE_SOURCES
 set(MCP_SERVER_SOURCES
     mcp_server.cpp
     ../include/mcp_server.h
+    mcp_stdio_server.cpp
+    ../include/mcp_stdio_server.h
 )
 
 set(MCP_CLIENT_SOURCES
