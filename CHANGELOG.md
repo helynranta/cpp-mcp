@@ -15,6 +15,7 @@ This project adheres to the [Model Context Protocol (MCP) specification](https:/
 
 - Installing a tool confirmation handler now activates confirmation for tools that require it.
 - A request timeout of zero now waits indefinitely for elicitation responses as documented.
+- Tool safety annotations now use the standard `readOnlyHint` and `destructiveHint` keys.
 
 ## [2025.11.25] - 2026-02-17
 

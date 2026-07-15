@@ -211,7 +211,7 @@ BOOST_AUTO_TEST_CASE(BuilderMethodChainingWorks) {
     BOOST_CHECK_EQUAL(tool_json["title"].get<std::string>(), "Chained Tool");
     BOOST_CHECK(tool_json.contains("outputSchema"));
     BOOST_CHECK(tool_json.contains("annotations"));
-    BOOST_CHECK_EQUAL(tool_json["annotations"]["readOnly"].get<bool>(), true);
+    BOOST_CHECK_EQUAL(tool_json["annotations"]["readOnlyHint"].get<bool>(), true);
 }
 
 // Test 10: Empty output schema is valid

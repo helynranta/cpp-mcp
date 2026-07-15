@@ -69,11 +69,11 @@ struct tool {
             json annotations = json::object();
 
             if (has_read_only) {
-                annotations["readOnly"] = read_only_value;
+                annotations["readOnlyHint"] = read_only_value;
             }
 
             if (has_destructive) {
-                annotations["destructive"] = destructive_value;
+                annotations["destructiveHint"] = destructive_value;
             }
 
             if (has_cost) {
@@ -163,7 +163,7 @@ public:
                                     bool required = true);
 
     /**
-     * @brief Set the readOnly annotation
+     * @brief Set the MCP readOnlyHint annotation
      * @param value Whether the tool is read-only (doesn't modify state)
      * @return Reference to this builder
      */

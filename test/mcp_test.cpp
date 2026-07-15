@@ -749,8 +749,9 @@ BOOST_AUTO_TEST_CASE(ReadOnlyAnnotation) {
     json tool_json = read_only_tool.to_json();
 
     BOOST_CHECK(tool_json.contains("annotations"));
-    BOOST_CHECK(tool_json["annotations"].contains("readOnly"));
-    BOOST_CHECK(tool_json["annotations"]["readOnly"].get<bool>());
+    BOOST_CHECK(tool_json["annotations"].contains("readOnlyHint"));
+    BOOST_CHECK(tool_json["annotations"]["readOnlyHint"].get<bool>());
+    BOOST_CHECK(!tool_json["annotations"].contains("readOnly"));
 }
 
 // Test tool with destructive annotation
@@ -764,8 +765,9 @@ BOOST_AUTO_TEST_CASE(DestructiveAnnotation) {
     json tool_json = destructive_tool.to_json();
 
     BOOST_CHECK(tool_json.contains("annotations"));
-    BOOST_CHECK(tool_json["annotations"].contains("destructive"));
-    BOOST_CHECK(tool_json["annotations"]["destructive"].get<bool>());
+    BOOST_CHECK(tool_json["annotations"].contains("destructiveHint"));
+    BOOST_CHECK(tool_json["annotations"]["destructiveHint"].get<bool>());
+    BOOST_CHECK(!tool_json["annotations"].contains("destructive"));
 }
 
 // Test tool with cost metadata
@@ -812,8 +814,8 @@ BOOST_AUTO_TEST_CASE(MultipleAnnotations) {
     json tool_json = multi_tool.to_json();
 
     BOOST_CHECK(tool_json.contains("annotations"));
-    BOOST_CHECK(!tool_json["annotations"]["readOnly"].get<bool>());
-    BOOST_CHECK(tool_json["annotations"]["destructive"].get<bool>());
+    BOOST_CHECK(!tool_json["annotations"]["readOnlyHint"].get<bool>());
+    BOOST_CHECK(tool_json["annotations"]["destructiveHint"].get<bool>());
     BOOST_CHECK_EQUAL(tool_json["annotations"]["cost"].get<double>(), 0.10);
     BOOST_CHECK_EQUAL(tool_json["annotations"]["latency"].get<int>(), 3000);
 }
