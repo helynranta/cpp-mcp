@@ -74,6 +74,19 @@ add_mcp_test(structured_tool_handler_test structured_tool_handler_test.cpp)
 add_mcp_test(protocol_negotiation_test protocol_negotiation_test.cpp)
 add_mcp_test(stdio_server_test stdio_server_test.cpp)
 
+if(NOT TARGET stdio_server_example)
+    add_executable(stdio_server_example ../examples/stdio_server/stdio_server_example.cpp)
+    target_link_libraries(stdio_server_example PRIVATE mcp)
+endif()
+
+add_test(
+    NAME stdio_server_subprocess_test
+    COMMAND ${CMAKE_COMMAND}
+        -DSTDIO_SERVER_EXAMPLE=$<TARGET_FILE:stdio_server_example>
+        -DREQUEST_FIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/stdio_server_session.jsonl
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/stdio_server_subprocess_test.cmake
+)
+
 # Add custom target to run all tests in parallel
 add_custom_target(run_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --parallel --verbose

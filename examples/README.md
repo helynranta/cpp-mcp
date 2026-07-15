@@ -1,6 +1,6 @@
 # Examples
 
-All examples use the Boost.Beast-based HTTP transport. Build with CMake presets (e.g., `cmake --preset dev-release && cmake --build --preset dev-release`).
+Examples cover HTTP and stdio transports. Build with CMake presets (e.g., `cmake --preset dev-release && cmake --build --preset dev-release`).
 
 | Example | Description |
 | :------ | :---------- |
@@ -8,6 +8,7 @@ All examples use the Boost.Beast-based HTTP transport. Build with CMake presets 
 | [sse_client](sse_client/) | SSE (legacy) client connecting to an MCP server |
 | [streamable_http_client](streamable_http_client/) | Streamable HTTP (modern) client for MCP 2025-06-18+ |
 | [stdio_client](stdio_client/) | Stdio transport client launching a local server process |
+| [stdio_server](stdio_server/) | Client-spawned stdio server with clean EOF shutdown |
 | [http](http/) | Low-level Boost.Beast HTTP client/server demo |
 | [agent](agent/) | AI agent integrating MCP tools with an external LLM API |
 | [structured_tool](structured_tool/) | Structured tool output with JSON Schema (MCP 2025-06-18) |

@@ -48,6 +48,7 @@ For the full specification and protocol details, see the official MCP resources 
   - Support for both prompt arguments and resource template variables
 - **Extensible Architecture**: Easy to extend with new resource types and tools
 - **Multi-Transport Support**: Supports HTTP and standard input/output (stdio) communication methods
+- **Client-Spawned Stdio Servers**: `mcp::stdio_server` provides one implicit session over newline-delimited JSON-RPC
 
 ## C++ Modules and Platform Notes
 
@@ -730,6 +731,7 @@ All examples use the Boost.Beast-based HTTP transport. Each example has its own 
 | [sse_client](examples/sse_client/) | SSE (legacy) client connecting to an MCP server |
 | [streamable_http_client](examples/streamable_http_client/) | Streamable HTTP (modern) client for MCP 2025-06-18+ |
 | [stdio_client](examples/stdio_client/) | Stdio transport client launching a local server process |
+| [stdio_server](examples/stdio_server/) | Stdio MCP server exposing an echo tool until stdin EOF |
 | [http](examples/http/) | Low-level Boost.Beast HTTP client/server demo |
 | [agent](examples/agent/) | AI agent integrating MCP tools with an external LLM API |
 | [structured_tool](examples/structured_tool/) | Structured tool output with JSON Schema (MCP 2025-06-18) |
@@ -1660,4 +1662,3 @@ See workflow files for complete CI configuration.
 ## License
 
 This framework is provided under the MIT license. For details, please see the LICENSE file.
-

@@ -17,6 +17,7 @@ if(MCP_BUILD_CLIENT)
 endif()
 
 if(MCP_BUILD_SERVER)
+    add_mcp_example(stdio_server_example stdio_server/stdio_server_example.cpp)
     add_mcp_example(server_example server/server_example.cpp)
     add_mcp_example(session_state_example session_state/session_state_example.cpp)
     add_mcp_example(structured_tool_example structured_tool/structured_tool_example.cpp)

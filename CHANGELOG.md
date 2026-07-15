@@ -4,6 +4,18 @@ All notable changes to the cpp-mcp implementation are documented in this file.
 
 This project adheres to the [Model Context Protocol (MCP) specification](https://modelcontextprotocol.io/specification/latest/).
 
+## Unreleased
+
+### Added
+
+- `mcp::stdio_server` with lifecycle, tools, structured output, notifications, completion, cancellation, progress, and elicitation support.
+- A client-spawned stdio server example and subprocess initialization/list/call/EOF regression.
+
+### Fixed
+
+- Installing a tool confirmation handler now activates confirmation for tools that require it.
+- A request timeout of zero now waits indefinitely for elicitation responses as documented.
+
 ## [2025.11.25] - 2026-02-17
 
 ### Changed
