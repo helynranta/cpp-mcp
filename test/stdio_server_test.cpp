@@ -2,6 +2,9 @@
 
 #include <atomic>
 #include <boost/test/unit_test.hpp>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -23,6 +26,67 @@ auto parse_lines(const std::string& output) -> std::vector<json> {
 } // namespace
 
 BOOST_AUTO_TEST_SUITE(StdioServerTests)
+
+BOOST_AUTO_TEST_CASE(stdio_cancellation_notification_interrupts_a_running_tool_call) {
+    std::ostringstream input_text;
+    input_text << json{{"jsonrpc", "2.0"},
+                       {"id", 1},
+                       {"method", "initialize"},
+                       {"params",
+                        {{"protocolVersion", "2025-11-25"},
+                         {"capabilities", json::object()},
+                         {"clientInfo", {{"name", "stdio-test"}, {"version", "1.0"}}}}}}
+                      .dump()
+               << '\n';
+    input_text << json{{"jsonrpc", "2.0"}, {"method", "notifications/initialized"}}.dump() << '\n';
+    input_text << json{{"jsonrpc", "2.0"},
+                       {"id", 2},
+                       {"method", "tools/call"},
+                       {"params", {{"name", "wait"}, {"arguments", json::object()}}}}
+                      .dump()
+               << '\n';
+    input_text << json{{"jsonrpc", "2.0"},
+                       {"method", "notifications/cancelled"},
+                       {"params", {{"requestId", 2}, {"reason", "client stopped waiting"}}}}
+                      .dump()
+               << '\n';
+
+    std::istringstream input(input_text.str());
+    std::ostringstream output;
+    std::ostringstream errors;
+    mcp::stdio_server server({.input = &input, .output = &output, .error = &errors});
+    std::mutex cancellation_mutex;
+    std::condition_variable cancellation_condition;
+    bool cancelled = false;
+    std::atomic_bool tool_finished = false;
+    std::atomic_bool interrupted_before_completion = false;
+    server.set_cancellation_handler([&](const json& request_id, const std::string& reason, const std::string&) {
+        BOOST_CHECK_EQUAL(request_id, 2);
+        BOOST_CHECK_EQUAL(reason, "client stopped waiting");
+        interrupted_before_completion.store(!tool_finished.load());
+        {
+            std::lock_guard lock(cancellation_mutex);
+            cancelled = true;
+        }
+        cancellation_condition.notify_all();
+    });
+    server.register_tool(mcp::tool_builder("wait").with_description("Wait until cancelled").build(),
+                         [&](const json&, const std::string&) -> json {
+                             std::unique_lock lock(cancellation_mutex);
+                             cancellation_condition.wait_for(lock, std::chrono::milliseconds(250),
+                                                             [&] { return cancelled; });
+                             tool_finished.store(true);
+                             return json{{"content", json::array()}};
+                         });
+
+    BOOST_REQUIRE(server.start());
+
+    BOOST_CHECK(interrupted_before_completion.load());
+    const auto messages = parse_lines(output.str());
+    BOOST_REQUIRE_EQUAL(messages.size(), 2u);
+    BOOST_CHECK_EQUAL(messages[0].at("id"), 1);
+    BOOST_CHECK_EQUAL(messages[1].at("id"), 2);
+}
 
 BOOST_AUTO_TEST_CASE(stdio_server_stays_available_for_a_complete_client_session_until_input_eof) {
     std::ostringstream input_text;

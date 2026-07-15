@@ -1,5 +1,9 @@
 #include "mcp_stdio_server.h"
 
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
 #include <utility>
 
 namespace mcp {
@@ -22,14 +26,51 @@ bool stdio_server::start() {
         return false;
     }
 
+    std::mutex request_mutex;
+    std::condition_variable request_condition;
+    std::deque<json> requests;
+    bool input_closed = false;
+    std::jthread request_worker([&] {
+        while (true) {
+            json message;
+            {
+                std::unique_lock lock(request_mutex);
+                request_condition.wait(lock, [&] { return input_closed || !requests.empty(); });
+                if (requests.empty()) {
+                    return;
+                }
+                message = std::move(requests.front());
+                requests.pop_front();
+            }
+
+            try {
+                if (const auto response = protocol_.process_jsonrpc(message, session_id)) {
+                    write_message(*response);
+                }
+            } catch (const std::exception& exception) {
+                *config_.error << "stdio server error: " << exception.what() << '\n';
+            }
+        }
+    });
+
     for (std::string line; running_.load() && std::getline(*config_.input, line);) {
         if (line.empty()) {
             continue;
         }
         try {
             const auto message = json::parse(line);
-            if (const auto response = protocol_.process_jsonrpc(message, session_id)) {
-                write_message(*response);
+            const auto method = message.value("method", std::string{});
+            const auto is_notification = !message.contains("id");
+            if (is_notification || method == "initialize") {
+                if (const auto response = protocol_.process_jsonrpc(message, session_id)) {
+                    write_message(*response);
+                }
+            } else {
+                {
+                    std::lock_guard lock(request_mutex);
+                    requests.push_back(message);
+                }
+                request_condition.notify_one();
             }
         } catch (const json::exception& exception) {
             write_message(response::create_error(nullptr, error_code::parse_error, exception.what()).to_json());
@@ -37,6 +78,12 @@ bool stdio_server::start() {
             *config_.error << "stdio server error: " << exception.what() << '\n';
         }
     }
+    {
+        std::lock_guard lock(request_mutex);
+        input_closed = true;
+    }
+    request_condition.notify_one();
+    request_worker.join();
     running_.store(false);
     return true;
 }
