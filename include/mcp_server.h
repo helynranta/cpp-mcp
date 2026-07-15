@@ -50,6 +50,10 @@ enum class lifecycle_state {
 
 using method_handler = std::function<json(const json&, const std::string&)>;
 using tool_handler = method_handler;
+struct tool_registration {
+    tool definition;
+    tool_handler handler;
+};
 using notification_handler = std::function<void(const json&, const std::string&)>;
 using auth_handler = std::function<bool(const std::string&, const std::string&)>;
 using session_cleanup_handler = std::function<void(const std::string&)>;
@@ -337,6 +341,13 @@ public:
     /** Remove a registered tool by name. Example: `unregister_tool("plugin.paint")`. */
     bool unregister_tool(const std::string& name);
 
+    /**
+     * Atomically replace every registered tool and handler.
+     * @param catalog Complete replacement catalog; for example `{{paint_tool, paint_handler}}`.
+     * @return true when the model-visible catalog changed and clients were notified.
+     */
+    bool replace_tools(const std::vector<tool_registration>& catalog);
+
     /** Notify ready clients that `tools/list` changed. Example: after replacing a plugin catalog. */
     void notify_tool_list_changed();
 
@@ -492,6 +503,8 @@ private:
 
     // Tools map (name -> handler)
     std::map<std::string, std::pair<tool, tool_handler>> tools_;
+
+    void ensure_tool_methods_registered_locked();
 
     // Authentication handler
     auth_handler auth_handler_;

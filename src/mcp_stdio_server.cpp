@@ -63,17 +63,14 @@ void stdio_server::register_notification(const std::string& method, notification
 
 void stdio_server::register_tool(const tool& value, tool_handler handler) {
     protocol_.register_tool(value, std::move(handler));
-    if (running_.load()) {
-        protocol_.notify_tool_list_changed();
-    }
 }
 
 bool stdio_server::unregister_tool(const std::string& name) {
-    const auto removed = protocol_.unregister_tool(name);
-    if (removed && running_.load()) {
-        protocol_.notify_tool_list_changed();
-    }
-    return removed;
+    return protocol_.unregister_tool(name);
+}
+
+bool stdio_server::replace_tools(const std::vector<tool_registration>& catalog) {
+    return protocol_.replace_tools(catalog);
 }
 
 std::vector<tool> stdio_server::get_tools() const {

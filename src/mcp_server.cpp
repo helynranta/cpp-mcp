@@ -370,15 +370,30 @@ void server::register_resource(const std::string& path, std::shared_ptr<resource
 }
 
 void server::register_tool(const tool& tool, tool_handler handler) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    tools_[tool.name] = std::make_pair(tool, handler);
+    bool changed = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const auto existing = tools_.find(tool.name);
+        changed = existing == tools_.end() || existing->second.first.to_json() != tool.to_json() ||
+                  existing->second.first.requires_confirmation != tool.requires_confirmation;
+        tools_[tool.name] = std::make_pair(tool, std::move(handler));
+        ensure_tool_methods_registered_locked();
+    }
+    if (changed) {
+        notify_tool_list_changed();
+    }
+}
 
+void server::ensure_tool_methods_registered_locked() {
     // Register methods for tool listing and calling
     if (method_handlers_.find("tools/list") == method_handlers_.end()) {
-        method_handlers_["tools/list"] = [this](const json& params, const std::string& session_id) -> json {
+        method_handlers_["tools/list"] = [this](const json&, const std::string&) -> json {
             json tools_json = json::array();
-            for (const auto& [name, tool_pair] : tools_) {
-                tools_json.push_back(tool_pair.first.to_json());
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                for (const auto& [name, tool_pair] : tools_) {
+                    tools_json.push_back(tool_pair.first.to_json());
+                }
             }
             return json{{"tools", tools_json}};
         };
@@ -391,12 +406,21 @@ void server::register_tool(const tool& tool, tool_handler handler) {
             }
 
             std::string tool_name = params["name"];
-            auto it = tools_.find(tool_name);
-            if (it == tools_.end()) {
-                throw mcp_exception(error_code::invalid_params, "Tool not found: " + tool_name);
+            tool tool_def;
+            tool_handler handler;
+            tool_confirmation_handler confirmation_handler;
+            bool confirmation_enabled = false;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                const auto it = tools_.find(tool_name);
+                if (it == tools_.end()) {
+                    throw mcp_exception(error_code::invalid_params, "Tool not found: " + tool_name);
+                }
+                tool_def = it->second.first;
+                handler = it->second.second;
+                confirmation_handler = tool_confirmation_handler_;
+                confirmation_enabled = enable_tool_confirmation_;
             }
-
-            const mcp::tool& tool_def = it->second.first;
 
             json tool_args = params.contains("arguments") ? params["arguments"] : json::object();
 
@@ -417,9 +441,9 @@ void server::register_tool(const tool& tool, tool_handler handler) {
 
             try {
                 // Check if tool requires confirmation (MCP 2025-03-26 safety)
-                if (enable_tool_confirmation_ && tool_def.requires_confirmation) {
-                    if (tool_confirmation_handler_) {
-                        bool confirmed = tool_confirmation_handler_(tool_name, tool_args, session_id);
+                if (confirmation_enabled && tool_def.requires_confirmation) {
+                    if (confirmation_handler) {
+                        bool confirmed = confirmation_handler(tool_name, tool_args, session_id);
                         if (!confirmed) {
                             throw mcp_exception(error_code::invalid_request,
                                                 "Tool execution denied: user confirmation required but not granted");
@@ -433,7 +457,7 @@ void server::register_tool(const tool& tool, tool_handler handler) {
                 }
 
                 // Execute tool handler
-                json handler_result = it->second.second(tool_args, session_id);
+                json handler_result = handler(tool_args, session_id);
 
                 // MCP 2025-06-18: Support both formats for backward compatibility
                 // 1. New format: handler returns object with "content" and optional "structuredContent"
@@ -463,8 +487,49 @@ void server::register_tool(const tool& tool, tool_handler handler) {
 }
 
 bool server::unregister_tool(const std::string& name) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return tools_.erase(name) != 0;
+    bool removed = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        removed = tools_.erase(name) != 0;
+    }
+    if (removed) {
+        notify_tool_list_changed();
+    }
+    return removed;
+}
+
+bool server::replace_tools(const std::vector<tool_registration>& catalog) {
+    std::map<std::string, std::pair<tool, tool_handler>> replacement;
+    for (const auto& registration : catalog) {
+        const auto [_, inserted] = replacement.emplace(registration.definition.name,
+                                                       std::make_pair(registration.definition, registration.handler));
+        if (!inserted) {
+            throw std::invalid_argument("Duplicate tool in replacement catalog: " + registration.definition.name);
+        }
+    }
+
+    bool changed = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        changed = tools_.size() != replacement.size();
+        if (!changed) {
+            auto current = tools_.begin();
+            auto next = replacement.begin();
+            for (; current != tools_.end(); ++current, ++next) {
+                if (current->first != next->first || current->second.first.to_json() != next->second.first.to_json() ||
+                    current->second.first.requires_confirmation != next->second.first.requires_confirmation) {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        tools_.swap(replacement);
+        ensure_tool_methods_registered_locked();
+    }
+    if (changed) {
+        notify_tool_list_changed();
+    }
+    return changed;
 }
 
 void server::notify_tool_list_changed() {

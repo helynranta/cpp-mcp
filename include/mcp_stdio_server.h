@@ -39,6 +39,8 @@ public:
     void register_notification(const std::string& method, notification_handler handler);
     void register_tool(const tool& value, tool_handler handler);
     bool unregister_tool(const std::string& name);
+    /** Atomically replace the catalog. Example: `replace_tools({{paint_tool, paint_handler}})`. */
+    bool replace_tools(const std::vector<tool_registration>& catalog);
     std::vector<tool> get_tools() const;
     void set_cancellation_handler(cancellation_handler handler);
     void set_tool_confirmation_handler(tool_confirmation_handler handler);
